@@ -32,6 +32,13 @@
 # along with Prism.  If not, see <https://www.gnu.org/licenses/>.
 
 
+#
+#
+#               #####           TODO
+#
+#
+
+
 import os
 import sys
 import platform
@@ -49,7 +56,6 @@ qapp = QApplication.instance()
 if qapp is None:
     qapp = QApplication(sys.argv)
 
-# pcore = PrismCore.create(app="Gimp", prismArgs=["splash", "noProjectBrowser"])        #   NEEDED???
 pcore = PrismCore.create(app="Gimp", prismArgs=["noProjectBrowser"])
 
 # if hasattr(pcore.appPlugin, "psApp") or platform.system() == "Darwin":                #   TODO

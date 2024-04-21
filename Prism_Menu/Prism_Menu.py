@@ -85,41 +85,32 @@ elif os.path.exists(os.path.join(prismRoot, "Python39")):
 bridgeScript = os.path.join(pluginPath, "Prism_Bridge.py")
 
 host = "127.0.0.1"
-port = 40404
+port_gimpToPrism = 40404
 
 
-def startScriptServer(mode):
+def startScriptServer():
 
     global server_thread
 
-    if mode == "start":
+    if not isServerRunning():
 
-        if not isServerRunning():
+        print(f"*** Starting Server on {host} {port_gimpToPrism}***")
 
-            print(f"*** Starting Server on {host} {port}***")
+        def startServer():
+            pdb.plug_in_script_fu_server(host, port_gimpToPrism)
 
-            def startServer():
-                pdb.plug_in_script_fu_server(host, port)
+        # Start the server in a separate thread
+        server_thread = threading.Thread(target=startServer)
+        server_thread.start()
 
-            # Start the server in a separate thread
-            server_thread = threading.Thread(target=startServer)
-            server_thread.start()
-
-            # time.sleep(5)                                                       #   TODO
-        else:
-            print("Server is already running")
-
-    elif mode == "stop":
-        if server_thread and server_thread.is_alive():
-            print("*** Stopping Server ***")
-            server_thread.terminate()
-            server_thread.join()  # Wait for the server thread to terminate
+    else:
+        print("Server is already running")
 
         
 def isServerRunning():
     try:
         # Attempt to connect to the server
-        with socket.create_connection((host, port), timeout=1) as sock:
+        with socket.create_connection((host, port_gimpToPrism), timeout=1) as sock:
             return True
     except (ConnectionRefusedError, socket.timeout):
         return False
@@ -128,55 +119,45 @@ def isServerRunning():
 
 def save_version(procedure, run_mode, image, n_drawables, drawables, args, data):
 
-
-    startScriptServer("start")
-
-    # filePath = r"c:\tmp\test.xcf"
-
-    # file = Gio.File.new_for_path(filePath)
-
-    # Save the image in the .xcf file format
-    # pdb.gimp_xcf_save(image, file=file)
-
-    print("**** SAVING VERSION *******")
+    startScriptServer()
     
     subprocess.Popen([prismEXE, bridgeScript, prismRoot, "SaveVersion"])
-
-    # startScriptServer("stop")
-
 
     return procedure.new_return_values(Gimp.PDBStatusType.SUCCESS, GLib.Error())
 
 
 def save_ver_with_comment(procedure, run_mode, image, n_drawables, drawables, args, data):
 
-    print("\n** IN SAVE VER with COMMENT **\n")
-    Gimp.message("** IN SAVE VER with COMMENT **")
+    startScriptServer()
 
+    subprocess.Popen([prismEXE, bridgeScript, prismRoot, "SaveComment"])
 
     return procedure.new_return_values(Gimp.PDBStatusType.SUCCESS, GLib.Error())
 
 
 def project_browser(procedure, run_mode, image, n_drawables, drawables, args, data):
 
-    print("\n** PRINT -- IN PROJECT BROWSER **\n")
-
-    Gimp.message("** MESSAGE -- IN PROJECT BROWSER **")
-
+    startScriptServer()
 
     subprocess.Popen([prismEXE, bridgeScript, prismRoot, "ProjectBrowser"])
-
-
 
     return procedure.new_return_values(Gimp.PDBStatusType.SUCCESS, GLib.Error())
 
 
 def state_manager(procedure, run_mode, image, n_drawables, drawables, args, data):
 
-    print("\n** IN STATE MANAGER **\n")
+    startScriptServer()
 
     subprocess.Popen([prismEXE, bridgeScript, prismRoot, "StateManager"])
 
+    return procedure.new_return_values(Gimp.PDBStatusType.SUCCESS, GLib.Error())
+
+
+
+
+def testProc(procedure, run_mode, image, n_drawables, drawables, args, data):
+
+    print("*** TEST PROCEDURE ***\n\n")
 
     return procedure.new_return_values(Gimp.PDBStatusType.SUCCESS, GLib.Error())
 
@@ -194,7 +175,8 @@ class PrismMenuPlugin (Gimp.PlugIn):
             'python-fu-prism-saveVersion',
             'python-fu-prism-saveVerWithComment',
             'python-fu-prism-projectBrowser',
-            'python-fu-prism-stateManager'
+            'python-fu-prism-stateManager',
+            'python-fu-prism-testProc'
             ]
 
     def do_create_procedure(self, name):
@@ -204,7 +186,8 @@ class PrismMenuPlugin (Gimp.PlugIn):
                                     save_version if name == 'python-fu-prism-saveVersion' else
                                     save_ver_with_comment if name == 'python-fu-prism-saveVerWithComment' else
                                     project_browser if name == 'python-fu-prism-projectBrowser' else
-                                    state_manager,
+                                    state_manager if name == 'python-fu-prism-stateManager' else
+                                    testProc,
                                     None)
         
         procedure.set_sensitivity_mask (Gimp.ProcedureSensitivityMask.NO_IMAGE)
@@ -222,6 +205,8 @@ class PrismMenuPlugin (Gimp.PlugIn):
             procedure.set_menu_label("Project Browser")
         elif name == 'python-fu-prism-stateManager':
             procedure.set_menu_label("State Manager")
+        elif name == 'python-fu-prism-testProc':
+            procedure.set_menu_label("Test Procedure")
             
 
         procedure.set_attribution("Joshua Breckeen",
@@ -231,10 +216,11 @@ class PrismMenuPlugin (Gimp.PlugIn):
         # Top level menu "Prism"
         procedure.add_menu_path ("<Image>/Prism")
 
-        print("********* STARTING PRISM MENU ***********")
 
         return procedure
 
+    print("********* STARTING PRISM MENU ***********")
+    time.sleep(.1)
 
 
 Gimp.main(PrismMenuPlugin.__gtype__, sys.argv)
