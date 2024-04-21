@@ -42,10 +42,10 @@
 
 import sys
 import os
-import subprocess
-import threading
 import time
 import socket
+import json
+from datetime import datetime
 
 import gi
 gi.require_version('Gimp', '3.0')
@@ -56,21 +56,29 @@ from gi.repository import GObject
 from gi.repository import GLib
 from gi.repository import Gio
 
+#   Library to simplify Gimp pdb calls - is included in plugin dir
 from pypdb import pdb
 
-if "PRISM_ROOT" in os.environ:
-    prismRoot = os.environ["PRISM_ROOT"]
-    if not prismRoot:
-        raise Exception("PRISM_ROOT is not set")
-else:
-    prismRoot = r"C:/Prism2"
-
-pluginPath = os.path.dirname(__file__)
+if "PRISM_ROOT" in os.environ:                                                          #   TODO 's
+    prismRoot = os.environ["PRISM_ROOT"]                                                #   Handled SUCCES return
+    if not prismRoot:                                                                   #   Comms dir config
+        raise Exception("PRISM_ROOT is not set")                                        #   Make bi-directional
+else:                                                                                   #   Error handling
+    prismRoot = r"C:/Prism2"                                                            #   add logger
 
 if os.path.exists(os.path.join(prismRoot, "Python311")):
     prismEXE = r"C:\Prism2\Python311\Prism.exe"
 elif os.path.exists(os.path.join(prismRoot, "Python39")):
     prismEXE = r"C:\Prism2\Python39\Prism.exe"
+
+pluginPath = os.path.dirname(__file__)                              #   NEEDED ????
+
+commsDir = os.path.join(prismRoot, "PrismGimpComms")
+
+host = "127.0.0.1"
+port_prismToGimp = 40404
+port_gimpToPrism = 40405                                #   NEEDED?
+
 
 def N_(message): return message
 def _(message): return GLib.dgettext(None, message)
@@ -81,70 +89,218 @@ with Prism Pipeline
 """
 
 
-class PrismFunctions(Gimp.PlugIn):
-    ## Parameter: run-mode ##
-    @GObject.Property(type=Gimp.RunMode,
-                      default=Gimp.RunMode.NONINTERACTIVE,
-                      nick="Run mode", blurb="The run mode")
+### vvvvv For Sending Commands to Prism vvvvv ###
+def createCmdFile(pData):
+
+
+#   pData command Template
+#        pData = {
+#            "command": "saveXCF",
+#            "data":filepath
+#            }
+
+    commOutFile = createCommFileName()
+
+    print("*** commOutFile:  ", commOutFile)
     
-    def run_mode(self):
-        """Read-write integer property."""
-        return self._run_mode
+    # Write the dictionary to the JSON file
+    with open(commOutFile, 'w') as json_file:
+        json.dump(pData, json_file)
 
-    @run_mode.setter
-    def run_mode(self, run_mode):
-        self._run_mode = run_mode
 
-    ## Parameter: filePath ##
-    @GObject.Property(type=str,
-                      nick= _("File Path"),
-                      blurb= _("File Path"))
-    def filePath(self):
-        return self._filePath
+def createCommFileName():
 
-    @filePath.setter
-    def filePath(self, filePath):
-        self._filePath = filePath
+    if not os.path.exists(commsDir):
+        os.makedirs(commsDir)
 
+    outName = "Gimp--Prism_Comm-" + str(getTimeStamp()) + ".json"
+    commOutFile = os.path.join(commsDir, outName)
+
+    return commOutFile
+
+
+def getTimeStamp():            
+
+    current_time = datetime.now().time()
+    timeStamp = current_time.strftime("%H%M%S%f")
+
+    return timeStamp
+
+
+
+def sendCmdToPrism(pData):
+
+    createCmdFile(pData)
+
+
+### ^^^^^ For Sending Commands to Prism ^^^^^ ###
+
+
+### vvvvv For receiving commands and data from Prism vvvvv ###
+def pingFromPrism(procedure, config, data):
+
+    print("*** IN PING ***")
+
+    getCmdFile()
+
+    return procedure.new_return_values(Gimp.PDBStatusType.SUCCESS, GLib.Error())
+
+
+def getCmdFile():
+
+    commands = ["getCurrentFilename", "saveVersion", "exportPNG"]
+
+    files = os.listdir(commsDir)
+
+    for fileName in files:
+        if fileName.startswith("Prism--Gimp_Comm-"):
+            filePath = os.path.join(commsDir, fileName)                     #   Handle old Cmd files
+    
+            # Open the   JSON file for reading
+            with open(filePath, 'r') as json_file:
+                # Load the JSON data from the file
+                pData = json.load(json_file)
+
+            if pData.get('command') in commands:
+                os.remove(filePath)
+                handleCmd(pData)
+            else:
+                print("ERROR:  COMMAND FILE IS NOT VALID")              #   TODO ERRORS
+
+        else:
+            print("ERROR: Invalid file:  ", fileName)
+
+
+def handleCmd(pData):
+
+    command = pData.get('command')
+
+    if command == "getCurrentFilename":
+        getCurrentFilename()
+
+    elif command == "saveVersion":
+        saveVersion(pData)
+
+### ^^^^^ For receiving commands and data from Prism ^^^^^ ###
+
+
+### vvvvv Functions inside Gimp vvvvv ###
+
+
+#   Gets the currently open image's filepath
+def getCurrentFilename():
+
+    print("\n****  IN GET FILENAME ***\n\n")
+
+    images = pdb.gimp_get_images()
+    imageList = images[1]
+    currentImage = imageList.data[0]
+
+    gfile = currentImage.get_file()
+    filePath = gfile.get_path()
+
+    print("filePath from Gimp:  ", filePath)
+
+    pData = {
+        "command": "currentFilename",
+        "data":filePath
+        }
+
+    sendCmdToPrism(pData)
+
+
+def saveVersion(pData):
+
+    filePath = pData.get("data")
+
+    saveAction(filePath)
+
+
+    openXCF(filePath)
+
+        
+
+#   Saves curretly open image to the supplied filepath
+def saveAction(filePath):
+
+    print("\n*** IN saveAction ***\n")                          #   DEBUG
+
+
+    images = pdb.gimp_get_images()
+    imageList = images[1]
+    currentImage = imageList.data[0]
+
+    file = Gio.File.new_for_path(filePath)
+
+    # Save the image in the .xcf file format
+    pdb.gimp_xcf_save(image=currentImage , file=file)
+
+
+def openXCF(filePath):
+    
+    print("\n*** IN OPEN XCF ***\n")                          #   DEBUG
+
+    print("*** filePath:  ", filePath, "\n")
+
+    file = Gio.File.new_for_path(filePath)
+
+    print("*** file:  ", file, "\n")
+
+
+    newVerImage = pdb.gimp_xcf_load(file=file)
+
+    # pdb.gimp_displays_flush()                               #   NEEDED ???
+
+    print("*** newVerImage:  ", newVerImage)
+
+
+
+
+### ^^^^^ Functions inside Gimp ^^^^^ ###
+
+
+### vvvvv Reistration of plugin inside Gimp vvvvv ###
+class PrismFunctions(Gimp.PlugIn):
+
+    def __init__(self):
+        super().__init__()
     
     ## GimpPlugIn virtual methods ##
     def do_set_i18n(self, procname):
         return True, 'gimp30-python', None
 
     def do_query_procedures(self):
-        return [ "python-fu-prism-saveAction" ]
+        return [ "python-fu-prism-pingFromPrism" ]
 
     def do_create_procedure(self, name):
-        procedure = Gimp.Procedure.new(self, name,
-                                       Gimp.PDBProcType.PLUGIN,
-                                       self.run, None)
+
+        procedure = None
         
-        if name == 'python-fu-prism-saveAction':
-            procedure.set_documentation(_("Prism save action"),
+        if name == 'python-fu-prism-pingFromPrism':
+
+            procedure = Gimp.Procedure.new(self,
+                                        name,
+                                        Gimp.PDBProcType.PLUGIN,
+                                        # Gimp.PDBProcType.EXTENSION,  # Change to EXTENSION ???
+                                        pingFromPrism,
+                                        None
+                                        )
+            
+            procedure.set_documentation(_("Prism communication"),
                                         help_doc,
                                         "")
             
             procedure.set_attribution("Joshua Breckeen",
                                       "Prism Pipeline",
                                       "2024")
-            
-            procedure.add_argument_from_property(self, "run-mode")
-            procedure.add_argument_from_property(self, "filePath")
+
         else:
             procedure = None
 
-        print("***** Loading Prism Functions ******")
-
         return procedure
 
-    def run(procedure, config, filePath):
-        runmode = config.get_property("run-mode")
-        # filePath = config.get_property("filePath")
-
-
-        print ("*** RUNNING ***")
-
-
-        return True
+    
+    print("***** Loading Prism Functions ******")                   #   DEBUG
+    time.sleep(.1)
 
 Gimp.main(PrismFunctions.__gtype__, sys.argv)
