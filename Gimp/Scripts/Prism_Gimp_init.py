@@ -38,6 +38,7 @@ from Prism_Gimp_externalAccess_Functions import (
 )
 from Prism_Gimp_Functions import Prism_Gimp_Functions
 from Prism_Gimp_Integration import Prism_Gimp_Integration
+from Gimp_Export import GimpExportClass
 
 
 class Prism_Plugin_Gimp(

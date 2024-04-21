@@ -36,7 +36,7 @@ import os
 
 class Prism_Gimp_Variables(object):
     def __init__(self, core, plugin):
-        self.version = "v2.0.5-0.2-alpha"
+        self.version = "v2.0.5-0.3-alpha"
         self.pluginName = "Gimp"
         self.pluginType = "App"
         self.appShortName = "Gimp"
@@ -45,7 +45,7 @@ class Prism_Gimp_Variables(object):
         self.hasQtParent = False
         self.sceneFormats = [".xcf"]
         self.appSpecificFormats = self.sceneFormats
-        self.outputFormats = [".xcf", ".png", ".jpg", "avi", "bmp", "sgi", "tga", "tif"]
+        self.outputFormats = [".xcf", ".png", ".jpg", "exr", "avi", "bmp", "sgi", "tga", "tif"]
         # self.appColor = [255, 255, 255]
         self.appColor = [115, 172, 230]
         self.hasFrameRange = False
