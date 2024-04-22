@@ -30,6 +30,15 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with Prism.  If not, see <https://www.gnu.org/licenses/>.
+###########################################################################
+#
+#                    Gimp3 (2.99) Plugin for Prism2
+#
+#                           Joshua Breckeen
+#                              Alta Arts
+#                          josh@alta-arts.com
+#
+###########################################################################
 
 
 import os
@@ -38,6 +47,7 @@ import socket
 import json
 from datetime import datetime
 import logging
+import tempfile
 
 from qtpy.QtCore import *
 from qtpy.QtGui import *
@@ -115,19 +125,16 @@ class Prism_Gimp_Functions(object):
 ### vvvvv For Sending Commands to Gimp vvvvv ###
 
     @err_catcher(name=__name__)
-    def createCmdFile(self, pData):
+    def createCmdFile(self, command, data):
 
         logger.debug("Creating Command File")
 
-    #   pData command Template
-    #        pData = {
-    #            "command": "saveXCF",              -- name of command to be executed in the Prims_Functions.py Gimp plugin
-    #            "data":filepath                    -- data payload to be used in the plugin
-    #            }
+        pData = {
+            "command": command,
+            "data": data
+            }
    
         commOutFile = self.createCommFileName()
-
-        print("*** commOutFile:  ", commOutFile)
        
         # Write the dictionary to the JSON file
         with open(commOutFile, 'w') as json_file:
@@ -192,21 +199,18 @@ class Prism_Gimp_Functions(object):
                     break
                 response_data += chunk
 
-
-
-            # print("Response Data:", response_data.decode())
-
-            # self.core.popup(f"Response header:  {response_header.decode()}")                                      #    TESTING
-            # self.core.popup(f"Response Data:  {response_data.decode()}")                                      #    TESTING
+            ####   TODO handle response    ####
 
 
 
     @err_catcher(name=__name__)
-    def sendCmdToGimp(self, pData):
+    def sendCmdToGimp(self, command, data):
 
         logger.debug("Sending Command to Gimp")
 
-        self.createCmdFile(pData)
+        #   command: string var
+        #   data: dict containing str key/values
+        self.createCmdFile(command, data)
 
         result = self.pingGimp()
 
@@ -216,19 +220,6 @@ class Prism_Gimp_Functions(object):
 
 
 ### vvvvv For Receiving Commands from Gimp vvvvv ###
-
-    # @err_catcher(name=__name__)
-    # def startReceiveSocket(self):
-
-    #     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as socketIn:                #   TODO  Look at configuring Addr/Port
-    #         socketIn.bind((self.host, self.port_gimpToPrism))
-
-    #     socketIn.listen(1)
-
-    #     msg = socketIn.recv()
-
-    #     self.core.popup(f"msg:  {msg}")                                      #    TESTING
-
 
     @err_catcher(name=__name__)
     def getCmdFile(self):
@@ -273,16 +264,21 @@ class Prism_Gimp_Functions(object):
 
         logger.debug("Getting Current Filename")
 
-        pData = {
-            "command": "getCurrentFilename",
-            "data": None
-        }
+        # pData = {
+        #     "command": "getCurrentFilename",
+        #     "data": None
+        # }
 
-        result = self.sendCmdToGimp(pData)
+        command = "getCurrentFilename"
+        data = None
+
+        result = self.sendCmdToGimp(command, data)
 
         try:
             pData = self.getCmdFile()
-            filePath = f"{pData.get('data')}"
+            data = pData.get("data")
+            filePath = f"{data.get('filePath')}"
+
         except:
             filePath = ""
 
@@ -295,19 +291,14 @@ class Prism_Gimp_Functions(object):
 
 
     @err_catcher(name=__name__)
-    def saveScene(self, origin, filepath, details={}):
+    def saveScene(self, origin, filePath, details={}):
 
         logger.debug("Saving Scenefile")
 
-        pData = {
-            "command": "saveVersion",
-            "data": filepath
-            }
+        command = "saveVersion"
+        data = {"filePath": filePath}
         
-        result = self.sendCmdToGimp(pData)
-        
-
-        print(f"*** Result:  {result}")
+        result = self.sendCmdToGimp(command, data)              #   TODO HANDLE RESULT
 
         try:
             self.core.pb.sceneBrowser.refreshScenefiles()
@@ -317,7 +308,26 @@ class Prism_Gimp_Functions(object):
         return result
     
 
+    @err_catcher(name=__name__)
+    def captureViewportThumbnail(self):
+        # ssPath = tempfile.NamedTemporaryFile(suffix=".jpg").name
 
+        ssPath = r"C:\Users\Alta Arts\Desktop\testSS.jpg"
+
+        command = "captureScreenShot"
+        data = {"filePath": ssPath}
+
+        result = self.sendCmdToGimp(command, data)
+
+        pm = self.core.media.getPixmapFromPath(ssPath)
+        # try:
+        #     os.remove(ssPath)
+        # except:
+        #     pass
+
+        return pm
+    
+    
 
     @err_catcher(name=__name__)
     def getImportPaths(self, origin):

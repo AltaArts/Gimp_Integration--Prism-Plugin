@@ -30,13 +30,21 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with Prism.  If not, see <https://www.gnu.org/licenses/>.
+###########################################################################
+#
+#                    Gimp3 (2.99) Plugin for Prism2
+#
+#                           Joshua Breckeen
+#                              Alta Arts
+#                          josh@alta-arts.com
+#
+###########################################################################
 
 
 import os
 import sys
 import platform
 import shutil
-import re
 
 from qtpy.QtCore import *
 from qtpy.QtGui import *
@@ -56,6 +64,8 @@ class Prism_Gimp_Integration(object):
         self.core = core
         self.plugin = plugin
 
+        self.dirsToAdd = ["Prism_Menu", "Prism_Functions"]
+
         if platform.system() == "Windows":
             self.examplePath = (
                 os.path.dirname(self.getGimpPath())
@@ -66,40 +76,40 @@ class Prism_Gimp_Integration(object):
                 os.environ["SUDO_USER"]
                 if "SUDO_USER" in os.environ
                 else os.environ["USER"]
-            )
+                )
             self.examplePath = os.path.join("/home", userName, "Gimp", "2019")
         elif platform.system() == "Darwin":
             userName = (
                 os.environ["SUDO_USER"]
                 if "SUDO_USER" in os.environ
                 else os.environ["USER"]
-            )
+                )
             self.examplePath = (
                 "/Users/%s/Library/Preferences/Autodesk/Gimp/2019" % userName
-            )
+                )
 
-    @err_catcher(name=__name__)                                         #   WORKING
+    @err_catcher(name=__name__)
     def getExecutable(self):
         execPath = ""
         if platform.system() == "Windows":
-            defaultpath = os.path.join(self.getGimpPath(), "Gimp-2.99.exe")         #   TODO    HARDCODED
+            defaultpath = os.path.join(self.getGimpPath(), "Gimp-2.99.exe")
             if os.path.exists(defaultpath):
                 execPath = defaultpath
 
         return execPath
 
     @err_catcher(name=__name__)
-    def getGimpPath(self):                                              #   WORKING
+    def getGimpPath(self):
         try:
             key = _winreg.OpenKey(
                 _winreg.HKEY_LOCAL_MACHINE,
                 "SOFTWARE\\Classes\\GIMP2.xcf\\shell\\open\\command",
                 0,
                 _winreg.KEY_READ | _winreg.KEY_WOW64_64KEY,
-            )
+                )
             gimpPath = (
                 (_winreg.QueryValueEx(key, ""))[0].split(' "%1"')[0].replace('"', "")
-            )
+                )
 
             if os.path.exists(gimpPath):
                 return gimpPath
@@ -109,37 +119,47 @@ class Prism_Gimp_Integration(object):
         except:
             return ""
 
-    def addIntegration(self, installPath):                                 #   WORKING WITH HARDCODED USER APPDATA PATH
+    def addIntegration(self, installPath):
         try:
-            integrationBase = os.path.join(
-                os.path.dirname(os.path.dirname(__file__)), "Integration"
-            )
-            addedFiles = []
 
-            match = re.search(r'GIMP (\d+\.\d+)', installPath)
-            gimpVersion = match.group(1)
-
-            if platform.system() == "Windows":
-                appdataFolder = os.environ['APPDATA']
-                initpath = os.path.join(appdataFolder, "GIMP", gimpVersion, "plug-ins", "PrismInit.py")
-            else:
+            if platform.system() != "Windows":
                 msgStr = ("Gimp may only be Installed on Windows at this time")
                 QMessageBox.warning(self.core.messageParent, "Prism Integration", msgStr)
                 return False
 
-            origInitFile = os.path.join(integrationBase, "PrismInit.py")
-
-            shutil.copy2(origInitFile, initpath)
-            addedFiles.append(initpath)
-
-            with open(initpath, "r") as init:
-                initStr = init.read()
-
-            with open(initpath, "w") as init:
-                initStr = initStr.replace(
-                    "PRISMROOT", '"%s"' % self.core.prismRoot.replace("\\", "/")
+            integrationBase = os.path.join(
+                os.path.dirname(os.path.dirname(__file__)), "Integration"
                 )
-                init.write(initStr)
+
+            gimpBaseDir = os.path.dirname(installPath)
+            gimpPluginPath = os.path.join(gimpBaseDir, "lib", "gimp", "2.99", "plug-ins")
+            gimpPluginPath = gimpPluginPath.replace("\\", "/")
+
+            movedDirs = []
+
+            for dir in self.dirsToAdd:
+                srcDir = os.path.join(integrationBase, dir)
+                srcDir = srcDir.replace("\\", "/")
+                destDir = os.path.join(gimpPluginPath, dir)
+                movedDirs.append(destDir)
+
+                shutil.copytree(srcDir, destDir)
+                
+            # Modify files in moved directories
+            for dir in movedDirs:
+                for dirpath, _, filenames in os.walk(dir):
+                    for filename in filenames:
+                        if filename.startswith("Prism"):
+                            file_path = os.path.join(dirpath, filename)
+                            with open(file_path, "r") as interFile:
+                                interFileStr = interFile.read()
+                            with open(file_path, "w") as interFile:
+                                interFileStr = interFileStr.replace(
+                                                "PRISMROOT", 
+                                                '"%s"' % self.core.prismRoot.replace("\\", "/")
+                                                )
+                                
+                                interFile.write(interFileStr)
 
             if platform.system() in ["Linux", "Darwin"]:
                 for i in addedFiles:
@@ -159,31 +179,24 @@ class Prism_Gimp_Integration(object):
             QMessageBox.warning(self.core.messageParent, "Prism Integration", msgStr)
             return False
 
-    def removeIntegration(self, installPath):                       #   WORKING WITH HARDCODED USER APPDATA PATH
+    def removeIntegration(self, installPath):
         try:
-            if platform.system() == "Windows":
-                appdataFolder = os.environ['APPDATA']
-                installPath = os.path.join(appdataFolder, "GIMP", "2.10", "plug-ins")
-            else:
+            if platform.system() != "Windows":
                 msgStr = ("Gimp may only be Installed on Windows at this time")
 
                 QMessageBox.warning(self.core.messageParent, "Prism Integration", msgStr)
                 return False
 
+            gimpBaseDir = os.path.dirname(installPath)
+            gimpPluginPath = os.path.join(gimpBaseDir, "lib", "gimp", "2.99", "plug-ins")
+            gimpPluginPath = gimpPluginPath.replace("\\", "/")
 
-
-            initPy = os.path.join(installPath, "PrismInit.py")
-            initPyc = os.path.join(installPath, "PrismInit.pyc")
-
-            for i in [initPy, initPyc]:
-                if os.path.exists(i):
-                    os.remove(i)
-
-            userSetup = os.path.join(installPath, "scripts", "userSetup.py")
-            self.core.integration.removeIntegrationData(filepath=userSetup)
+            for dir in self.dirsToAdd:
+                pluginDir = os.path.join(gimpPluginPath, dir)
+                if os.path.exists(pluginDir):
+                    shutil.rmtree(pluginDir)
 
             return True
-        
 
         except Exception as e:
             exc_type, exc_obj, exc_tb = sys.exc_info()
@@ -197,7 +210,8 @@ class Prism_Gimp_Integration(object):
             QMessageBox.warning(self.core.messageParent, "Prism Integration", msgStr)
             return False
 
-    def updateInstallerUI(self, userFolders, pItem):                                        #   TODO
+
+    def updateInstallerUI(self, userFolders, pItem):
         try:
             pluginItem = QTreeWidgetItem([self.plugin.pluginName])
             pItem.addChild(pluginItem)
@@ -221,7 +235,8 @@ class Prism_Gimp_Integration(object):
             )
             return False
 
-    def installerExecute(self, pluginItem, result):                                     #   TODO
+
+    def installerExecute(self, pluginItem, result):
         try:
             pluginPaths = []
             installLocs = []
