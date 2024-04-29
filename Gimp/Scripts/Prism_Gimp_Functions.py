@@ -48,6 +48,7 @@ import json
 from datetime import datetime
 import logging
 import tempfile
+import time
 
 from qtpy.QtCore import *
 from qtpy.QtGui import *
@@ -68,20 +69,33 @@ else:
     prismRoot = r"C:/Prism2"     
 
 
+##    CONSTANTS    ##                                                       
+GIMP_LOCAL_DIR = os.path.join(prismRoot, "Plugins", "Gimp")
+COMMS_DIR = os.path.join(GIMP_LOCAL_DIR, "PrismGimpComms")
+LOG_DIR = os.path.join(GIMP_LOCAL_DIR, "Logs")
+SERVERLOG = os.path.join(LOG_DIR, "GimpServerLog.log")
+PID_FILE = os.path.join(LOG_DIR, "scriptFuPID.txt")
+HOST = "127.0.0.1"
+# PORT_GIMPTOPRISM = 40404                                                        #   TODO ALLOW USER CONFIG IN SETTINGS
+PORT_PRISMTOGIMP = 40404                                                        #   TODO ALLOW USER CONFIG IN SETTINGS
+LOG_SIZE_MAX = 10  # size in kb's                                               #   TODO ALLOW USER CONFIG IN SETTINGS
+
+
 class Prism_Gimp_Functions(object):
     def __init__(self, core, plugin):
         self.core = core
         self.plugin = plugin
 
-        self.host = "127.0.0.1"
-        self.port_prismToGimp = 40404
-        self.port_gimpToPrism = 40405
+        self.host = HOST
+        self.port_prismToGimp = PORT_PRISMTOGIMP
+        self.commsDir = COMMS_DIR
 
-        self.commsDir = os.path.join(prismRoot, "PrismGimpComms")
-
-        self.core.registerCallback(
-            "onStateManagerOpen", self.onStateManagerOpen, plugin=self.plugin
-            )
+        self.core.registerCallback("onStateManagerOpen",
+                                    self.onStateManagerOpen,
+                                    plugin=self.plugin,
+                                    priority=40
+                                    )
+        
         # self.core.registerCallback(
         #     "onStateCreated", self.onStateCreated, plugin=self.plugin
         #     )
@@ -121,137 +135,144 @@ class Prism_Gimp_Functions(object):
         return False
 
 
-
-### vvvvv For Sending Commands to Gimp vvvvv ###
-
     @err_catcher(name=__name__)
-    def createCmdFile(self, command, data):
-
-        logger.debug("Creating Command File")
+    def cmdDataToJson(self, command, payload):
 
         pData = {
             "command": command,
-            "data": data
+            "data": payload
             }
-   
-        commOutFile = self.createCommFileName()
-       
-        # Write the dictionary to the JSON file
-        with open(commOutFile, 'w') as json_file:
-            json.dump(pData, json_file)
+        
+        jData = json.dumps(pData)
+
+        return jData
+
+
+    @err_catcher(name=__name__)
+    def jsonToCmdData(self, jData):
+
+        try:
+            pData = json.loads(jData)
+
+            command = pData.get("command")
+            payload = pData.get("data")
+
+            return command, payload
+        
+        except Exception as e:
+            self.core.popup(f"Error decoding json:\n{e}")                                      #    TESTING
+            return None
+    
+
+
+### vvvvv For Sending Commands to Gimp vvvvv ###
+
+    # @err_catcher(name=__name__)
+    # def sendCmdToGimp(self, command, payload):
+
+    #     logger.debug("Sending Command to Gimp")
+
+    #     #   COMMAND TEMPLATE
+    #     #   command:    string var
+    #     #   data:       dict containing str key/values
+
+    #     jData = self.cmdDataToJson(command, payload)
+
+    #     self.core.popup(f"Sending Command to Gimp:  {command}")                                      #    TESTING
+
+    #     result = self.sendToGimp(jData)
+
+    #     return result
     
 
     @err_catcher(name=__name__)
-    def createCommFileName(self):
+    def sendCmdToGimp(self, sendCmmand, sendData):
 
-        if not os.path.exists(self.commsDir):
-            os.makedirs(self.commsDir)
+        jData = self.cmdDataToJson(sendCmmand, sendData)
 
-        outName = "Prism--Gimp_Comm-" + str(self.getTimeStamp()) + ".json"
-        commOutFile = os.path.join(self.commsDir, outName)
+        response = self.sendGimpComm(jData)
+        rcvCommand, rcvData = self.jsonToCmdData(response)
 
-        return commOutFile
-
-
-    @err_catcher(name=__name__)
-    def getTimeStamp(self):            
-
-        current_time = datetime.now().time()
-        timeStamp = current_time.strftime("%H%M%S%f")
-
-        return timeStamp
-
+        return rcvCommand, rcvData
+    
 
     @err_catcher(name=__name__)
-    def pingGimp(self):
+    def sendGimpComm(self, jData):
+        logger.debug("Sending data to GIMP")
 
-        logger.debug("Sending Ping to Gimp")
+        # time.sleep(1)
 
-        command = f'(python-fu-prism-pingFromPrism)'
+        try:
+            # Create a socket object
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                # Connect to GIMP
+                s.connect((self.host, self.port_prismToGimp))
+                # Send pDataJson
+                s.sendall(jData.encode())
+                response = s.recv(40960).decode()
 
-        result = self.sendToGimp(command)
+                return response
 
-        return result
+        except Exception as e:
+            logger.error("Error sending data to GIMP: %s", e)
+            self.core.popup(f"Error sending data to GIMP:\n{e}")                                      #    TESTING
+            # Handle the error as needed
 
+            return False
 
-    @err_catcher(name=__name__)
-    def sendToGimp(self, command):
-
-        # Connect to the GIMP script server
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as socketOut:                #   TODO  Look at configuring Addr/Port
-            socketOut.connect((self.host, self.port_prismToGimp))
-            
-            # Construct the header
-            header = b'G' + len(command).to_bytes(2, byteorder='big')
-
-            # Send the header and the script command
-            socketOut.sendall(header)
-            socketOut.sendall(command.encode())
-
-            # Receive the response
-            response_header = socketOut.recv(4)
-            response_length = int.from_bytes(response_header[1:], byteorder='big')
-            response_data = b''
-
-            while len(response_data) < response_length:
-                chunk = socketOut.recv(min(4096, response_length - len(response_data)))
-                if not chunk:
-                    break
-                response_data += chunk
-
-            ####   TODO handle response    ####
-
-
-
-    @err_catcher(name=__name__)
-    def sendCmdToGimp(self, command, data):
-
-        logger.debug("Sending Command to Gimp")
-
-        #   command: string var
-        #   data: dict containing str key/values
-        self.createCmdFile(command, data)
-
-        result = self.pingGimp()
-
-        return result
     
 ### ^^^^^ For Sending Commands to Gimp ^^^^^ ###
 
 
 ### vvvvv For Receiving Commands from Gimp vvvvv ###
 
-    @err_catcher(name=__name__)
-    def getCmdFile(self):
+    # @err_catcher(name=__name__)
+    # def getCmdFile(self):   
 
-        commands = ["currentFilename"]
+    #     self.core.popup(f"Getting Gimp Command")                                      #    TESTING
 
-        files = os.listdir(self.commsDir)
+    #     try:
+    #         # Create a socket object
+    #         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+    #             # Bind the socket to the host and port
+    #             s.bind((self.host, self.port_gimpToPrism))
+    #             # Listen for incoming connections
+    #             s.listen(1)
+    #             logger.debug("Socket listening for incoming connections")
+    #             # Accept a connection
+    #             conn, addr = s.accept()
+    #             with conn:
+    #                 logger.debug("Connected by %s", addr)
+    #                 # Receive data from the client
+    #                 jData = conn.recv(4096).decode()  # Adjust buffer size as needed
+    #                 # logger.debug("Data received: %s", jsonData)
 
-        for fileName in files:
-            if fileName.startswith("Gimp--Prism_Comm-"):
-                filePath = os.path.join(self.commsDir, fileName)
-        
-                # Open the   JSON file for reading
-                with open(filePath, 'r') as json_file:
-                    # Load the JSON data from the file
-                    pData = json.load(json_file)
+    #                 # Optionally, deserialize JSON data into a dictionary
+    #                 # data = json.loads(jsonData)
+    #                 # Process the received data as needed
+    #                 # logger.debug("Received data: %s", data)
 
-                if pData.get('command') in commands:
-                    os.remove(filePath)
-                    return pData
-                else:
-                    print("ERROR:  COMMAND FILE IS NOT VALID")              #   TODO ERRORS
+    #                 pData = self.decodeJdata(jData)
 
-            else:
-                print("ERROR: Invalid file:  ", fileName)
+    #                 return pData
+                
+    #     except Exception as e:
+    #         logger.error("Error receiving response JSON file: %s", e)
+    #         # Handle the error as needed
+    #         return None  # Return None in case of error
 
+    # @err_catcher(name=__name__)
+    # def decodeJdata(self, jData): 
+
+    #     pData = json.loads(jData)
+
+    #     return pData
 
 ### ^^^^^ For Receiving Commands from Gimp ^^^^^ ###
 
 
 
-### vvvvv Functions call from Prism vvvvv ###
+### vvvvv Functions calls from Prism vvvvv ###
 
     @err_catcher(name=__name__)
     def sceneOpen(self, origin):
@@ -262,24 +283,16 @@ class Prism_Gimp_Functions(object):
     @err_catcher(name=__name__)
     def getCurrentFileName(self, origin, path=True):
 
-        logger.debug("Getting Current Filename")
+        # logger.debug("Getting Current Filename")
 
-        # pData = {
-        #     "command": "getCurrentFilename",
-        #     "data": None
-        # }
+        sendCommand = "getCurrentFilename"
+        sendPayload = None
 
-        command = "getCurrentFilename"
-        data = None
+        rcvCommand, rcvPayload = self.sendCmdToGimp(sendCommand, sendPayload)
 
-        result = self.sendCmdToGimp(command, data)
-
-        try:
-            pData = self.getCmdFile()
-            data = pData.get("data")
-            filePath = f"{data.get('filePath')}"
-
-        except:
+        if rcvCommand is not None and rcvCommand == "currentFilename":
+            filePath = rcvPayload.get("filePath")
+        else:
             filePath = ""
 
         return filePath
@@ -295,39 +308,43 @@ class Prism_Gimp_Functions(object):
 
         logger.debug("Saving Scenefile")
 
-        command = "saveVersion"
-        data = {"filePath": filePath}
+        sendCommand = "saveVersion"
+        sendPayload = {"filePath": filePath}
         
-        result = self.sendCmdToGimp(command, data)              #   TODO HANDLE RESULT
-
         try:
-            self.core.pb.sceneBrowser.refreshScenefiles()
+            rcvCommand, rcvPayload = self.sendCmdToGimp(sendCommand, sendPayload)
+
+            if os.path.exists(filePath):
+                return True
+
+            else:
+                self.core.popup("Save Version Failed", severity="warning")
+                return False
+     
         except:
-            pass
-    
-        return result
-    
+            return False
+        
 
     @err_catcher(name=__name__)
     def captureViewportThumbnail(self):
-        # ssPath = tempfile.NamedTemporaryFile(suffix=".jpg").name
+        ssPath = tempfile.NamedTemporaryFile(suffix=".jpg").name
 
-        ssPath = r"C:\Users\Alta Arts\Desktop\testSS.jpg"
+        sendCommand = "captureScreenShot"
+        sendData = {"filePath": ssPath}
 
-        command = "captureScreenShot"
-        data = {"filePath": ssPath}
-
-        result = self.sendCmdToGimp(command, data)
-
+        rcvCommand, rcvData = self.sendCmdToGimp(sendCommand, sendData)
         pm = self.core.media.getPixmapFromPath(ssPath)
-        # try:
-        #     os.remove(ssPath)
-        # except:
-        #     pass
 
-        return pm
-    
-    
+        try:
+            os.remove(ssPath)
+        except:
+            pass
+
+        if rcvCommand == "Success":
+            return pm
+        else:
+            return False
+        
 
     @err_catcher(name=__name__)
     def getImportPaths(self, origin):
@@ -529,9 +546,25 @@ class Prism_Gimp_Functions(object):
     def sm_render_preSubmit(self, origin, rSettings):
         pass
 
+
+
+
+
     @err_catcher(name=__name__)
     def sm_render_startLocalRender(self, origin, outputName, rSettings):
-        pass
+
+
+        sendCommand = "exportFile"
+        sendPayload = {"rSettings": rSettings}
+        
+        rcvCommand, rcvPayload = self.sendCmdToGimp(sendCommand, sendPayload)
+        
+        return rcvPayload
+
+
+
+
+
 
     @err_catcher(name=__name__)
     def sm_render_undoRenderSettings(self, origin, rSettings):
@@ -630,12 +663,19 @@ class Prism_Gimp_Functions(object):
         pass
 
     @err_catcher(name=__name__)
-    def sm_saveStates(self, origin, buf):
-        pass
-
-    @err_catcher(name=__name__)
     def sm_saveImports(self, origin, importPaths):
         pass
+
+
+    @err_catcher(name=__name__)
+    def sm_saveStates(self, origin, buf):
+        stateData = json.dumps(buf)
+
+        sendCommand = "saveStates"
+        sendPayload = {"stateData": stateData}
+        
+        result = self.sendCmdToGimp(sendCommand, sendPayload)              #   TODO HANDLE RESULT
+
 
     @err_catcher(name=__name__)
     def sm_readStates(self, origin):
@@ -648,10 +688,29 @@ class Prism_Gimp_Functions(object):
         }
     ]
 }'''
-        return testState
+    
+        ####    ADD TRY/EXCEPT
+        
+        sendCommand = "getStates"
+        sendPayload = None
+        
+        rcvCommand, rcvPayload = self.sendCmdToGimp(sendCommand, sendPayload)
+
+        stateDataRaw = rcvPayload.get("stateData")
+
+        if stateDataRaw is not None and stateDataRaw != "":
+
+            stateData = json.loads(stateDataRaw)
+
+            return stateData
+        
+        else:
+            return testState
 
 
-    @err_catcher(name=__name__)
+
+
+    @err_catcher(name=__name__)                                 #   TODO
     def sm_deleteStates(self, origin):
         pass
 
@@ -660,45 +719,61 @@ class Prism_Gimp_Functions(object):
     def onStateManagerOpen(self, origin):
 
         origin.setProperty("sizePolicy", "Expanding")
-        origin.setMaximumSize(700, 600)  # Adjust the width and height according to your needs
+        origin.setMaximumSize(800, 800)  # Adjust the width and height according to your needs
 
         origin.b_showImportStates.setStyleSheet("padding-left: 1px;padding-right: 1px;")
         origin.b_showExportStates.setStyleSheet("padding-left: 1px;padding-right: 1px;")
         origin.gb_import.setEnabled(False)
         origin.gb_import.hide()
-        origin.b_createExport.setProperty("sizePolicy", "Expanding")
-        origin.b_createExport.setStyleSheet("QPushButton { min-width: 200px; }")
-        origin.b_createRender.hide()
+        origin.b_createExport.hide()
+        origin.b_createRender.setProperty("sizePolicy", "Expanding")
+        origin.b_createRender.setStyleSheet("QPushButton { min-width: 200px; }")
         origin.b_createPlayblast.hide()
-        origin.b_createImport.setMinimumWidth(70 * self.core.uiScaleFactor)
-        origin.b_createImport.setMaximumWidth(70 * self.core.uiScaleFactor)
-        origin.b_createImport.setMinimumHeight(0)
-        origin.b_createImport.setMaximumHeight(500 * self.core.uiScaleFactor)
-        origin.b_shotCam.setMinimumHeight(0)
-        origin.b_shotCam.setMaximumHeight(50 * self.core.uiScaleFactor)
-        origin.b_showImportStates.setMinimumWidth(30 * self.core.uiScaleFactor)
-        origin.b_showImportStates.setMaximumWidth(30 * self.core.uiScaleFactor)
-        origin.b_showExportStates.setMinimumWidth(30 * self.core.uiScaleFactor)
-        origin.b_showExportStates.setMaximumWidth(30 * self.core.uiScaleFactor)
-        origin.b_createExport.setMinimumWidth(70 * self.core.uiScaleFactor)
-        origin.b_createExport.setMaximumWidth(70 * self.core.uiScaleFactor)
-        origin.b_createRender.setMinimumWidth(70 * self.core.uiScaleFactor)
-        origin.b_createRender.setMaximumWidth(70 * self.core.uiScaleFactor)
-        origin.b_createPlayblast.setMinimumWidth(80 * self.core.uiScaleFactor)
-        origin.b_createPlayblast.setMaximumWidth(80 * self.core.uiScaleFactor)
+        # origin.b_createImport.setMinimumWidth(70 * self.core.uiScaleFactor)
+        # origin.b_createImport.setMaximumWidth(70 * self.core.uiScaleFactor)
+        # origin.b_createImport.setMinimumHeight(0)
+        # origin.b_createImport.setMaximumHeight(500 * self.core.uiScaleFactor)
+        # origin.b_shotCam.setMinimumHeight(0)
+        # origin.b_shotCam.setMaximumHeight(50 * self.core.uiScaleFactor)
+        # origin.b_showImportStates.setMinimumWidth(30 * self.core.uiScaleFactor)
+        # origin.b_showImportStates.setMaximumWidth(30 * self.core.uiScaleFactor)
+        # origin.b_showExportStates.setMinimumWidth(30 * self.core.uiScaleFactor)
+        # origin.b_showExportStates.setMaximumWidth(30 * self.core.uiScaleFactor)
+        # origin.b_createExport.setMinimumWidth(70 * self.core.uiScaleFactor)
+        # origin.b_createExport.setMaximumWidth(70 * self.core.uiScaleFactor)
+        # origin.b_createRender.setMinimumWidth(70 * self.core.uiScaleFactor)
+        # origin.b_createRender.setMaximumWidth(70 * self.core.uiScaleFactor)
+        # origin.b_createPlayblast.setMinimumWidth(80 * self.core.uiScaleFactor)
+        # origin.b_createPlayblast.setMaximumWidth(80 * self.core.uiScaleFactor)
         origin.b_description.setMinimumWidth(35 * self.core.uiScaleFactor)
         origin.b_description.setMaximumWidth(35 * self.core.uiScaleFactor)
         origin.b_preview.setMinimumWidth(35 * self.core.uiScaleFactor)
         origin.b_preview.setMaximumWidth(35 * self.core.uiScaleFactor)
 
+        
         #   Will only load Gimp_Export state if in Gimp
         if self.core.appPlugin.pluginName == "Gimp":
+
+            self.removeDefaultStates(origin)
+
             origin.loadState(GimpExportClass)
 
 
-    # @err_catcher(name=__name__)
-    # def sm_saveStates(self, origin, buf):
-    #     bpy.context.scene["PrismStates"] = buf
+    @err_catcher(name=__name__)
+    def removeDefaultStates(self, origin):
+        removeStates = ["ImageRender",
+                        "ImportFile",
+                        "Export",
+                        "Playblast",
+                        "Standalone USD Playblast",
+                        "Standalone USD Render",
+                        ]
+
+        for state in removeStates:
+            if state in origin.stateTypes.keys():
+                del origin.stateTypes[state]
+
+
 
     @err_catcher(name=__name__)
     def sm_getExternalFiles(self, origin):

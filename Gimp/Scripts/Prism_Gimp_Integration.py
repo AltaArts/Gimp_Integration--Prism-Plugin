@@ -45,6 +45,7 @@ import os
 import sys
 import platform
 import shutil
+import re
 
 from qtpy.QtCore import *
 from qtpy.QtGui import *
@@ -119,6 +120,29 @@ class Prism_Gimp_Integration(object):
         except:
             return ""
 
+
+    @err_catcher(name=__name__)
+    def findGimpVersion(self, installPath):
+
+        # List all files in the GIMP bin directory
+        files = os.listdir(installPath)
+        
+        # match GIMP version number in filenames like "gimp-x.xx.exe"
+        pattern = r"gimp-(\d+\.\d+)\.exe"
+
+        # Iterate over the files and look for the version number
+        for file in files:
+            match = re.match(pattern, file)
+            if match:
+                verNumber = match.group(1)
+
+                return verNumber
+        
+        # If no version number is found, return None
+        return None
+    
+
+    @err_catcher(name=__name__)
     def addIntegration(self, installPath):
         try:
 
@@ -130,15 +154,25 @@ class Prism_Gimp_Integration(object):
             integrationBase = os.path.join(
                 os.path.dirname(os.path.dirname(__file__)), "Integration"
                 )
+            
+            gimpVer = self.findGimpVersion(installPath)
+            gimpVerNum = float("{:.2f}".format(float(gimpVer)))
 
-            gimpBaseDir = os.path.dirname(installPath)
-            gimpPluginPath = os.path.join(gimpBaseDir, "lib", "gimp", "2.99", "plug-ins")
+            if gimpVerNum >= 2.99:
+                intergrationPath = os.path.join(integrationBase, "Gimp3")
+            # elif 2 < gimpVerNum < 2.99:                                                       #   TODO Add 2.10 support
+            #     intergrationPath = os.path.join(integrationBase, "Gimp2")
+            else:
+                self.core.popup(f"Gimp{gimpVer} is not supported.  Please use Gimp 2.99 and above")
+                return False
+
+            gimpPluginPath = os.path.expanduser(f"~\\AppData\\Roaming\\GIMP\\{gimpVer}\\plug-ins")
             gimpPluginPath = gimpPluginPath.replace("\\", "/")
 
             movedDirs = []
 
             for dir in self.dirsToAdd:
-                srcDir = os.path.join(integrationBase, dir)
+                srcDir = os.path.join(intergrationPath, dir)
                 srcDir = srcDir.replace("\\", "/")
                 destDir = os.path.join(gimpPluginPath, dir)
                 movedDirs.append(destDir)
@@ -162,7 +196,7 @@ class Prism_Gimp_Integration(object):
                                 interFile.write(interFileStr)
 
             if platform.system() in ["Linux", "Darwin"]:
-                for i in addedFiles:
+                for i in movedDirs:
                     os.chmod(i, 0o777)
 
             return True
@@ -178,7 +212,12 @@ class Prism_Gimp_Integration(object):
 
             QMessageBox.warning(self.core.messageParent, "Prism Integration", msgStr)
             return False
+        
 
+
+
+
+    @err_catcher(name=__name__)
     def removeIntegration(self, installPath):
         try:
             if platform.system() != "Windows":
@@ -187,9 +226,11 @@ class Prism_Gimp_Integration(object):
                 QMessageBox.warning(self.core.messageParent, "Prism Integration", msgStr)
                 return False
 
-            gimpBaseDir = os.path.dirname(installPath)
-            gimpPluginPath = os.path.join(gimpBaseDir, "lib", "gimp", "2.99", "plug-ins")
+            gimpVer = self.findGimpVersion(installPath)
+
+            gimpPluginPath = os.path.expanduser(f"~\\AppData\\Roaming\\GIMP\\{gimpVer}\\plug-ins")
             gimpPluginPath = gimpPluginPath.replace("\\", "/")
+
 
             for dir in self.dirsToAdd:
                 pluginDir = os.path.join(gimpPluginPath, dir)
@@ -211,6 +252,7 @@ class Prism_Gimp_Integration(object):
             return False
 
 
+    @err_catcher(name=__name__)
     def updateInstallerUI(self, userFolders, pItem):
         try:
             pluginItem = QTreeWidgetItem([self.plugin.pluginName])
@@ -236,6 +278,7 @@ class Prism_Gimp_Integration(object):
             return False
 
 
+    @err_catcher(name=__name__)
     def installerExecute(self, pluginItem, result):
         try:
             pluginPaths = []
@@ -259,6 +302,7 @@ class Prism_Gimp_Integration(object):
                     installLocs.append(i)
 
             return installLocs
+        
         except Exception as e:
             exc_type, exc_obj, exc_tb = sys.exc_info()
             msg = QMessageBox.warning(

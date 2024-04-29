@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>wg_Export</class>
- <widget class="QWidget" name="wg_Export">
+ <class>wg_Gimp_Export</class>
+ <widget class="QWidget" name="wg_Gimp_Export">
   <property name="geometry">
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>400</width>
-    <height>547</height>
+    <width>482</width>
+    <height>718</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -68,7 +68,6 @@
        <widget class="QLabel" name="l_class">
         <property name="font">
          <font>
-          <weight>75</weight>
           <bold>true</bold>
          </font>
         </property>
@@ -82,6 +81,9 @@
    </item>
    <item>
     <widget class="QGroupBox" name="gb_export">
+     <property name="enabled">
+      <bool>true</bool>
+     </property>
      <property name="title">
       <string>General</string>
      </property>
@@ -250,7 +252,7 @@
          <item>
           <widget class="QLabel" name="l_master">
            <property name="text">
-            <string>Update Master Version:</string>
+            <string>Master Version:</string>
            </property>
           </widget>
          </item>
@@ -268,12 +270,12 @@
           </spacer>
          </item>
          <item>
-          <widget class="QCheckBox" name="chb_master">
-           <property name="text">
-            <string/>
-           </property>
-           <property name="checked">
-            <bool>true</bool>
+          <widget class="QComboBox" name="cb_master">
+           <property name="minimumSize">
+            <size>
+             <width>124</width>
+             <height>0</height>
+            </size>
            </property>
           </widget>
          </item>
@@ -370,7 +372,7 @@
           </spacer>
          </item>
          <item>
-          <widget class="QComboBox" name="cb_outType">
+          <widget class="QComboBox" name="cb_format">
            <property name="minimumSize">
             <size>
              <width>124</width>
@@ -383,83 +385,490 @@
        </widget>
       </item>
       <item>
-       <widget class="QWidget" name="w_selectCam" native="true">
-        <layout class="QHBoxLayout" name="horizontalLayout_2">
-         <property name="spacing">
-          <number>0</number>
-         </property>
-         <property name="leftMargin">
-          <number>9</number>
-         </property>
-         <property name="topMargin">
-          <number>0</number>
-         </property>
-         <property name="rightMargin">
-          <number>9</number>
-         </property>
-         <property name="bottomMargin">
-          <number>0</number>
-         </property>
+       <layout class="QHBoxLayout" name="w_imageOptions">
+        <property name="leftMargin">
+         <number>30</number>
+        </property>
+        <property name="rightMargin">
+         <number>30</number>
+        </property>
+        <item>
+         <widget class="QLabel" name="l_colorMode">
+          <property name="text">
+           <string>Color Mode</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QComboBox" name="cb_colorMode">
+          <property name="minimumSize">
+           <size>
+            <width>80</width>
+            <height>0</height>
+           </size>
+          </property>
+          <property name="currentIndex">
+           <number>-1</number>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="horizontalSpacer_9">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>40</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+        <item>
+         <widget class="QLabel" name="l_bitDepth">
+          <property name="text">
+           <string>Bit Depth</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QComboBox" name="cb_bitDepth">
+          <property name="minimumSize">
+           <size>
+            <width>80</width>
+            <height>0</height>
+           </size>
+          </property>
+          <property name="currentIndex">
+           <number>-1</number>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <widget class="QGroupBox" name="gb_alphaFill">
+        <property name="enabled">
+         <bool>true</bool>
+        </property>
+        <layout class="QVBoxLayout" name="gb_jpg_options_2">
          <item>
-          <widget class="QPushButton" name="b_selectCam">
-           <property name="focusPolicy">
-            <enum>Qt::NoFocus</enum>
+          <layout class="QHBoxLayout" name="w_alphaFill">
+           <property name="leftMargin">
+            <number>30</number>
            </property>
-           <property name="text">
-            <string>Select</string>
+           <property name="rightMargin">
+            <number>30</number>
            </property>
-          </widget>
+           <item>
+            <widget class="QLabel" name="l_alphaFill">
+             <property name="text">
+              <string>Fill Transparent Pixels with:</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <spacer name="horizontalSpacer_11">
+             <property name="orientation">
+              <enum>Qt::Horizontal</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>40</width>
+               <height>20</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+           <item>
+            <widget class="QComboBox" name="cb_alphaFill">
+             <property name="minimumSize">
+              <size>
+               <width>124</width>
+               <height>0</height>
+              </size>
+             </property>
+             <property name="currentIndex">
+              <number>-1</number>
+             </property>
+            </widget>
+           </item>
+          </layout>
          </item>
         </layout>
        </widget>
       </item>
       <item>
-       <widget class="QWidget" name="w_additionalOptions" native="true">
-        <layout class="QHBoxLayout" name="horizontalLayout_15">
-         <property name="leftMargin">
-          <number>9</number>
-         </property>
-         <property name="topMargin">
-          <number>0</number>
-         </property>
-         <property name="rightMargin">
-          <number>9</number>
-         </property>
-         <property name="bottomMargin">
-          <number>0</number>
-         </property>
+       <widget class="QGroupBox" name="gb_jpgOptions">
+        <property name="enabled">
+         <bool>true</bool>
+        </property>
+        <layout class="QVBoxLayout" name="gb_jpg_options">
          <item>
-          <widget class="QLabel" name="l_additionalOptions">
-           <property name="text">
-            <string>Show additional options on publish:</string>
+          <layout class="QHBoxLayout" name="w_jpg_qual">
+           <property name="leftMargin">
+            <number>30</number>
            </property>
-          </widget>
+           <property name="rightMargin">
+            <number>30</number>
+           </property>
+           <item>
+            <widget class="QLabel" name="l_jpg_qual">
+             <property name="text">
+              <string>Quality</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <spacer name="horizontalSpacer_8">
+             <property name="orientation">
+              <enum>Qt::Horizontal</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>40</width>
+               <height>20</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+           <item>
+            <widget class="QComboBox" name="cb_jpg_qual">
+             <property name="minimumSize">
+              <size>
+               <width>124</width>
+               <height>0</height>
+              </size>
+             </property>
+             <property name="currentIndex">
+              <number>-1</number>
+             </property>
+            </widget>
+           </item>
+          </layout>
          </item>
          <item>
-          <spacer name="horizontalSpacer_11">
-           <property name="orientation">
-            <enum>Qt::Horizontal</enum>
+          <layout class="QHBoxLayout" name="w_jpg_smooth">
+           <property name="leftMargin">
+            <number>30</number>
            </property>
-           <property name="sizeHint" stdset="0">
-            <size>
-             <width>40</width>
-             <height>20</height>
-            </size>
+           <property name="rightMargin">
+            <number>30</number>
            </property>
-          </spacer>
+           <item>
+            <widget class="QLabel" name="l_jpg_smooth">
+             <property name="text">
+              <string>Smoothing</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <spacer name="horizontalSpacer_2">
+             <property name="orientation">
+              <enum>Qt::Horizontal</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>40</width>
+               <height>20</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+           <item>
+            <widget class="QComboBox" name="cb_jpg_smooth">
+             <property name="minimumSize">
+              <size>
+               <width>124</width>
+               <height>0</height>
+              </size>
+             </property>
+             <property name="currentIndex">
+              <number>-1</number>
+             </property>
+            </widget>
+           </item>
+          </layout>
          </item>
          <item>
-          <widget class="QCheckBox" name="chb_additionalOptions">
-           <property name="text">
-            <string/>
+          <layout class="QHBoxLayout" name="w_jpg_subSample">
+           <property name="leftMargin">
+            <number>30</number>
            </property>
-           <property name="checked">
-            <bool>false</bool>
+           <property name="rightMargin">
+            <number>30</number>
            </property>
-          </widget>
+           <item>
+            <widget class="QLabel" name="l_jpg_subSample">
+             <property name="text">
+              <string>Sub Sample</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <spacer name="horizontalSpacer_10">
+             <property name="orientation">
+              <enum>Qt::Horizontal</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>40</width>
+               <height>20</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+           <item>
+            <widget class="QComboBox" name="cb_jpg_subSample">
+             <property name="minimumSize">
+              <size>
+               <width>124</width>
+               <height>0</height>
+              </size>
+             </property>
+             <property name="currentIndex">
+              <number>-1</number>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="w_jpg_options">
+           <property name="leftMargin">
+            <number>20</number>
+           </property>
+           <property name="rightMargin">
+            <number>20</number>
+           </property>
+           <item>
+            <widget class="QCheckBox" name="chb_jpg_optimize">
+             <property name="layoutDirection">
+              <enum>Qt::RightToLeft</enum>
+             </property>
+             <property name="text">
+              <string>Optimize</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <spacer name="horizontalSpacer_7">
+             <property name="orientation">
+              <enum>Qt::Horizontal</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>40</width>
+               <height>20</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+           <item>
+            <widget class="QCheckBox" name="chb_jpg_progressive">
+             <property name="layoutDirection">
+              <enum>Qt::RightToLeft</enum>
+             </property>
+             <property name="text">
+              <string>Progressive</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <spacer name="horizontalSpacer_4">
+             <property name="orientation">
+              <enum>Qt::Horizontal</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>40</width>
+               <height>20</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+           <item>
+            <widget class="QCheckBox" name="chb_jpg_arithCode">
+             <property name="layoutDirection">
+              <enum>Qt::RightToLeft</enum>
+             </property>
+             <property name="text">
+              <string>Arithmetic Coding</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
          </item>
         </layout>
        </widget>
+      </item>
+      <item>
+       <widget class="QGroupBox" name="gb_pngOptions">
+        <property name="enabled">
+         <bool>true</bool>
+        </property>
+        <layout class="QVBoxLayout" name="gb_jpg_options_5">
+         <item>
+          <layout class="QHBoxLayout" name="horizontalLayout">
+           <item>
+            <layout class="QVBoxLayout" name="verticalLayout_6">
+             <property name="rightMargin">
+              <number>40</number>
+             </property>
+             <item>
+              <layout class="QHBoxLayout" name="horizontalLayout_2">
+               <item>
+                <spacer name="horizontalSpacer_24">
+                 <property name="orientation">
+                  <enum>Qt::Horizontal</enum>
+                 </property>
+                 <property name="sizeHint" stdset="0">
+                  <size>
+                   <width>40</width>
+                   <height>20</height>
+                  </size>
+                 </property>
+                </spacer>
+               </item>
+               <item>
+                <widget class="QLabel" name="l_png_compress">
+                 <property name="layoutDirection">
+                  <enum>Qt::RightToLeft</enum>
+                 </property>
+                 <property name="text">
+                  <string>Compression</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <widget class="QCheckBox" name="chb_png_interlaced">
+               <property name="layoutDirection">
+                <enum>Qt::RightToLeft</enum>
+               </property>
+               <property name="text">
+                <string>Interlaced          </string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QCheckBox" name="chb_png_gamma">
+               <property name="layoutDirection">
+                <enum>Qt::RightToLeft</enum>
+               </property>
+               <property name="text">
+                <string>Save Gamma     </string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QCheckBox" name="chb_png_rez">
+               <property name="layoutDirection">
+                <enum>Qt::RightToLeft</enum>
+               </property>
+               <property name="text">
+                <string>Save Resolution</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <layout class="QVBoxLayout" name="verticalLayout_5">
+             <property name="rightMargin">
+              <number>60</number>
+             </property>
+             <item>
+              <widget class="QComboBox" name="cb_png_compress">
+               <property name="minimumSize">
+                <size>
+                 <width>124</width>
+                 <height>0</height>
+                </size>
+               </property>
+               <property name="currentIndex">
+                <number>-1</number>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QCheckBox" name="chb_png_bgColor">
+               <property name="layoutDirection">
+                <enum>Qt::RightToLeft</enum>
+               </property>
+               <property name="text">
+                <string>Save Background Color</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QCheckBox" name="chb_png_layerOffset">
+               <property name="layoutDirection">
+                <enum>Qt::RightToLeft</enum>
+               </property>
+               <property name="text">
+                <string>Save Layer Offset</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QCheckBox" name="chb_png_alphaColor">
+               <property name="layoutDirection">
+                <enum>Qt::RightToLeft</enum>
+               </property>
+               <property name="text">
+                <string>Preserve Color in Alpha</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+          </layout>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item>
+       <spacer name="verticalSpacer_3">
+        <property name="orientation">
+         <enum>Qt::Vertical</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>20</width>
+          <height>40</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="w_comment">
+        <item>
+         <widget class="QLabel" name="l_comment">
+          <property name="text">
+           <string>Comment</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLineEdit" name="e_comment"/>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <spacer name="verticalSpacer">
+        <property name="orientation">
+         <enum>Qt::Vertical</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>20</width>
+          <height>40</height>
+         </size>
+        </property>
+       </spacer>
       </item>
       <item>
        <widget class="QGroupBox" name="gb_previous">
@@ -489,8 +898,8 @@
              <rect>
               <x>0</x>
               <y>0</y>
-              <width>329</width>
-              <height>256</height>
+              <width>411</width>
+              <height>69</height>
              </rect>
             </property>
             <layout class="QHBoxLayout" name="horizontalLayout_12">
@@ -530,10 +939,8 @@
   <tabstop>e_name</tabstop>
   <tabstop>b_context</tabstop>
   <tabstop>cb_context</tabstop>
-  <tabstop>chb_master</tabstop>
   <tabstop>cb_outPath</tabstop>
-  <tabstop>cb_outType</tabstop>
-  <tabstop>chb_additionalOptions</tabstop>
+  <tabstop>cb_format</tabstop>
   <tabstop>scrollArea</tabstop>
   <tabstop>b_pathLast</tabstop>
  </tabstops>

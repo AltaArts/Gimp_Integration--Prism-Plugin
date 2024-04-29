@@ -1,7 +1,8 @@
-fname = "default_ImportFile"
-fname = "default_Export"
-fname = "default_ImageRender"
-fname = "default_Playblast"
+# fname = "default_ImportFile"
+# fname = "default_Export"
+# fname = "default_ImageRender"
+# fname = "default_Playblast"
+fname = "Gimp_Export"
 # fname = "default_RenderSettings"
 # fname = "Folder"
 # fname = "default_Code"
@@ -18,7 +19,8 @@ print("done")
 """ % fname
 
 import subprocess
-proc = subprocess.Popen(["pyside6-uic", "--star-imports", "-o", fname + "_ui.py", fname + ".ui"])
+# proc = subprocess.Popen(["pyside6-uic", "--star-imports", "-o", fname + "_ui.py", fname + ".ui"])
+proc = subprocess.Popen(["uic", "--star-imports", "-o", fname + "_ui.py", fname + ".ui"])
 result = proc.communicate()
 print(result)
 
