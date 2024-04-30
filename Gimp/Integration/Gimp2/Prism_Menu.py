@@ -99,6 +99,37 @@ class PrismGimpLogger:
         pdb.gimp_message("PRISM MENU:   %s" % message)
 
 
+#   To perform actions when Gimp loads
+def initActions():
+    global log
+
+    debugEnabled, logPath = getGimpPluginConfig()
+
+    log = PrismGimpLogger(debugEnabled, logPath)
+
+
+def getGimpPluginConfig():
+    global port
+
+    try:
+        with open(CONFIGFILE, 'r') as file:
+            gimpSettings = json.load(file)
+
+        # Update global variables with values from gimpSettings dictionary
+        port = int(gimpSettings.get("commPort"))
+        debugEnabled = gimpSettings.get("debugEnabled")
+        logPath = gimpSettings.get("logLocation")
+
+        return debugEnabled, logPath
+
+    except FileNotFoundError:
+        log.warning("Config file %s not found." % CONFIGFILE)
+
+    except Exception as e:
+        log.warning("Error reading config file: %s" % e)
+        pass
+
+
 def cmdDataToJson(command, payload):
     log.debug("Creating json for:  %s" % command)
 
@@ -161,37 +192,7 @@ def isServerRunning():
         sock.close()
 
 
-def getGimpPluginConfig():
-    global port
-
-    try:
-        with open(CONFIGFILE, 'r') as file:
-            gimpSettings = json.load(file)
-
-        # Update global variables with values from gimpSettings dictionary
-        port = int(gimpSettings.get("commPort"))
-        debugEnabled = gimpSettings.get("debugEnabled")
-        logPath = gimpSettings.get("logLocation")
-
-        return debugEnabled, logPath
-
-    except FileNotFoundError:
-        log.warning("Config file %s not found." % CONFIGFILE)
-
-    except Exception as e:
-        log.warning("Error reading config file: %s" % e)
-        pass
-
-#   To perform actions when Gimp loads
-def initActions():
-    global log
-
-    debugEnabled, logPath = getGimpPluginConfig()
-
-    log = PrismGimpLogger(debugEnabled, logPath)
-
-
-
+#  vvvvv PROCEDURES CALLED FROM GIMP MENU vvvvv #
 def save_version():
 
     if isServerRunning():
