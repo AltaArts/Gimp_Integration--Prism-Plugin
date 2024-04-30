@@ -68,17 +68,11 @@ if "PRISM_ROOT" in os.environ:
 else:
     prismRoot = r"C:/Prism2"     
 
-
 ##    CONSTANTS    ##                                                       
-GIMP_LOCAL_DIR = os.path.join(prismRoot, "Plugins", "Gimp")
-COMMS_DIR = os.path.join(GIMP_LOCAL_DIR, "PrismGimpComms")
-LOG_DIR = os.path.join(GIMP_LOCAL_DIR, "Logs")
-SERVERLOG = os.path.join(LOG_DIR, "GimpServerLog.log")
-PID_FILE = os.path.join(LOG_DIR, "scriptFuPID.txt")
+GIMPLOCALDIR = os.path.dirname(os.path.dirname(__file__))
+CONFIGFILE = os.path.join(GIMPLOCALDIR, "GimpConfig.json")
 HOST = "127.0.0.1"
-# PORT_GIMPTOPRISM = 40404                                                        #   TODO ALLOW USER CONFIG IN SETTINGS
-PORT_PRISMTOGIMP = 40404                                                        #   TODO ALLOW USER CONFIG IN SETTINGS
-LOG_SIZE_MAX = 10  # size in kb's                                               #   TODO ALLOW USER CONFIG IN SETTINGS
+
 
 
 class Prism_Gimp_Functions(object):
@@ -86,17 +80,16 @@ class Prism_Gimp_Functions(object):
         self.core = core
         self.plugin = plugin
 
-        self.host = HOST
-        self.port_prismToGimp = PORT_PRISMTOGIMP
-        self.commsDir = COMMS_DIR
-
         self.core.registerCallback("onStateManagerOpen",
                                     self.onStateManagerOpen,
                                     plugin=self.plugin,
                                     priority=40
                                     )
         
-        # self.core.registerCallback(
+
+        self.getGimpPluginConfig()
+
+        # self.core.registerCallback(                                           #   NEEDED ????
         #     "onStateCreated", self.onStateCreated, plugin=self.plugin
         #     )
 
@@ -105,13 +98,6 @@ class Prism_Gimp_Functions(object):
 
     @err_catcher(name=__name__)
     def startup(self, origin):
-        # 	for obj in QApplication.topLevelWidgets():
-        # 		if obj.objectName() == 'GimpWindow':
-        # 			QtParent = obj
-        # 			break
-        # 	else:
-        # 		return False
-
         origin.timer.stop()
 
         self.core.setActiveStyleSheet("Blender")
@@ -120,13 +106,30 @@ class Prism_Gimp_Functions(object):
             )
 
         origin.messageParent = QWidget()
-        # 	origin.messageParent.setParent(QtParent, Qt.Window)
+
         if self.core.useOnTop:
             origin.messageParent.setWindowFlags(
                 origin.messageParent.windowFlags() ^ Qt.WindowStaysOnTopHint
                 )
 
         origin.startAutosaveTimer()
+
+
+    def getGimpPluginConfig(self):
+
+        logger.debug("Getting Gimp Config")
+        try:
+            with open(CONFIGFILE, 'r') as file:
+                gimpSettings = json.load(file)
+
+            self.port = int(gimpSettings.get("commPort"))
+
+        except FileNotFoundError:
+            logger.warning("Config file %s not found." % CONFIGFILE)
+
+        except Exception as e:
+            logger.warning("Error reading config file: %s" % e)
+            pass
 
 
     @err_catcher(name=__name__)
@@ -160,30 +163,12 @@ class Prism_Gimp_Functions(object):
             return command, payload
         
         except Exception as e:
-            self.core.popup(f"Error decoding json:\n{e}")                                      #    TESTING
+            self.core.popup(f"Error decoding json:\n{e}")
             return None
     
 
 
 ### vvvvv For Sending Commands to Gimp vvvvv ###
-
-    # @err_catcher(name=__name__)
-    # def sendCmdToGimp(self, command, payload):
-
-    #     logger.debug("Sending Command to Gimp")
-
-    #     #   COMMAND TEMPLATE
-    #     #   command:    string var
-    #     #   data:       dict containing str key/values
-
-    #     jData = self.cmdDataToJson(command, payload)
-
-    #     self.core.popup(f"Sending Command to Gimp:  {command}")                                      #    TESTING
-
-    #     result = self.sendToGimp(jData)
-
-    #     return result
-    
 
     @err_catcher(name=__name__)
     def sendCmdToGimp(self, sendCmmand, sendData):
@@ -206,7 +191,7 @@ class Prism_Gimp_Functions(object):
             # Create a socket object
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 # Connect to GIMP
-                s.connect((self.host, self.port_prismToGimp))
+                s.connect((HOST, self.port))
                 # Send pDataJson
                 s.sendall(jData.encode())
                 response = s.recv(40960).decode()
@@ -219,56 +204,9 @@ class Prism_Gimp_Functions(object):
             # Handle the error as needed
 
             return False
-
     
 ### ^^^^^ For Sending Commands to Gimp ^^^^^ ###
 
-
-### vvvvv For Receiving Commands from Gimp vvvvv ###
-
-    # @err_catcher(name=__name__)
-    # def getCmdFile(self):   
-
-    #     self.core.popup(f"Getting Gimp Command")                                      #    TESTING
-
-    #     try:
-    #         # Create a socket object
-    #         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-    #             # Bind the socket to the host and port
-    #             s.bind((self.host, self.port_gimpToPrism))
-    #             # Listen for incoming connections
-    #             s.listen(1)
-    #             logger.debug("Socket listening for incoming connections")
-    #             # Accept a connection
-    #             conn, addr = s.accept()
-    #             with conn:
-    #                 logger.debug("Connected by %s", addr)
-    #                 # Receive data from the client
-    #                 jData = conn.recv(4096).decode()  # Adjust buffer size as needed
-    #                 # logger.debug("Data received: %s", jsonData)
-
-    #                 # Optionally, deserialize JSON data into a dictionary
-    #                 # data = json.loads(jsonData)
-    #                 # Process the received data as needed
-    #                 # logger.debug("Received data: %s", data)
-
-    #                 pData = self.decodeJdata(jData)
-
-    #                 return pData
-                
-    #     except Exception as e:
-    #         logger.error("Error receiving response JSON file: %s", e)
-    #         # Handle the error as needed
-    #         return None  # Return None in case of error
-
-    # @err_catcher(name=__name__)
-    # def decodeJdata(self, jData): 
-
-    #     pData = json.loads(jData)
-
-    #     return pData
-
-### ^^^^^ For Receiving Commands from Gimp ^^^^^ ###
 
 
 

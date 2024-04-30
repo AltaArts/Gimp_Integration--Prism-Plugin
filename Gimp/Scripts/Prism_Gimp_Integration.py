@@ -41,6 +41,7 @@
 ###########################################################################
 
 
+from genericpath import isdir, isfile
 import os
 import sys
 import platform
@@ -65,7 +66,7 @@ class Prism_Gimp_Integration(object):
         self.core = core
         self.plugin = plugin
 
-        self.dirsToAdd = ["Prism_Menu", "Prism_Functions"]
+        self.pluginRoot = os.path.dirname(os.path.dirname(__file__))
 
         if platform.system() == "Windows":
             self.examplePath = (
@@ -160,8 +161,8 @@ class Prism_Gimp_Integration(object):
 
             if gimpVerNum >= 2.99:
                 intergrationPath = os.path.join(integrationBase, "Gimp3")
-            # elif 2 < gimpVerNum < 2.99:                                                       #   TODO Add 2.10 support
-            #     intergrationPath = os.path.join(integrationBase, "Gimp2")
+            elif 2 < gimpVerNum < 2.99:                                                       #   TODO Add 2.10 support
+                intergrationPath = os.path.join(integrationBase, "Gimp2")
             else:
                 self.core.popup(f"Gimp{gimpVer} is not supported.  Please use Gimp 2.99 and above")
                 return False
@@ -169,36 +170,20 @@ class Prism_Gimp_Integration(object):
             gimpPluginPath = os.path.expanduser(f"~\\AppData\\Roaming\\GIMP\\{gimpVer}\\plug-ins")
             gimpPluginPath = gimpPluginPath.replace("\\", "/")
 
-            movedDirs = []
+            for item in os.listdir(intergrationPath):
+                srcItem = os.path.join(intergrationPath, item)
+                if os.path.isfile(srcItem):
+                    shutil.copy(srcItem, gimpPluginPath)
+                elif os.path.isdir(srcItem):
+                    destItem = os.path.join(gimpPluginPath, item)
+                    shutil.copytree(srcItem, destItem)
+               
+            result = self.replacePluginPaths(gimpPluginPath)
 
-            for dir in self.dirsToAdd:
-                srcDir = os.path.join(intergrationPath, dir)
-                srcDir = srcDir.replace("\\", "/")
-                destDir = os.path.join(gimpPluginPath, dir)
-                movedDirs.append(destDir)
-
-                shutil.copytree(srcDir, destDir)
-                
-            # Modify files in moved directories
-            for dir in movedDirs:
-                for dirpath, _, filenames in os.walk(dir):
-                    for filename in filenames:
-                        if filename.startswith("Prism"):
-                            file_path = os.path.join(dirpath, filename)
-                            with open(file_path, "r") as interFile:
-                                interFileStr = interFile.read()
-                            with open(file_path, "w") as interFile:
-                                interFileStr = interFileStr.replace(
-                                                "PRISMROOT", 
-                                                '"%s"' % self.core.prismRoot.replace("\\", "/")
-                                                )
-                                
-                                interFile.write(interFileStr)
-
-            if platform.system() in ["Linux", "Darwin"]:
-                for i in movedDirs:
-                    os.chmod(i, 0o777)
-
+            if not result:
+                self.core.popup("Failed to write paths to intergrtion.")
+                raise Exception
+            
             return True
 
         except Exception as e:
@@ -213,6 +198,46 @@ class Prism_Gimp_Integration(object):
             QMessageBox.warning(self.core.messageParent, "Prism Integration", msgStr)
             return False
         
+
+    @err_catcher(name=__name__)
+    def replacePluginPaths(self, gimpPluginPath):
+        try:
+            # Modify files in moved directories
+            for root, _, files in os.walk(gimpPluginPath):
+                for filename in files:
+                    if filename.startswith("Prism"):
+                        file_path = os.path.join(root, filename)
+                        with open(file_path, "r") as interFile:
+                            interFileStr = interFile.read()
+                        with open(file_path, "w") as interFile:
+                            interFileStr = interFileStr.replace(
+                                "PRISMROOTREPLACE", 
+                                '"%s"' % self.core.prismRoot.replace("\\", "/")
+                            )
+                            interFileStr = interFileStr.replace(
+                                "PLUGINROOTREPLACE", 
+                                '"%s"' % self.pluginRoot.replace("\\", "/")
+                            )
+                            interFile.write(interFileStr)
+
+            if platform.system() in ["Linux", "Darwin"]:
+                for root, dirs, _ in os.walk(gimpPluginPath):
+                    for item in dirs:
+                        os.chmod(os.path.join(root, item), 0o777)
+
+            return True
+
+        except OSError as e:
+            # Handle specific OSError, e.g., permission errors, etc.
+            # Log the error or display a warning message if needed.
+            print("Error:", e)
+            return False
+        
+        except Exception as e:
+            # Handle other specific exceptions if needed
+            print("Unexpected error:", e)
+            return False
+
 
 
 
@@ -232,10 +257,16 @@ class Prism_Gimp_Integration(object):
             gimpPluginPath = gimpPluginPath.replace("\\", "/")
 
 
-            for dir in self.dirsToAdd:
-                pluginDir = os.path.join(gimpPluginPath, dir)
-                if os.path.exists(pluginDir):
-                    shutil.rmtree(pluginDir)
+            for root, dirs, files in os.walk(gimpPluginPath):
+                for filename in files:
+                    removeItem = os.path.join(root, filename)
+                    os.remove(removeItem)
+                    
+            for dirpath, dirnames, _ in os.walk(gimpPluginPath, topdown=False):
+                for dirname in dirnames:
+                    removeDir = os.path.join(dirpath, dirname)
+                    shutil.rmtree(removeDir)
+
 
             return True
 
