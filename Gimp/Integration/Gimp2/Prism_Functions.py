@@ -40,8 +40,6 @@
 #
 ###########################################################################
 
-# from dis import show_code
-# from distutils import cmd
 import os
 import time
 import socket
@@ -49,45 +47,40 @@ import logging
 import sys
 import shutil
 import errno
-
-
 import json
 
 from gimpfu import *
 
 
 if "PRISM_ROOT" in os.environ:
-    prismRoot = os.environ["PRISM_ROOT"]
-    if not prismRoot:
+    PRISMROOT = os.environ["PRISM_ROOT"]
+    if not PRISMROOT:
         raise Exception("PRISM_ROOT is not set")
 else:
-    # prismRoot = PRISMROOT
-    prismRoot = r"C:\Prism2"                                                    #   TODO CHANGE FOR INTERGRATION
+    PRISMROOT = r"C:/Prism2"
+    # PRISMROOT = r_RISMROOTREPLACE                         #   TODO CHANGE FOR INTERGRATION - change "p"
 
+PLUGINROOT = r"C:/ProgramData/Prism2/plugins/Gimp"
+# pluginRoot = r_LUGINROOT                                  #   TODO CHANGE FOR INTERGRATION - change "p"
 
 ##    CONSTANTS    ##                                                       
 PLUGIN_PATH = os.path.dirname(__file__)
-LOGPATH = os.path.join(PLUGIN_PATH, "logs")
-LOGFILE = os.path.join(LOGPATH, "Gimp-Prism_Log.log")
+CONFIGFILE = os.path.join(PLUGINROOT, "GimpConfig.json")
 ALPHA_BG_FILE = os.path.join(PLUGIN_PATH, "Prism_Util", "alpha_BG.png")
 HOST = "127.0.0.1"
-PORT_PRISMTOGIMP = 40404                                                        #   TODO ALLOW USER CONFIG IN SETTINGS
-LOG_SIZE_MAX = 500  # size in kb's                                               #   TODO ALLOW USER CONFIG IN SETTINGS
-
-
-#   LOGGING
-sys.stderr = open(LOGFILE, 'a')
-sys.stdout = sys.stderr
-DEBUG = True    #   Set True to display all messages
-
 
 
 
 class PrismGimpLogger:
+    def __init__(self, debugEnabled, logPath):
+        self.debugEnabled = debugEnabled
+        sys.stderr = open(logPath, 'a')
+        sys.stdout = sys.stderr
+        
     def debug(self, message):
-        if DEBUG:
+        if self.debugEnabled:
             pdb.gimp_message("PRISM FUNCTIONS:   %s" % message)
-
+            
         logging.warning("PRISM FUNCTIONS:  %s" % message)
 
     def warning(self, message):
@@ -95,15 +88,12 @@ class PrismGimpLogger:
         pdb.gimp_message("PRISM FUNCTIONS:   %s" % message)
 
 
-log = PrismGimpLogger()
-
 
 class PrismServer:
     def __init__(self):
         self.host = HOST
-        self.port_prismToGimp = PORT_PRISMTOGIMP
+        self.port_prismToGimp = port
         self.socket = None
-
 
     def start(self):
         log.warning("Listening on {}:{}".format(self.host, self.port_prismToGimp))
@@ -143,17 +133,50 @@ class PrismServer:
         log.warning("Reset Comms")
 
 
+#   To perform actions when Gimp loads
+def initActions():
+    global log
+    global server
+    global logMaxSize
+
+    debugEnabled, logPath, logMaxSize  = getGimpPluginConfig()
+
+    log = PrismGimpLogger(debugEnabled, logPath)
+    server = PrismServer()
+
+
+def getGimpPluginConfig():
+    global port
+    global logPath
+    global logMaxSize
+
+    try:
+        with open(CONFIGFILE, 'r') as file:
+            gimpSettings = json.load(file)
+
+        # Update global variables with values from gimpSettings dictionary
+        port = int(gimpSettings.get("commPort"))
+        debugEnabled = gimpSettings.get("debugEnabled")
+        logPath = gimpSettings.get("logLocation")
+        logMaxSize = gimpSettings.get("logMax")
+
+        return debugEnabled, logPath, logMaxSize
+
+    except FileNotFoundError:
+        log.warning("Config file %s not found." % CONFIGFILE)
+
+    except Exception as e:
+        log.warning("Error reading config file: %s" % e)
+        pass
+
+
 def startServer():
 
     handleServerLog()
-
-    time.sleep(1)                                               #   NEEDED?
+    time.sleep(1)                        #   NEEDED?
 
     if not isServerRunning():
-
-        log.warning("Launching Server*\n\n")
-
-        server = PrismServer()
+        log.warning("Launching Server")
         server.start()
 
     else:
@@ -161,30 +184,27 @@ def startServer():
         pass
 
 
-
 def handleServerLog():
+    global logPath
+    global logMaxSize
+    logDir = os.path.dirname(logPath)
     
-    # Check if the logfile exists
-    if os.path.exists(LOGFILE):
+    if os.path.exists(logPath):
         try:
-            # Get the size of the logfile
-            logSize = os.path.getsize(LOGFILE)
+            logSize = os.path.getsize(logPath)
+            thresholdSize = logMaxSize * 1024  # logSizeMax in kb's
             
-            # Convert logSizeMax from MB to bytes
-            thresholdSize = LOG_SIZE_MAX * 1024  # logSizeMax in kb's
-            
-            # Check if the size exceeds the threshold
             if logSize > thresholdSize:
 
                 # Generate the new filename with "_old" suffix
-                oldLogfile = LOGFILE.replace(".log", "_OLD.log")
+                oldLogfile = logPath.replace(".log", "_OLD.log")
                 log.debug("*** Backing up log to %s ***" % oldLogfile)
                 
                 # Rename the logfile
-                shutil.copy(LOGFILE, oldLogfile)
+                shutil.copy(logPath, oldLogfile)
 
                 #   Clear the logfile, since Gimp is restricting from deleting
-                with open(LOGFILE, 'w'):  # Open the file in write mode to truncate it
+                with open(logPath, 'w'):  # Open the file in write mode to truncate it
                     pass
                 
                 log.debug("The logfile has been renamed to: %s" % oldLogfile)
@@ -193,13 +213,12 @@ def handleServerLog():
             log.warning("ERROR:  %s" % e)
 
     else:
-        if not os.path.exists(LOGPATH):
-            os.mkdir(LOGPATH)
+        if not os.path.exists(logDir):
+            os.mkdir(logDir)
 
 
 def cmdDataToJson(command, payload):
-
-    log.debug("Creating json for:  %s" % command)                                          #    DEBUG
+    log.debug("Creating json for:  %s" % command)
 
     try:
         pData = {
@@ -215,8 +234,7 @@ def cmdDataToJson(command, payload):
 
 
 def jsonToCmdData(jData):
-
-    log.debug("decoding json:")                                          #    DEBUG
+    log.debug("decoding json:")
     log.debug(jData)
 
     try:
@@ -225,25 +243,24 @@ def jsonToCmdData(jData):
         command = pData.get("command")
         payload = pData.get("data")
 
-        log.debug("decoded:   %s" % command)                                          #    DEBUG
+        log.debug("decoded:   %s" % command)
 
         return command, payload
     
     except Exception as e:
-        log.warning("Error decoding json:   %s" % e)                                      #    TESTING
+        log.warning("Error decoding json:   %s" % e)
         return None
+    
 
 def isServerRunning():
     log.debug("Checking Server")
     try:
-        # Create a new socket
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-        # Try to bind the socket to the host and port
-        sock.bind((HOST, PORT_PRISMTOGIMP))
-
+        # Try to bind the socket
+        sock.bind((HOST, port))
         # If the bind is successful, the port is not in use
         sock.close()
+
         return False
 
     except socket.error as e:
@@ -254,20 +271,11 @@ def isServerRunning():
         elif e.errno == errno.EADDRINUSE:
             return True
         else:
-            # Handle other socket errors
             log.warning("Socket error: %s" % e)
             return False
 
     finally:
-        # Close the socket if it was created
         sock.close()
-
-
-
-
-
-
-
 
 
 def handleCmd(jData):
@@ -276,8 +284,6 @@ def handleCmd(jData):
 
     log.debug("Command received:   %s" % command)
 
-    # if command == "PING":
-    #     return pingTest()
     if command == "getCurrentFilename":
         return getCurrentFilename()
     elif command == "saveVersion":
@@ -295,9 +301,6 @@ def handleCmd(jData):
         command = "FAILED"
         payload = "FAILED"
         return cmdDataToJson(command, payload)
-
-    
-
 
 ### ^^^^^ Socket Comms from Prism ^^^^^ ###
 ##############################################################
@@ -704,14 +707,16 @@ def getStates():
 
 
 
+initActions()   #   Run init actions such getting config info and setting up logger
+
 
 ### vvvvv REGISTER PLUG-IN vvvvv ###
 
 # START SERVER
 register(
-    "python-fu_prism_server",                      #   UNIQUE NAME
-    "Prism Server",                              #   BLURB
-    "Description of Server",                       #   DESCRIPTION
+    "python-fu_prism_serverStart",                      #   UNIQUE NAME
+    "Prism Server Start Action",                        #   BLURB
+    "Enables socket comms between Prism and Gimp",      #   DESCRIPTION
     "Joshua Breckeen",                                  #   AUTHORS NAME
     "Copyright (C) Your Year",                          #   COPYRIGHT INFO
     "2023",                                             #   VERSION OF SCRIPT
@@ -725,18 +730,18 @@ register(
 
 # START SERVER
 # register(
-#     "python-fu_prism_listener",                      #   UNIQUE NAME
-#     "Prism Listener",                              #   BLURB
-#     "Description of Listener",                       #   DESCRIPTION
-#     "Joshua Breckeen",                                  #   AUTHORS NAME
-#     "Copyright (C) Your Year",                          #   COPYRIGHT INFO
-#     "2023",                                             #   VERSION OF SCRIPT
-#     "1 - Start Prism Listener",                           #   NAME DISPLAYED IN MENU
-#     "",                                                 #   TYPE OF DRAWABLE: '' = can be none, * = any drawable, RGB, RGB, RGB* etc
-#     [],                                                 #   ADDITIONAL ARGS
-#     [],                                                 #   RETURN TYPES
-#     startListener,                                        #   FUNCTION CALLED WHEN ACTIVATED
-#     "<Image>/Prism",                                    #   WHERE IN MENU
+#     "python-fu_prism_serverReset",
+#     "Prism Server Reset Action",
+#     "Resets socket comms between Prism and Gimp",
+#     "Joshua Breckeen",
+#     "Copyright (C) Your Year",
+#     "2023",
+#     "6 - Reset Prism Server",
+#     "",
+#     [],
+#     [],
+#     resetServer,
+#     "<Image>/Prism",
 # )
 
 main()
