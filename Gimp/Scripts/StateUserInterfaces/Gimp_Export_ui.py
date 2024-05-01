@@ -177,6 +177,34 @@ class Ui_wg_Gimp_Export(object):
 
         self.verticalLayout_2.addWidget(self.w_outPath)
 
+        self.w_scale = QWidget(self.gb_export)
+        self.w_scale.setObjectName(u"w_scale")
+        self.horizontalLayout_14 = QHBoxLayout(self.w_scale)
+        self.horizontalLayout_14.setSpacing(0)
+        self.horizontalLayout_14.setObjectName(u"horizontalLayout_14")
+        self.horizontalLayout_14.setContentsMargins(9, 0, 9, 0)
+        self.l_scale = QLabel(self.w_scale)
+        self.l_scale.setObjectName(u"l_scale")
+
+        self.horizontalLayout_14.addWidget(self.l_scale)
+
+        self.horizontalSpacer_12 = QSpacerItem(113, 20, QSizePolicy.Expanding, QSizePolicy.Minimum)
+
+        self.horizontalLayout_14.addItem(self.horizontalSpacer_12)
+
+        self.cb_scale = QComboBox(self.w_scale)
+        self.cb_scale.setObjectName(u"cb_scale")
+        self.cb_scale.setMinimumSize(QSize(124, 0))
+
+        self.horizontalLayout_14.addWidget(self.cb_scale)
+
+
+        self.verticalLayout_2.addWidget(self.w_scale)
+
+        self.verticalSpacer = QSpacerItem(20, 5, QSizePolicy.Minimum, QSizePolicy.Fixed)
+
+        self.verticalLayout_2.addItem(self.verticalSpacer)
+
         self.w_outType = QWidget(self.gb_export)
         self.w_outType.setObjectName(u"w_outType")
         self.horizontalLayout_9 = QHBoxLayout(self.w_outType)
@@ -390,23 +418,23 @@ class Ui_wg_Gimp_Export(object):
 
         self.verticalLayout_6.addLayout(self.horizontalLayout_2)
 
-        self.chb_png_interlaced = QCheckBox(self.gb_pngOptions)
-        self.chb_png_interlaced.setObjectName(u"chb_png_interlaced")
-        self.chb_png_interlaced.setLayoutDirection(Qt.RightToLeft)
+        self.chb_png_alphaColor = QCheckBox(self.gb_pngOptions)
+        self.chb_png_alphaColor.setObjectName(u"chb_png_alphaColor")
+        self.chb_png_alphaColor.setLayoutDirection(Qt.RightToLeft)
 
-        self.verticalLayout_6.addWidget(self.chb_png_interlaced)
+        self.verticalLayout_6.addWidget(self.chb_png_alphaColor)
+
+        self.chb_png_bgColor = QCheckBox(self.gb_pngOptions)
+        self.chb_png_bgColor.setObjectName(u"chb_png_bgColor")
+        self.chb_png_bgColor.setLayoutDirection(Qt.RightToLeft)
+
+        self.verticalLayout_6.addWidget(self.chb_png_bgColor)
 
         self.chb_png_gamma = QCheckBox(self.gb_pngOptions)
         self.chb_png_gamma.setObjectName(u"chb_png_gamma")
         self.chb_png_gamma.setLayoutDirection(Qt.RightToLeft)
 
         self.verticalLayout_6.addWidget(self.chb_png_gamma)
-
-        self.chb_png_rez = QCheckBox(self.gb_pngOptions)
-        self.chb_png_rez.setObjectName(u"chb_png_rez")
-        self.chb_png_rez.setLayoutDirection(Qt.RightToLeft)
-
-        self.verticalLayout_6.addWidget(self.chb_png_rez)
 
 
         self.horizontalLayout.addLayout(self.verticalLayout_6)
@@ -420,23 +448,23 @@ class Ui_wg_Gimp_Export(object):
 
         self.verticalLayout_5.addWidget(self.cb_png_compress)
 
-        self.chb_png_bgColor = QCheckBox(self.gb_pngOptions)
-        self.chb_png_bgColor.setObjectName(u"chb_png_bgColor")
-        self.chb_png_bgColor.setLayoutDirection(Qt.RightToLeft)
+        self.chb_png_interlaced = QCheckBox(self.gb_pngOptions)
+        self.chb_png_interlaced.setObjectName(u"chb_png_interlaced")
+        self.chb_png_interlaced.setLayoutDirection(Qt.RightToLeft)
 
-        self.verticalLayout_5.addWidget(self.chb_png_bgColor)
+        self.verticalLayout_5.addWidget(self.chb_png_interlaced)
+
+        self.chb_png_rez = QCheckBox(self.gb_pngOptions)
+        self.chb_png_rez.setObjectName(u"chb_png_rez")
+        self.chb_png_rez.setLayoutDirection(Qt.RightToLeft)
+
+        self.verticalLayout_5.addWidget(self.chb_png_rez)
 
         self.chb_png_layerOffset = QCheckBox(self.gb_pngOptions)
         self.chb_png_layerOffset.setObjectName(u"chb_png_layerOffset")
         self.chb_png_layerOffset.setLayoutDirection(Qt.RightToLeft)
 
         self.verticalLayout_5.addWidget(self.chb_png_layerOffset)
-
-        self.chb_png_alphaColor = QCheckBox(self.gb_pngOptions)
-        self.chb_png_alphaColor.setObjectName(u"chb_png_alphaColor")
-        self.chb_png_alphaColor.setLayoutDirection(Qt.RightToLeft)
-
-        self.verticalLayout_5.addWidget(self.chb_png_alphaColor)
 
 
         self.horizontalLayout.addLayout(self.verticalLayout_5)
@@ -450,25 +478,6 @@ class Ui_wg_Gimp_Export(object):
         self.verticalSpacer_3 = QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding)
 
         self.verticalLayout_2.addItem(self.verticalSpacer_3)
-
-        self.w_comment = QHBoxLayout()
-        self.w_comment.setObjectName(u"w_comment")
-        self.l_comment = QLabel(self.gb_export)
-        self.l_comment.setObjectName(u"l_comment")
-
-        self.w_comment.addWidget(self.l_comment)
-
-        self.e_comment = QLineEdit(self.gb_export)
-        self.e_comment.setObjectName(u"e_comment")
-
-        self.w_comment.addWidget(self.e_comment)
-
-
-        self.verticalLayout_2.addLayout(self.w_comment)
-
-        self.verticalSpacer = QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding)
-
-        self.verticalLayout_2.addItem(self.verticalSpacer)
 
         self.gb_previous = QGroupBox(self.gb_export)
         self.gb_previous.setObjectName(u"gb_previous")
@@ -534,11 +543,12 @@ class Ui_wg_Gimp_Export(object):
         self.label_4.setText(QCoreApplication.translate("wg_Gimp_Export", u"Context:", None))
         self.l_context.setText("")
         self.b_context.setText(QCoreApplication.translate("wg_Gimp_Export", u"Select", None))
-        self.l_tasklabel.setText(QCoreApplication.translate("wg_Gimp_Export", u"Productname:", None))
+        self.l_tasklabel.setText(QCoreApplication.translate("wg_Gimp_Export", u"Identifier:", None))
         self.l_taskName.setText("")
         self.b_changeTask.setText(QCoreApplication.translate("wg_Gimp_Export", u"change", None))
         self.l_master.setText(QCoreApplication.translate("wg_Gimp_Export", u"Master Version:", None))
         self.l_outPath.setText(QCoreApplication.translate("wg_Gimp_Export", u"Location:", None))
+        self.l_scale.setText(QCoreApplication.translate("wg_Gimp_Export", u"Scale:", None))
         self.l_outType.setText(QCoreApplication.translate("wg_Gimp_Export", u"Outputtype:", None))
         self.l_colorMode.setText(QCoreApplication.translate("wg_Gimp_Export", u"Color Mode", None))
         self.l_bitDepth.setText(QCoreApplication.translate("wg_Gimp_Export", u"Bit Depth", None))
@@ -550,15 +560,17 @@ class Ui_wg_Gimp_Export(object):
         self.chb_jpg_progressive.setText(QCoreApplication.translate("wg_Gimp_Export", u"Progressive", None))
         self.chb_jpg_arithCode.setText(QCoreApplication.translate("wg_Gimp_Export", u"Arithmetic Coding", None))
         self.l_png_compress.setText(QCoreApplication.translate("wg_Gimp_Export", u"Compression", None))
-        self.chb_png_interlaced.setText(QCoreApplication.translate("wg_Gimp_Export", u"Interlaced          ", None))
-        self.chb_png_gamma.setText(QCoreApplication.translate("wg_Gimp_Export", u"Save Gamma     ", None))
-        self.chb_png_rez.setText(QCoreApplication.translate("wg_Gimp_Export", u"Save Resolution", None))
+        self.chb_png_alphaColor.setText(QCoreApplication.translate("wg_Gimp_Export", u"PreMult Alpha", None))
         self.chb_png_bgColor.setText(QCoreApplication.translate("wg_Gimp_Export", u"Save Background Color", None))
+        self.chb_png_gamma.setText(QCoreApplication.translate("wg_Gimp_Export", u"Save Gamma     ", None))
+        self.chb_png_interlaced.setText(QCoreApplication.translate("wg_Gimp_Export", u"Interlaced          ", None))
+        self.chb_png_rez.setText(QCoreApplication.translate("wg_Gimp_Export", u"Save Resolution", None))
         self.chb_png_layerOffset.setText(QCoreApplication.translate("wg_Gimp_Export", u"Save Layer Offset", None))
-        self.chb_png_alphaColor.setText(QCoreApplication.translate("wg_Gimp_Export", u"Preserve Color in Alpha", None))
-        self.l_comment.setText(QCoreApplication.translate("wg_Gimp_Export", u"Comment", None))
         self.gb_previous.setTitle(QCoreApplication.translate("wg_Gimp_Export", u"Last export", None))
         self.l_pathLast.setText(QCoreApplication.translate("wg_Gimp_Export", u"None", None))
         self.b_pathLast.setText(QCoreApplication.translate("wg_Gimp_Export", u"...", None))
     # retranslateUi
+
+
+
 

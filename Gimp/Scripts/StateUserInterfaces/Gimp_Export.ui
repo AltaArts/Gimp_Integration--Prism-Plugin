@@ -174,7 +174,7 @@
          <item>
           <widget class="QLabel" name="l_tasklabel">
            <property name="text">
-            <string>Productname:</string>
+            <string>Identifier:</string>
            </property>
           </widget>
          </item>
@@ -332,6 +332,73 @@
          </item>
         </layout>
        </widget>
+      </item>
+      <item>
+       <widget class="QWidget" name="w_scale" native="true">
+        <layout class="QHBoxLayout" name="horizontalLayout_14">
+         <property name="spacing">
+          <number>0</number>
+         </property>
+         <property name="leftMargin">
+          <number>9</number>
+         </property>
+         <property name="topMargin">
+          <number>0</number>
+         </property>
+         <property name="rightMargin">
+          <number>9</number>
+         </property>
+         <property name="bottomMargin">
+          <number>0</number>
+         </property>
+         <item>
+          <widget class="QLabel" name="l_scale">
+           <property name="text">
+            <string>Scale:</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <spacer name="horizontalSpacer_12">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>113</width>
+             <height>20</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+         <item>
+          <widget class="QComboBox" name="cb_scale">
+           <property name="minimumSize">
+            <size>
+             <width>124</width>
+             <height>0</height>
+            </size>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item>
+       <spacer name="verticalSpacer">
+        <property name="orientation">
+         <enum>Qt::Vertical</enum>
+        </property>
+        <property name="sizeType">
+         <enum>QSizePolicy::Fixed</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>20</width>
+          <height>5</height>
+         </size>
+        </property>
+       </spacer>
       </item>
       <item>
        <widget class="QWidget" name="w_outType" native="true">
@@ -744,12 +811,22 @@
               </layout>
              </item>
              <item>
-              <widget class="QCheckBox" name="chb_png_interlaced">
+              <widget class="QCheckBox" name="chb_png_alphaColor">
                <property name="layoutDirection">
                 <enum>Qt::RightToLeft</enum>
                </property>
                <property name="text">
-                <string>Interlaced          </string>
+                <string>PreMult Alpha</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QCheckBox" name="chb_png_bgColor">
+               <property name="layoutDirection">
+                <enum>Qt::RightToLeft</enum>
+               </property>
+               <property name="text">
+                <string>Save Background Color</string>
                </property>
               </widget>
              </item>
@@ -760,16 +837,6 @@
                </property>
                <property name="text">
                 <string>Save Gamma     </string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QCheckBox" name="chb_png_rez">
-               <property name="layoutDirection">
-                <enum>Qt::RightToLeft</enum>
-               </property>
-               <property name="text">
-                <string>Save Resolution</string>
                </property>
               </widget>
              </item>
@@ -794,12 +861,22 @@
               </widget>
              </item>
              <item>
-              <widget class="QCheckBox" name="chb_png_bgColor">
+              <widget class="QCheckBox" name="chb_png_interlaced">
                <property name="layoutDirection">
                 <enum>Qt::RightToLeft</enum>
                </property>
                <property name="text">
-                <string>Save Background Color</string>
+                <string>Interlaced          </string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QCheckBox" name="chb_png_rez">
+               <property name="layoutDirection">
+                <enum>Qt::RightToLeft</enum>
+               </property>
+               <property name="text">
+                <string>Save Resolution</string>
                </property>
               </widget>
              </item>
@@ -813,16 +890,6 @@
                </property>
               </widget>
              </item>
-             <item>
-              <widget class="QCheckBox" name="chb_png_alphaColor">
-               <property name="layoutDirection">
-                <enum>Qt::RightToLeft</enum>
-               </property>
-               <property name="text">
-                <string>Preserve Color in Alpha</string>
-               </property>
-              </widget>
-             </item>
             </layout>
            </item>
           </layout>
@@ -832,33 +899,6 @@
       </item>
       <item>
        <spacer name="verticalSpacer_3">
-        <property name="orientation">
-         <enum>Qt::Vertical</enum>
-        </property>
-        <property name="sizeHint" stdset="0">
-         <size>
-          <width>20</width>
-          <height>40</height>
-         </size>
-        </property>
-       </spacer>
-      </item>
-      <item>
-       <layout class="QHBoxLayout" name="w_comment">
-        <item>
-         <widget class="QLabel" name="l_comment">
-          <property name="text">
-           <string>Comment</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QLineEdit" name="e_comment"/>
-        </item>
-       </layout>
-      </item>
-      <item>
-       <spacer name="verticalSpacer">
         <property name="orientation">
          <enum>Qt::Vertical</enum>
         </property>
