@@ -65,7 +65,14 @@ from StateUserInterfaces import Gimp_Export_ui
 logger = logging.getLogger(__name__)
 
 
-# class GimpExportClass(object):
+def convertToBit(bool):
+    if bool == True:
+        return 1
+    else:
+        return 0
+    
+
+
 class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
 
     className = "Gimp_Render"
@@ -82,7 +89,6 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
         self.customContext = None
         self.allowCustomContext = False
 
-        self.curCam = None
         self.renderingStarted = False
         self.cleanOutputdir = True
 
@@ -90,40 +96,12 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
 
         self.e_name.setText(state.text(0) + " - {identifier}")
 
-        # self.rangeTypes = [
-        #     "Scene",
-        #     "Shot",
-        #     "Single Frame",
-        #     "Custom",
-        #     "Expression",
-        # ]
-        # self.cb_rangeType.addItems(self.rangeTypes)
-        # for idx, rtype in enumerate(self.rangeTypes):
-        #     self.cb_rangeType.setItemData(
-        #         idx, self.stateManager.getFrameRangeTypeToolTip(rtype), Qt.ToolTipRole
-        #     )
-        # self.w_frameExpression.setToolTip(
-        #     self.stateManager.getFrameRangeTypeToolTip("ExpressionField")
-        # )
-
-        # self.renderPresets = (
-        #     self.stateManager.stateTypes["RenderSettings"].getPresets(self.core)
-        #     if "RenderSettings" in self.stateManager.stateTypes
-        #     else {}
-        # )
-        # if self.renderPresets:
-        #     self.cb_renderPreset.addItems(self.renderPresets.keys())
-        # else:
-        #     self.w_renderPreset.setVisible(False)
-
         self.l_name.setVisible(False)
         self.e_name.setVisible(False)
-        # self.gb_submit.setChecked(False)
-        # self.f_renderLayer.setVisible(False)
 
         getattr(self.core.appPlugin, "sm_render_startup", lambda x: None)(self)
 
-        masterItems = ["Set as master", "Add to master", "Don't update master"]
+        masterItems = ["Set as master", "Don't update master"]
         self.cb_master.addItems(masterItems)
 
         self.product_paths = self.core.paths.getRenderProductBasePaths()
@@ -131,15 +109,18 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
         if len(self.product_paths) < 2:
             self.w_outPath.setVisible(False)
 
-        # self.mediaType = "3drenders"
         self.mediaType = "2drenders"
         self.tasknameRequired = True
 
         self.outputFormats = [".png", ".exr", ".jpg"]                   #   TODO
         self.cb_format.addItems(self.outputFormats)                     #   TODO
 
+        scaleOptions = ["10", "25", "50", "100", "150", "200", "300"]
+        self.cb_scale.addItems(scaleOptions)
+        self.cb_scale.setCurrentIndex(3)
 
-        alphaFill = ["checker", "black", "white", "pink"]
+
+        alphaFill = ["checker", "black", "gray", "white", "pink"]
         self.cb_alphaFill.addItems(alphaFill)
         self.cb_alphaFill.setCurrentIndex(0)
 
@@ -148,7 +129,7 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
         self.cb_png_compress.setCurrentIndex(4)
 
         self.chb_png_interlaced.setChecked(False)
-        self.chb_png_gamma.setChecked(False)
+        self.chb_png_gamma.setChecked(True)
         self.chb_png_rez.setChecked(True)
         self.chb_png_bgColor.setChecked(True)
         self.chb_png_layerOffset.setChecked(False)
@@ -171,19 +152,7 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
         self.chb_jpg_progressive.setChecked(False)
         self.chb_jpg_arithCode.setChecked(False)
 
-
-
-
-
-
         self.updateUiOptions()
-
-        # self.resolutionPresets = self.core.projects.getResolutionPresets()
-        # if "Get from rendersettings" not in self.resolutionPresets:
-        #     self.resolutionPresets.append("Get from rendersettings")
-
-        # self.e_osSlaves.setText("All")
-
         self.connectEvents()
 
         self.oldPalette = self.b_changeTask.palette()
@@ -194,14 +163,7 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
         self.setTaskWarn(True)
         self.nameChanged(state.text(0))
 
-        # self.cb_manager.addItems([p.pluginName for p in self.core.plugins.getRenderfarmPlugins()])
-
         self.core.callback("onStateStartup", self)
-
-        # if self.cb_manager.count() == 0:
-        #     self.gb_submit.setVisible(False)
-
-        # self.managerChanged(True)
 
         if stateData is not None:
             self.loadData(stateData)
@@ -224,39 +186,7 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
             self.e_name.setText(data["stateName"])
         elif "statename" in data:
             self.e_name.setText(data["statename"] + " - {identifier}")
-        if "renderpresetoverride" in data:
-            res = eval(data["renderpresetoverride"])
-            self.chb_renderPreset.setChecked(res)
-        if "currentrenderpreset" in data:
-            idx = self.cb_renderPreset.findText(data["currentrenderpreset"])
-            if idx != -1:
-                self.cb_renderPreset.setCurrentIndex(idx)
-                self.stateManager.saveStatesToScene()
-        # if "rangeType" in data:
-        #     idx = self.cb_rangeType.findText(data["rangeType"])
-        #     if idx != -1:
-        #         self.cb_rangeType.setCurrentIndex(idx)
-        #         self.updateRange()
-        # if "startframe" in data:
-        #     self.sp_rangeStart.setValue(int(data["startframe"]))
-        # if "endframe" in data:
-        #     self.sp_rangeEnd.setValue(int(data["endframe"]))
-        # if "frameExpression" in data:
-        #     self.le_frameExpression.setText(data["frameExpression"])
-        # if "currentcam" in data:
-        #     camName = getattr(self.core.appPlugin, "getCamName", lambda x, y: "")(
-        #         self, data["currentcam"]
-        #     )
-        #     idx = self.cb_cam.findText(camName)
-        #     if idx != -1:
-        #         self.curCam = self.camlist[idx]
-        #         self.cb_cam.setCurrentIndex(idx)
-        #         self.stateManager.saveStatesToScene()
-        if "resoverride" in data:
-            res = eval(data["resoverride"])
-            self.chb_resOverride.setChecked(res[0])
-            self.sp_resWidth.setValue(res[1])
-            self.sp_resHeight.setValue(res[2])
+
         if "masterVersion" in data:
             idx = self.cb_master.findText(data["masterVersion"])
             if idx != -1:
@@ -266,6 +196,11 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
             if idx != -1:
                 self.cb_outPath.setCurrentIndex(idx)
 
+        if "exportScale" in data:
+            idx = self.cb_scale.findText(data["exportScale"])
+            if idx != -1:
+                self.cb_format.setCurrentIndex(idx)
+        
         if "outputFormat" in data:
             idx = self.cb_format.findText(data["outputFormat"])
             if idx != -1:
@@ -333,10 +268,6 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
         if "jpg_ArithCode" in data:
             self.chb_jpg_arithCode.setChecked(data["jpg_ArithCode"])
 
-        if "exportComment" in data:
-            self.e_comment.setText(data["exportComment"])
-
-
         if "lastexportpath" in data:
             lePath = self.core.fixPath(data["lastexportpath"])
             self.l_pathLast.setText(lePath)
@@ -375,17 +306,9 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
         self.chb_jpg_progressive.toggled.connect(self.stateManager.saveStatesToScene)
         self.chb_jpg_arithCode.toggled.connect(self.stateManager.saveStatesToScene)
 
-        self.e_comment.editingFinished.connect(self.stateManager.saveStatesToScene)
-
-
-
-
-
 
         self.b_pathLast.clicked.connect(self.showLastPathMenu)
-        # self.lw_passes.itemDoubleClicked.connect(
-        #     lambda x: self.core.appPlugin.sm_render_openPasses(self)
-        # )
+
 
 
 
@@ -449,21 +372,6 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
     @err_catcher(name=__name__)
     def initializeContextBasedSettings(self):
         context = self.getCurrentContext()
-        # if context.get("type") == "asset":
-        #     self.setRangeType("Single Frame")
-        # elif context.get("type") == "shot":
-        #     self.setRangeType("Shot")
-        # elif self.stateManager.standalone:
-        #     self.setRangeType("Custom")
-        # else:
-        #     self.setRangeType("Scene")
-
-        # start, end = self.getFrameRange("Scene")
-        # if start is not None:
-        #     self.sp_rangeStart.setValue(start)
-
-        # if end is not None:
-        #     self.sp_rangeEnd.setValue(end)
 
         if context.get("task"):
             self.setTaskname(context.get("task"))
@@ -522,104 +430,6 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
         self.refreshContext()
         self.stateManager.saveStatesToScene()
 
-    @err_catcher(name=__name__)
-    def rangeTypeChanged(self, state):
-        self.updateUi()
-        self.stateManager.saveStatesToScene()
-
-    @err_catcher(name=__name__)
-    def startChanged(self):
-        if self.sp_rangeStart.value() > self.sp_rangeEnd.value():
-            self.sp_rangeEnd.setValue(self.sp_rangeStart.value())
-
-        self.stateManager.saveStatesToScene()
-
-    @err_catcher(name=__name__)
-    def endChanged(self):
-        if self.sp_rangeEnd.value() < self.sp_rangeStart.value():
-            self.sp_rangeStart.setValue(self.sp_rangeEnd.value())
-
-        self.stateManager.saveStatesToScene()
-
-    @err_catcher(name=__name__)
-    def frameExpressionChanged(self, text=None):
-        if not hasattr(self, "expressionWinLabel"):
-            return
-
-        frames = self.core.resolveFrameExpression(self.le_frameExpression.text())
-        if len(frames) > 1000:
-            frames = frames[:1000]
-            frames.append("...")
-
-        for idx in range(int(len(frames) / 30.0)):
-            frames.insert((idx+1)*30, "\n")
-
-        frameStr = ",".join([str(x) for x in frames]) or "invalid expression"
-        self.expressionWinLabel.setText(frameStr)
-        self.expressionWin.resize(1, 1)
-
-    @err_catcher(name=__name__)
-    def exprMoveEvent(self, event):
-        self.showExpressionWin(event)
-        if hasattr(self, "expressionWin") and self.expressionWin.isVisible():
-            self.expressionWin.move(
-                QCursor.pos().x() + 20, QCursor.pos().y() - self.expressionWin.height()
-            )
-        self.le_frameExpression.origMoveEvent(event)
-
-    @err_catcher(name=__name__)
-    def showExpressionWin(self, event):
-        if not hasattr(self, "expressionWin") or not self.expressionWin.isVisible():
-            if hasattr(self, "expressionWin"):
-                self.expressionWin.close()
-
-            self.expressionWin = QFrame()
-            ss = getattr(self.core.appPlugin, "getFrameStyleSheet", lambda x: "")(self)
-            self.expressionWin.setStyleSheet(
-                ss + """ .QFrame{ border: 2px solid rgb(100,100,100);} """
-            )
-
-            self.core.parentWindow(self.expressionWin)
-            winwidth = 10
-            winheight = 10
-            VBox = QVBoxLayout()
-            frames = self.core.resolveFrameExpression(self.le_frameExpression.text())
-            if len(frames) > 1000:
-                frames = frames[:1000]
-                frames.append("...")
-
-            for idx in range(int(len(frames) / 30.0)):
-                frames.insert((idx+1)*30, "\n")
-
-            frameStr = ",".join([str(x) for x in frames]) or "invalid expression"
-            self.expressionWinLabel = QLabel(frameStr)
-            VBox.addWidget(self.expressionWinLabel)
-            self.expressionWin.setLayout(VBox)
-            self.expressionWin.setWindowFlags(
-                Qt.FramelessWindowHint  # hides the window controls
-                | Qt.WindowStaysOnTopHint  # forces window to top... maybe
-                | Qt.SplashScreen  # this one hides it from the task bar!
-            )
-
-            self.expressionWin.setGeometry(0, 0, winwidth, winheight)
-            self.expressionWin.move(QCursor.pos().x() + 20, QCursor.pos().y())
-            self.expressionWin.setAttribute(Qt.WA_ShowWithoutActivating)
-            self.expressionWin.show()
-
-    @err_catcher(name=__name__)
-    def exprLeaveEvent(self, event):
-        if hasattr(self, "expressionWin") and self.expressionWin.isVisible():
-            self.expressionWin.close()
-
-    @err_catcher(name=__name__)
-    def exprFocusOutEvent(self, event):
-        if hasattr(self, "expressionWin") and self.expressionWin.isVisible():
-            self.expressionWin.close()
-
-    @err_catcher(name=__name__)
-    def setCam(self, index):
-        self.curCam = self.camlist[index]
-        self.stateManager.saveStatesToScene()
 
     @err_catcher(name=__name__)
     def nameChanged(self, text):
@@ -704,7 +514,7 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
         self.nameWin = PrismWidgets.CreateItem(
             startText=self.getTaskname(),
             showTasks=True,
-            taskType="3d",
+            taskType="2d",
             core=self.core,
         )
         self.core.parentWindow(self.nameWin)
@@ -718,79 +528,6 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
             self.setTaskname(self.nameWin.e_item.text())
             self.nameChanged(self.e_name.text())
             self.stateManager.saveStatesToScene()
-
-    @err_catcher(name=__name__)
-    def presetOverrideChanged(self, checked):
-        self.cb_renderPreset.setEnabled(checked)
-        self.stateManager.saveStatesToScene()
-
-    @err_catcher(name=__name__)
-    def resOverrideChanged(self, checked):
-        self.sp_resWidth.setEnabled(checked)
-        self.sp_resHeight.setEnabled(checked)
-        self.b_resPresets.setEnabled(checked)
-
-        self.stateManager.saveStatesToScene()
-
-    @err_catcher(name=__name__)
-    def showResPresets(self):
-        pmenu = QMenu(self)
-
-        for preset in self.resolutionPresets:
-            pAct = QAction(preset, self)
-            res = self.getResolution(preset)
-            if not res:
-                continue
-
-            pwidth, pheight = res
-
-            pAct.triggered.connect(
-                lambda x=None, v=pwidth: self.sp_resWidth.setValue(v)
-            )
-            pAct.triggered.connect(
-                lambda x=None, v=pheight: self.sp_resHeight.setValue(v)
-            )
-            pAct.triggered.connect(lambda: self.stateManager.saveStatesToScene())
-            pmenu.addAction(pAct)
-
-        pmenu.exec_(QCursor.pos())
-
-    @err_catcher(name=__name__)
-    def getRangeType(self):
-        return self.cb_rangeType.currentText()
-
-    @err_catcher(name=__name__)
-    def setRangeType(self, rangeType):
-        idx = self.cb_rangeType.findText(rangeType)
-        if idx != -1:
-            self.cb_rangeType.setCurrentIndex(idx)
-            self.updateRange()
-            return True
-
-        return False
-
-    @err_catcher(name=__name__)
-    def getResolution(self, resolution):
-        res = None
-        if resolution == "Get from rendersettings":
-            if hasattr(self.core.appPlugin, "getResolution"):
-                res = self.core.appPlugin.getResolution()
-            else:
-                res = [1920, 1080]
-        elif resolution.startswith("Project ("):
-            res = resolution[9:-1].split("x")
-            res = [int(r) for r in res]
-        else:
-            try:
-                pwidth = int(resolution.split("x")[0])
-                pheight = int(resolution.split("x")[1])
-                res = [pwidth, pheight]
-            except:
-                res = getattr(
-                    self.core.appPlugin, "evaluateResolution", lambda x: None
-                )(resolution)
-
-        return res
 
     @err_catcher(name=__name__)
     def getMasterVersion(self):
@@ -825,50 +562,8 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
         self.w_context.setHidden(not self.allowCustomContext)
         self.refreshContext()
 
-        # # update Cams
-        # self.cb_cam.clear()
-        # self.camlist = camNames = []
-
-        # if not self.stateManager.standalone:
-        #     self.camlist = self.core.appPlugin.getCamNodes(self, cur=True)
-        #     camNames = [self.core.appPlugin.getCamName(self, i) for i in self.camlist]
-
-        # self.cb_cam.addItems(camNames)
-
-        # if self.curCam in self.camlist:
-        #     self.cb_cam.setCurrentIndex(self.camlist.index(self.curCam))
-        # else:
-        #     self.cb_cam.setCurrentIndex(0)
-        #     if len(self.camlist) > 0:
-        #         self.curCam = self.camlist[0]
-        #     else:
-        #         self.curCam = None
-
-        #     self.stateManager.saveStatesToScene()
-
-        # self.updateRange()
-
         if not self.core.mediaProducts.getUseMaster():
             self.w_master.setVisible(False)
-
-        # update Render Layer
-        # curLayer = self.cb_renderLayer.currentText()
-        # self.cb_renderLayer.clear()
-
-        # layerList = getattr(
-        #     self.core.appPlugin, "sm_render_getRenderLayer", lambda x: []
-        # )(self)
-
-        # self.cb_renderLayer.addItems(layerList)
-
-        # if curLayer in layerList:
-        #     self.cb_renderLayer.setCurrentIndex(layerList.index(curLayer))
-        # else:
-        #     self.cb_renderLayer.setCurrentIndex(0)
-        #     self.stateManager.saveStatesToScene()
-
-        # self.refreshSubmitUi()
-        # getattr(self.core.appPlugin, "sm_render_refreshPasses", lambda x: None)(self)
 
         self.nameChanged(self.e_name.text())
         return True
@@ -912,162 +607,6 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
             if submitChecked:
                 self.core.plugins.getRenderfarmPlugin(self.cb_manager.currentText()).sm_render_updateUI(self)
 
-    @err_catcher(name=__name__)
-    def updateRange(self):
-        rangeType = self.cb_rangeType.currentText()
-        isCustom = rangeType == "Custom"
-        isExp = rangeType == "Expression"
-        self.l_rangeStart.setVisible(not isCustom and not isExp)
-        self.l_rangeEnd.setVisible(not isCustom and not isExp)
-        self.sp_rangeStart.setVisible(isCustom)
-        self.sp_rangeEnd.setVisible(isCustom)
-        self.w_frameRangeValues.setVisible(not isExp)
-        self.w_frameExpression.setVisible(isExp)
-
-        if not isCustom and not isExp:
-            frange = self.getFrameRange(rangeType=rangeType)
-            start = str(int(frange[0])) if frange[0] is not None else "-"
-            end = str(int(frange[1])) if frange[1] is not None else "-"
-            self.l_rangeStart.setText(start)
-            self.l_rangeEnd.setText(end)
-
-    @err_catcher(name=__name__)
-    def getFrameRange(self, rangeType):
-        startFrame = 1
-        endFrame = 1
-
-        return startFrame, endFrame
-
-    @err_catcher(name=__name__)
-    def openSlaves(self):
-        if eval(os.getenv("PRISM_DEBUG", "False")):
-            try:
-                del sys.modules["SlaveAssignment"]
-            except:
-                pass
-
-        import SlaveAssignment
-
-        self.sa = SlaveAssignment.SlaveAssignment(
-            core=self.core, curSlaves=self.e_osSlaves.text()
-        )
-        result = self.sa.exec_()
-
-        if result == 1:
-            selSlaves = ""
-            if self.sa.rb_exclude.isChecked():
-                selSlaves = "exclude "
-            if self.sa.rb_all.isChecked():
-                selSlaves += "All"
-            elif self.sa.rb_group.isChecked():
-                selSlaves += "groups: "
-                for i in self.sa.activeGroups:
-                    selSlaves += i + ", "
-
-                if selSlaves.endswith(", "):
-                    selSlaves = selSlaves[:-2]
-
-            elif self.sa.rb_custom.isChecked():
-                slavesList = [x.text() for x in self.sa.lw_slaves.selectedItems()]
-                for i in slavesList:
-                    selSlaves += i + ", "
-
-                if selSlaves.endswith(", "):
-                    selSlaves = selSlaves[:-2]
-
-            self.e_osSlaves.setText(selSlaves)
-            self.stateManager.saveStatesToScene()
-
-    @err_catcher(name=__name__)
-    def gpuPtChanged(self):
-        self.w_dlGPUdevices.setEnabled(self.sp_dlGPUpt.value() == 0)
-        self.stateManager.saveStatesToScene()
-
-    @err_catcher(name=__name__)
-    def gpuDevicesChanged(self):
-        self.w_dlGPUpt.setEnabled(self.le_dlGPUdevices.text() == "")
-        self.stateManager.saveStatesToScene()
-
-    @err_catcher(name=__name__)
-    def showPasses(self):
-        steps = getattr(
-            self.core.appPlugin, "sm_render_getRenderPasses", lambda x: None
-        )(self)
-
-        if steps is None or len(steps) == 0:
-            return False
-
-        if self.core.isStr(steps):
-            steps = eval(steps)
-
-        if eval(os.getenv("PRISM_DEBUG", "False")):
-            try:
-                del sys.modules["ItemList"]
-            except:
-                pass
-
-        import ItemList
-
-        self.il = ItemList.ItemList(core=self.core)
-        self.il.setWindowTitle("Select Passes")
-        self.core.parentWindow(self.il)
-        self.il.tw_steps.doubleClicked.connect(self.il.accept)
-        self.il.tw_steps.horizontalHeaderItem(0).setText("Name")
-        self.il.tw_steps.setColumnHidden(1, True)
-        for i in sorted(steps, key=lambda s: s.lower()):
-            rc = self.il.tw_steps.rowCount()
-            self.il.tw_steps.insertRow(rc)
-            item1 = QTableWidgetItem(i)
-            self.il.tw_steps.setItem(rc, 0, item1)
-
-        result = self.il.exec_()
-
-        if result != 1:
-            return False
-
-        for i in self.il.tw_steps.selectedItems():
-            if i.column() == 0:
-                self.core.appPlugin.sm_render_addRenderPass(
-                    self, passName=i.text(), steps=steps
-                )
-
-        self.updateUi()
-        self.stateManager.saveStatesToScene()
-
-    @err_catcher(name=__name__)
-    def rclickPasses(self, pos):
-        if self.lw_passes.currentItem() is None or not getattr(
-            self.core.appPlugin, "canDeleteRenderPasses", True
-        ):
-            return
-
-        rcmenu = QMenu()
-
-        delAct = QAction("Delete", self)
-        delAct.triggered.connect(self.deleteAOVs)
-        rcmenu.addAction(delAct)
-
-        rcmenu.exec_(QCursor.pos())
-
-    @err_catcher(name=__name__)
-    def deleteAOVs(self):
-        items = self.lw_passes.selectedItems()
-        for i in items:
-            self.core.appPlugin.removeAOV(i.text())
-        self.updateUi()
-
-    @err_catcher(name=__name__)
-    def rjToggled(self, checked):
-        self.refreshSubmitUi()
-        self.stateManager.saveStatesToScene()
-
-    @err_catcher(name=__name__)
-    def managerChanged(self, text=None):
-        plugin = self.core.plugins.getRenderfarmPlugin(self.cb_manager.currentText())
-        if plugin:
-            plugin.sm_render_managerChanged(self)
-
-        self.stateManager.saveStatesToScene()
 
     @err_catcher(name=__name__)
     def getContextStrFromEntity(self, entity):
@@ -1197,34 +736,37 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
                 "endFrame": endFrame,
                 "frames": 1,
                 "rangeType": "Single Frame",
+                "exportScale": self.cb_scale.currentText(),
                 "colorMode": self.cb_colorMode.currentText(),
                 "bitDepth": self.cb_bitDepth.currentText(),
-                "alphaFill": self.cb_alphaFill.currentText(),
-                "imageComment": self.e_comment.text()
+                "alphaFill": self.cb_alphaFill.currentText()
                 }
 
-            if outputType == ".jpg":
+                
+            if outputType == ".png":
+                rSettings.update({"png_Compress": self.cb_png_compress.currentText(),
+                                  "png_Interlaced": convertToBit(self.chb_png_interlaced.isChecked()),
+                                  "png_Gamma": convertToBit(self.chb_png_gamma.isChecked()),
+                                  "png_Rez": convertToBit(self.chb_png_rez.isChecked()),
+                                  "png_BgColor": convertToBit(self.chb_png_bgColor.isChecked()),
+                                  "png_LayerOffset": convertToBit(self.chb_png_layerOffset.isChecked()),
+                                  "png_AlphaColor": convertToBit(not self.chb_png_alphaColor.isChecked())
+                                  })
+                
+                
+            elif outputType == ".exr":
+                pass
 
 
+
+            elif outputType == ".jpg":
                 rSettings.update({"jpg_Quality": self.cb_jpg_qual.currentText(),
                                   "jpg_Smoothing": self.cb_jpg_smooth.currentText(),
                                   "jpg_SubSample": self.cb_jpg_subSample.currentIndex(),
-                                  "jpg_Optimize": self.chb_jpg_optimize.isChecked(),
-                                  "jpg_Progressive": self.chb_jpg_progressive.isChecked(),
-                                  "jpg_ArithCode": self.chb_jpg_arithCode.isChecked()
+                                  "jpg_Optimize": convertToBit(self.chb_jpg_optimize.isChecked()),
+                                  "jpg_Progressive": convertToBit(self.chb_jpg_progressive.isChecked()),
+                                  "jpg_ArithCode": convertToBit(self.chb_jpg_arithCode.isChecked())
                                 })
-                
-            elif outputType == ".png":
-                rSettings.update({"png_Compress": self.cb_png_compress.currentText(),
-                                  "png_Interlaced": self.chb_png_interlaced.isChecked(),
-                                  "png_Gamma": self.chb_png_gamma.isChecked(),
-                                  "png_Rez": self.chb_png_rez.isChecked(),
-                                  "png_BgColor": self.chb_png_bgColor.isChecked(),
-                                  "png_LayerOffset": self.chb_png_layerOffset.isChecked(),
-                                  "png_AlphaColor": self.chb_png_alphaColor.isChecked()
-                                  })
-
-
 
 
 
@@ -1322,9 +864,7 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
 
         masterAction = self.cb_master.currentText()
         if masterAction == "Set as master":
-            self.core.mediaProducts.updateMasterVersion(outputName)
-        elif masterAction == "Add to master":
-            self.core.mediaProducts.addToMasterVersion(outputName)
+            self.core.mediaProducts.updateMasterVersion(outputName, mediaType="2drenders")
 
     @err_catcher(name=__name__)
     def setTaskWarn(self, warn):
@@ -1349,23 +889,11 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
             "contextType": self.getContextType(),
             "customContext": self.customContext,
             "taskname": self.getTaskname(),
-            # "renderpresetoverride": str(self.chb_renderPreset.isChecked()),
-            # "currentrenderpreset": self.cb_renderPreset.currentText(),
-            # "rangeType": str(self.cb_rangeType.currentText()),
-            # "startframe": self.sp_rangeStart.value(),
-            # "endframe": self.sp_rangeEnd.value(),
-            # "frameExpression": self.le_frameExpression.text(),
-            # "currentcam": str(self.curCam),
-            # "resoverride": str(
-            #     [
-            #         self.chb_resOverride.isChecked(),
-            #         self.sp_resWidth.value(),
-            #         self.sp_resHeight.value(),
-            #     ]
-            # ),
+
             "masterVersion": self.cb_master.currentText(),
             "curoutputpath": self.cb_outPath.currentText(),
-            # "renderlayer": str(self.cb_renderLayer.currentText()),
+
+            "exportScale": self.cb_scale.currentText(),
             "outputFormat": self.cb_format.currentText(),
 
             "colorMode": self.cb_colorMode.currentText(),
@@ -1387,23 +915,7 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
             "jpg_Progressive": self.chb_jpg_progressive.isChecked(),
             "jpg_ArithCode": self.chb_jpg_arithCode.isChecked(),
 
-            "exportComment": self.e_comment.text(),
-
-            # "submitrender": str(self.gb_submit.isChecked()),
-            # "rjmanager": str(self.cb_manager.currentText()),
-            # "rjprio": self.sp_rjPrio.value(),
-            # "rjframespertask": self.sp_rjFramesPerTask.value(),
-            # "rjtimeout": self.sp_rjTimeout.value(),
-            # "rjsuspended": str(self.chb_rjSuspended.isChecked()),
-            # "osdependencies": str(self.chb_osDependencies.isChecked()),
-            # "osupload": str(self.chb_osUpload.isChecked()),
-            # "ospassets": str(self.chb_osPAssets.isChecked()),
-            # "osslaves": self.e_osSlaves.text(),
-            # "dlconcurrent": self.sp_dlConcurrentTasks.value(),
-            # "dlgpupt": self.sp_dlGPUpt.value(),
-            # "dlgpudevices": self.le_dlGPUdevices.text(),
             "lastexportpath": self.l_pathLast.text().replace("\\", "/"),
-            # "enablepasses": str(self.gb_passes.isChecked()),
             "stateenabled": self.core.getCheckStateValue(self.state.checkState(0)),
         }
         self.core.callback("onStateGetSettings", self, stateProps)
