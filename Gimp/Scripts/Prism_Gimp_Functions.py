@@ -284,201 +284,201 @@ class Prism_Gimp_Functions(object):
             return False
         
 
-    @err_catcher(name=__name__)
-    def getImportPaths(self, origin):
-        return []
+    # @err_catcher(name=__name__)
+    # def getImportPaths(self, origin):
+    #     return []
 
-    @err_catcher(name=__name__)
-    def getFrameRange(self, origin):
-        startframe = 0
-        endframe = 100
+    # @err_catcher(name=__name__)
+    # def getFrameRange(self, origin):
+    #     startframe = 0
+    #     endframe = 100
 
-        return [startframe, endframe]
+    #     return [startframe, endframe]
 
-    @err_catcher(name=__name__)
-    def setFrameRange(self, origin, startFrame, endFrame):
-        pass
+    # @err_catcher(name=__name__)
+    # def setFrameRange(self, origin, startFrame, endFrame):
+    #     pass
 
-    @err_catcher(name=__name__)
-    def getFPS(self, origin):
-        return 24
+    # @err_catcher(name=__name__)
+    # def getFPS(self, origin):
+    #     return 24
 
-    @err_catcher(name=__name__)
-    def setFPS(self, origin, fps):
-        pass
+    # @err_catcher(name=__name__)
+    # def setFPS(self, origin, fps):
+    #     pass
 
-    @err_catcher(name=__name__)
+    @err_catcher(name=__name__)                             #   ???
     def getAppVersion(self, origin):
         return "1.0"
 
-    @err_catcher(name=__name__)
+    @err_catcher(name=__name__)                                 #   ???
     def openScene(self, origin, filepath, force=False):
         # load scenefile
         return True
 
-    @err_catcher(name=__name__)
-    def sm_export_addObjects(self, origin, objects=None):
-        if not objects:
-            objects = []  # get selected objects from scene
+    # @err_catcher(name=__name__)
+    # def sm_export_addObjects(self, origin, objects=None):
+    #     if not objects:
+    #         objects = []  # get selected objects from scene
 
-        for i in objects:
-            if not i in origin.nodes:
-                origin.nodes.append(i)
+    #     for i in objects:
+    #         if not i in origin.nodes:
+    #             origin.nodes.append(i)
 
-        origin.updateUi()
-        origin.stateManager.saveStatesToScene()
+    #     origin.updateUi()
+    #     origin.stateManager.saveStatesToScene()
 
-    @err_catcher(name=__name__)
-    def getNodeName(self, origin, node):
-        if self.isNodeValid(origin, node):
-            try:
-                return node.name
-            except:
-                QMessageBox.warning(
-                    self.core.messageParent, "Warning", "Cannot get name from %s" % node
-                )
-                return node
-        else:
-            return "invalid"
+    # @err_catcher(name=__name__)
+    # def getNodeName(self, origin, node):
+    #     if self.isNodeValid(origin, node):
+    #         try:
+    #             return node.name
+    #         except:
+    #             QMessageBox.warning(
+    #                 self.core.messageParent, "Warning", "Cannot get name from %s" % node
+    #             )
+    #             return node
+    #     else:
+    #         return "invalid"
 
-    @err_catcher(name=__name__)
-    def selectNodes(self, origin):
-        if origin.lw_objects.selectedItems() != []:
-            nodes = []
-            for i in origin.lw_objects.selectedItems():
-                node = origin.nodes[origin.lw_objects.row(i)]
-                if self.isNodeValid(origin, node):
-                    nodes.append(node)
-            # select(nodes)
+    # @err_catcher(name=__name__)
+    # def selectNodes(self, origin):
+    #     if origin.lw_objects.selectedItems() != []:
+    #         nodes = []
+    #         for i in origin.lw_objects.selectedItems():
+    #             node = origin.nodes[origin.lw_objects.row(i)]
+    #             if self.isNodeValid(origin, node):
+    #                 nodes.append(node)
+    #         # select(nodes)
 
-    @err_catcher(name=__name__)
-    def isNodeValid(self, origin, handle):
-        return True
+    # @err_catcher(name=__name__)
+    # def isNodeValid(self, origin, handle):
+    #     return True
 
-    @err_catcher(name=__name__)
-    def getCamNodes(self, origin, cur=False):
-        sceneCams = []  # get cams from scene
-        if cur:
-            sceneCams = ["Current View"] + sceneCams
+    # @err_catcher(name=__name__)
+    # def getCamNodes(self, origin, cur=False):
+    #     sceneCams = []  # get cams from scene
+    #     if cur:
+    #         sceneCams = ["Current View"] + sceneCams
 
-        return sceneCams
+    #     return sceneCams
 
-    @err_catcher(name=__name__)
-    def getCamName(self, origin, handle):
-        if handle == "Current View":
-            return handle
+    # @err_catcher(name=__name__)
+    # def getCamName(self, origin, handle):
+    #     if handle == "Current View":
+    #         return handle
 
-        return str(nodes[0])
+    #     return str(nodes[0])
 
-    @err_catcher(name=__name__)
-    def selectCam(self, origin):
-        if self.isNodeValid(origin, origin.curCam):
-            select(origin.curCam)
+    # @err_catcher(name=__name__)
+    # def selectCam(self, origin):
+    #     if self.isNodeValid(origin, origin.curCam):
+    #         select(origin.curCam)
 
-    @err_catcher(name=__name__)
-    def sm_export_startup(self, origin):
-        pass
+    # @err_catcher(name=__name__)
+    # def sm_export_startup(self, origin):
+    #     pass
 
-    # 	@err_catcher(name=__name__)
-    # 	def sm_export_setTaskText(self, origin, prevTaskName, newTaskName):
-    # 		origin.l_taskName.setText(newTaskName)
+    # # 	@err_catcher(name=__name__)
+    # # 	def sm_export_setTaskText(self, origin, prevTaskName, newTaskName):
+    # # 		origin.l_taskName.setText(newTaskName)
 
-    @err_catcher(name=__name__)
-    def sm_export_removeSetItem(self, origin, node):
-        pass
+    # @err_catcher(name=__name__)
+    # def sm_export_removeSetItem(self, origin, node):
+    #     pass
 
-    @err_catcher(name=__name__)
-    def sm_export_clearSet(self, origin):
-        pass
+    # @err_catcher(name=__name__)
+    # def sm_export_clearSet(self, origin):
+    #     pass
 
-    @err_catcher(name=__name__)
-    def sm_export_updateObjects(self, origin):
-        pass
+    # @err_catcher(name=__name__)
+    # def sm_export_updateObjects(self, origin):
+    #     pass
 
-    @err_catcher(name=__name__)
-    def sm_export_exportShotcam(self, origin, startFrame, endFrame, outputName):
-        result = self.sm_export_exportAppObjects(
-            origin,
-            startFrame,
-            endFrame,
-            (outputName + ".abc"),
-            nodes=[origin.curCam],
-            expType=".abc",
-        )
-        result = self.sm_export_exportAppObjects(
-            origin,
-            startFrame,
-            endFrame,
-            (outputName + ".fbx"),
-            nodes=[origin.curCam],
-            expType=".fbx",
-        )
-        return result
+    # @err_catcher(name=__name__)
+    # def sm_export_exportShotcam(self, origin, startFrame, endFrame, outputName):
+    #     result = self.sm_export_exportAppObjects(
+    #         origin,
+    #         startFrame,
+    #         endFrame,
+    #         (outputName + ".abc"),
+    #         nodes=[origin.curCam],
+    #         expType=".abc",
+    #     )
+    #     result = self.sm_export_exportAppObjects(
+    #         origin,
+    #         startFrame,
+    #         endFrame,
+    #         (outputName + ".fbx"),
+    #         nodes=[origin.curCam],
+    #         expType=".fbx",
+    #     )
+    #     return result
 
-    @err_catcher(name=__name__)
-    def sm_export_exportAppObjects(
-        self,
-        origin,
-        startFrame,
-        endFrame,
-        outputName,
-        scaledExport=False,
-        nodes=None,
-        expType=None,
-    ):
-        pass
+    # @err_catcher(name=__name__)
+    # def sm_export_exportAppObjects(
+    #     self,
+    #     origin,
+    #     startFrame,
+    #     endFrame,
+    #     outputName,
+    #     scaledExport=False,
+    #     nodes=None,
+    #     expType=None,
+    # ):
+    #     pass
 
-    @err_catcher(name=__name__)
-    def sm_export_preDelete(self, origin):
-        pass
+    # @err_catcher(name=__name__)
+    # def sm_export_preDelete(self, origin):
+    #     pass
 
-    @err_catcher(name=__name__)
-    def sm_export_unColorObjList(self, origin):
-        origin.lw_objects.setStyleSheet(
-            "QListWidget { border: 3px solid rgb(50,50,50); }"
-        )
+    # @err_catcher(name=__name__)
+    # def sm_export_unColorObjList(self, origin):
+    #     origin.lw_objects.setStyleSheet(
+    #         "QListWidget { border: 3px solid rgb(50,50,50); }"
+    #     )
 
-    @err_catcher(name=__name__)
-    def sm_export_typeChanged(self, origin, idx):
-        pass
+    # @err_catcher(name=__name__)
+    # def sm_export_typeChanged(self, origin, idx):
+    #     pass
 
-    @err_catcher(name=__name__)
-    def sm_export_preExecute(self, origin, startFrame, endFrame):
-        warnings = []
+    # @err_catcher(name=__name__)
+    # def sm_export_preExecute(self, origin, startFrame, endFrame):
+    #     warnings = []
 
-        return warnings
+    #     return warnings
 
-    @err_catcher(name=__name__)
-    def sm_export_loadData(self, origin, data):
-        pass
+    # @err_catcher(name=__name__)
+    # def sm_export_loadData(self, origin, data):
+    #     pass
 
-    @err_catcher(name=__name__)
-    def sm_export_getStateProps(self, origin, stateProps):
-        stateProps.update()
+    # @err_catcher(name=__name__)
+    # def sm_export_getStateProps(self, origin, stateProps):
+    #     stateProps.update()
 
-        return stateProps
+    #     return stateProps
 
     @err_catcher(name=__name__)
     def sm_render_startup(self, origin):
         pass
 
-    @err_catcher(name=__name__)
-    def sm_render_getRenderLayer(self, origin):
-        rlayerNames = []
+    # @err_catcher(name=__name__)
+    # def sm_render_getRenderLayer(self, origin):
+    #     rlayerNames = []
 
-        return rlayerNames
+    #     return rlayerNames
 
-    @err_catcher(name=__name__)
-    def sm_render_refreshPasses(self, origin):
-        pass
+    # @err_catcher(name=__name__)
+    # def sm_render_refreshPasses(self, origin):
+    #     pass
 
-    @err_catcher(name=__name__)
-    def sm_render_openPasses(self, origin, item=None):
-        pass
+    # @err_catcher(name=__name__)
+    # def sm_render_openPasses(self, origin, item=None):
+    #     pass
 
-    @err_catcher(name=__name__)
-    def removeAOV(self, aovName):
-        pass
+    # @err_catcher(name=__name__)
+    # def removeAOV(self, aovName):
+    #     pass
 
     @err_catcher(name=__name__)
     def sm_render_preSubmit(self, origin, rSettings):
@@ -491,7 +491,6 @@ class Prism_Gimp_Functions(object):
     @err_catcher(name=__name__)
     def sm_render_startLocalRender(self, origin, outputName, rSettings):
 
-
         sendCommand = "exportFile"
         sendPayload = {"rSettings": rSettings}
         
@@ -500,19 +499,15 @@ class Prism_Gimp_Functions(object):
         return rcvPayload
 
 
-
-
-
-
     @err_catcher(name=__name__)
     def sm_render_undoRenderSettings(self, origin, rSettings):
         pass
 
-    @err_catcher(name=__name__)
-    def sm_render_getDeadlineParams(self, origin, dlParams, homeDir):
-        pass
+    # @err_catcher(name=__name__)
+    # def sm_render_getDeadlineParams(self, origin, dlParams, homeDir):
+    #     pass
 
-    @err_catcher(name=__name__)
+    @err_catcher(name=__name__)                         #   ????
     def getCurrentRenderer(self, origin):
         return "Renderer"
 
@@ -522,13 +517,13 @@ class Prism_Gimp_Functions(object):
         scenefiles = [curFileName]
         return scenefiles
 
-    @err_catcher(name=__name__)
-    def sm_render_getRenderPasses(self, origin):
-        return []
+    # @err_catcher(name=__name__)
+    # def sm_render_getRenderPasses(self, origin):
+    #     return []
 
-    @err_catcher(name=__name__)
-    def sm_render_addRenderPass(self, origin, passName, steps):
-        pass
+    # @err_catcher(name=__name__)
+    # def sm_render_addRenderPass(self, origin, passName, steps):
+    #     pass
 
     @err_catcher(name=__name__)
     def sm_render_preExecute(self, origin):
@@ -536,73 +531,73 @@ class Prism_Gimp_Functions(object):
 
         return warnings
 
-    @err_catcher(name=__name__)
+    @err_catcher(name=__name__)                         #   ????
     def getProgramVersion(self, origin):
         return "1.0"
 
-    @err_catcher(name=__name__)
-    def sm_render_getDeadlineSubmissionParams(self, origin, dlParams, jobOutputFile):
-        dlParams["Build"] = dlParams["build"]
-        dlParams["OutputFilePath"] = os.path.split(jobOutputFile)[0]
-        dlParams["OutputFilePrefix"] = os.path.splitext(
-            os.path.basename(jobOutputFile)
-        )[0]
-        dlParams["Renderer"] = self.getCurrentRenderer(origin)
+    # @err_catcher(name=__name__)
+    # def sm_render_getDeadlineSubmissionParams(self, origin, dlParams, jobOutputFile):
+    #     dlParams["Build"] = dlParams["build"]
+    #     dlParams["OutputFilePath"] = os.path.split(jobOutputFile)[0]
+    #     dlParams["OutputFilePrefix"] = os.path.splitext(
+    #         os.path.basename(jobOutputFile)
+    #     )[0]
+    #     dlParams["Renderer"] = self.getCurrentRenderer(origin)
 
-        if origin.chb_resOverride.isChecked() and "resolution" in dlParams:
-            resString = "Image"
-            dlParams[resString + "Width"] = str(origin.sp_resWidth.value())
-            dlParams[resString + "Height"] = str(origin.sp_resHeight.value())
+    #     if origin.chb_resOverride.isChecked() and "resolution" in dlParams:
+    #         resString = "Image"
+    #         dlParams[resString + "Width"] = str(origin.sp_resWidth.value())
+    #         dlParams[resString + "Height"] = str(origin.sp_resHeight.value())
 
-        return dlParams
+    #     return dlParams
 
-    @err_catcher(name=__name__)
-    def deleteNodes(self, origin, handles, num=0):
-        pass
+    # @err_catcher(name=__name__)
+    # def deleteNodes(self, origin, handles, num=0):
+    #     pass
 
-    @err_catcher(name=__name__)
-    def sm_import_disableObjectTracking(self, origin):
-        self.deleteNodes(origin, [origin.setName])
+    # @err_catcher(name=__name__)
+    # def sm_import_disableObjectTracking(self, origin):
+    #     self.deleteNodes(origin, [origin.setName])
 
-    @err_catcher(name=__name__)
-    def sm_import_importToApp(self, origin, doImport, update, impFileName):
-        return {"result": result, "doImport": doImport}
+    # @err_catcher(name=__name__)
+    # def sm_import_importToApp(self, origin, doImport, update, impFileName):
+    #     return {"result": result, "doImport": doImport}
 
-    @err_catcher(name=__name__)
-    def sm_import_updateObjects(self, origin):
-        pass
+    # @err_catcher(name=__name__)
+    # def sm_import_updateObjects(self, origin):
+    #     pass
 
-    @err_catcher(name=__name__)
-    def sm_import_removeNameSpaces(self, origin):
-        pass
+    # @err_catcher(name=__name__)
+    # def sm_import_removeNameSpaces(self, origin):
+    #     pass
 
-    @err_catcher(name=__name__)
-    def sm_playblast_startup(self, origin):
-        frange = self.getFrameRange(origin)
-        origin.sp_rangeStart.setValue(frange[0])
-        origin.sp_rangeEnd.setValue(frange[1])
+    # @err_catcher(name=__name__)
+    # def sm_playblast_startup(self, origin):
+    #     frange = self.getFrameRange(origin)
+    #     origin.sp_rangeStart.setValue(frange[0])
+    #     origin.sp_rangeEnd.setValue(frange[1])
 
-    @err_catcher(name=__name__)
-    def sm_playblast_createPlayblast(self, origin, jobFrames, outputName):
-        pass
+    # @err_catcher(name=__name__)
+    # def sm_playblast_createPlayblast(self, origin, jobFrames, outputName):
+    #     pass
 
-    @err_catcher(name=__name__)
-    def sm_playblast_preExecute(self, origin):
-        warnings = []
+    # @err_catcher(name=__name__)
+    # def sm_playblast_preExecute(self, origin):
+    #     warnings = []
 
-        return warnings
+    #     return warnings
 
-    @err_catcher(name=__name__)
-    def sm_playblast_execute(self, origin):
-        pass
+    # @err_catcher(name=__name__)
+    # def sm_playblast_execute(self, origin):
+    #     pass
 
-    @err_catcher(name=__name__)
-    def sm_playblast_postExecute(self, origin):
-        pass
+    # @err_catcher(name=__name__)
+    # def sm_playblast_postExecute(self, origin):
+    #     pass
 
-    @err_catcher(name=__name__)
-    def sm_saveImports(self, origin, importPaths):
-        pass
+    # @err_catcher(name=__name__)
+    # def sm_saveImports(self, origin, importPaths):
+    #     pass
 
 
     @err_catcher(name=__name__)
@@ -612,12 +607,12 @@ class Prism_Gimp_Functions(object):
         sendCommand = "saveStates"
         sendPayload = {"stateData": stateData}
         
-        result = self.sendCmdToGimp(sendCommand, sendPayload)              #   TODO HANDLE RESULT
+        self.sendCmdToGimp(sendCommand, sendPayload)
 
 
     @err_catcher(name=__name__)
     def sm_readStates(self, origin):
-        testState = '''{
+        emptyState = '''{
     "states": [
         {
             "statename": "publish",
@@ -627,37 +622,45 @@ class Prism_Gimp_Functions(object):
     ]
 }'''
     
-        ####    ADD TRY/EXCEPT
+        try:
+            sendCommand = "getStates"
+            sendPayload = None
+            rcvCommand, rcvPayload = self.sendCmdToGimp(sendCommand, sendPayload)
+            stateDataRaw = rcvPayload.get("stateData")
+
+            if stateDataRaw is not None and stateDataRaw != "":
+                stateData = json.loads(stateDataRaw)
+
+                return stateData
+            else:
+                return emptyState
+            
+        except Exception as e:
+            logger.warning(f"Failed to read states: {e}")
+            return emptyState
         
-        sendCommand = "getStates"
-        sendPayload = None
-        
-        rcvCommand, rcvPayload = self.sendCmdToGimp(sendCommand, sendPayload)
-
-        stateDataRaw = rcvPayload.get("stateData")
-
-        if stateDataRaw is not None and stateDataRaw != "":
-
-            stateData = json.loads(stateDataRaw)
-
-            return stateData
-        
-        else:
-            return testState
 
 
-
-
-    @err_catcher(name=__name__)                                 #   TODO
+    @err_catcher(name=__name__)
     def sm_deleteStates(self, origin):
-        pass
+        emptyState = '''{
+    "states": [
+        {
+            "statename": "publish",
+            "comment": "",
+            "description": ""
+        }
+    ]
+}'''
+
+        self.sm_saveStates(origin, emptyState)
 
 
     @err_catcher(name=__name__)
     def onStateManagerOpen(self, origin):
 
         origin.setProperty("sizePolicy", "Expanding")
-        origin.setMaximumSize(800, 800)  # Adjust the width and height according to your needs
+        origin.setMaximumSize(800, 800)  # Adjust the width and height
 
         origin.b_showImportStates.setStyleSheet("padding-left: 1px;padding-right: 1px;")
         origin.b_showExportStates.setStyleSheet("padding-left: 1px;padding-right: 1px;")
@@ -667,22 +670,6 @@ class Prism_Gimp_Functions(object):
         origin.b_createRender.setProperty("sizePolicy", "Expanding")
         origin.b_createRender.setStyleSheet("QPushButton { min-width: 200px; }")
         origin.b_createPlayblast.hide()
-        # origin.b_createImport.setMinimumWidth(70 * self.core.uiScaleFactor)
-        # origin.b_createImport.setMaximumWidth(70 * self.core.uiScaleFactor)
-        # origin.b_createImport.setMinimumHeight(0)
-        # origin.b_createImport.setMaximumHeight(500 * self.core.uiScaleFactor)
-        # origin.b_shotCam.setMinimumHeight(0)
-        # origin.b_shotCam.setMaximumHeight(50 * self.core.uiScaleFactor)
-        # origin.b_showImportStates.setMinimumWidth(30 * self.core.uiScaleFactor)
-        # origin.b_showImportStates.setMaximumWidth(30 * self.core.uiScaleFactor)
-        # origin.b_showExportStates.setMinimumWidth(30 * self.core.uiScaleFactor)
-        # origin.b_showExportStates.setMaximumWidth(30 * self.core.uiScaleFactor)
-        # origin.b_createExport.setMinimumWidth(70 * self.core.uiScaleFactor)
-        # origin.b_createExport.setMaximumWidth(70 * self.core.uiScaleFactor)
-        # origin.b_createRender.setMinimumWidth(70 * self.core.uiScaleFactor)
-        # origin.b_createRender.setMaximumWidth(70 * self.core.uiScaleFactor)
-        # origin.b_createPlayblast.setMinimumWidth(80 * self.core.uiScaleFactor)
-        # origin.b_createPlayblast.setMaximumWidth(80 * self.core.uiScaleFactor)
         origin.b_description.setMinimumWidth(35 * self.core.uiScaleFactor)
         origin.b_description.setMaximumWidth(35 * self.core.uiScaleFactor)
         origin.b_preview.setMinimumWidth(35 * self.core.uiScaleFactor)
@@ -704,8 +691,7 @@ class Prism_Gimp_Functions(object):
                         "Export",
                         "Playblast",
                         "Standalone USD Playblast",
-                        "Standalone USD Render",
-                        ]
+                        "Standalone USD Render",]
 
         for state in removeStates:
             if state in origin.stateTypes.keys():
