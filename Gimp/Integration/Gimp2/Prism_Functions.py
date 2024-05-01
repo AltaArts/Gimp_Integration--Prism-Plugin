@@ -50,6 +50,7 @@ import errno
 import json
 
 from gimpfu import *
+import gimpcolor
 
 
 if "PRISM_ROOT" in os.environ:
@@ -412,137 +413,76 @@ def saveXCF(filePath):
 def openXCF(filePath):
     
     newImage = pdb.gimp_xcf_load(1, filePath, filePath)
-
     return newImage
 
 
-
 def exportFile(data):
-
+    numImages, image_ids = pdb.gimp_image_list()
+    if numImages < 1:
+        return False
+    
     rSettings = data.get("rSettings")
 
     log.debug(rSettings)
 
+    currentImage = gimp.image_list()[0]
+    currentDrawable = pdb.gimp_image_get_active_layer(currentImage)
+    filePath = rSettings["outputName"]
+
     outputType = rSettings["outputType"]
-
-    if outputType == ".jpg":
-        result = exportJPG(rSettings)
-
-    elif outputType == ".png":
-        result = exportPNG(rSettings)
+    if outputType == ".png":
+        result = exportPNG(rSettings, currentImage, currentDrawable, filePath)
+    elif outputType == ".exr":
+        result = exportEXR(rSettings, currentImage, currentDrawable, filePath)
+    elif outputType == ".jpg":
+        result = exportJPG(rSettings, currentImage, currentDrawable, filePath)
 
     if result:
         sendPayload = "Result=Success"
     else:
         sendPayload = "Result=Failed"
 
-
     sendCommand = "Result"
     jData = cmdDataToJson(sendCommand, sendPayload)
     return jData
 
 
-def exportJPG(rSettings):
+def exportPNG(rSettings, currentImage, currentDrawable, filePath):
 
-    bgLayer = False
-    numImages, image_ids = pdb.gimp_image_list()
-
-    if numImages < 1:
-        return False
+    png_Compress = int(rSettings["png_Compress"]) - 1    #   so that GUI is 1-10
+    png_Interlaced = rSettings["png_Interlaced"]
+    png_Gamma = rSettings["png_Compress"]
+    png_Rez = rSettings["png_Rez"]
+    png_BgColor = rSettings["png_BgColor"]
+    png_LayerOffset = rSettings["png_LayerOffset"]
+    png_AlphaColor = rSettings["png_AlphaColor"]
+    colorMode = rSettings["colorMode"]
+    bitDepth = rSettings["bitDepth"]
+    exportScale = int(rSettings["exportScale"])
+    alphaFill = rSettings["alphaFill"]
     
-    else:
-        currentImage = gimp.image_list()[0]
-        currentDrawable = pdb.gimp_image_get_active_layer(currentImage)
-        filePath = rSettings["outputName"]
+    mergedLayer = createExportLayer(currentImage, currentDrawable, exportScale, colorMode, bitDepth, alphaFill)
 
-        alphaFill = rSettings["alphaFill"]
-        quality = rSettings["jpg_Quality"]
-        smoothing = rSettings["jpg_Smoothing"]
-        subSample = rSettings["jpg_SubSample"]
-        optimize = rSettings["jpg_Optimize"]
-        progressive = rSettings["jpg_Progressive"]
-        arithCode = rSettings["jpg_ArithCode"]
-        comment = rSettings["imageComment"]
-        
-        if pdb.gimp_drawable_has_alpha(currentDrawable):
-            bgLayer = fillAlphaBG(currentImage, alphaFill)
-
-        mergedLayer = pdb.gimp_layer_new_from_visible(currentImage, currentImage, "tempVisable")
-
-        result = saveJPG(currentImage,
-                         mergedLayer,
-                         filePath,
-                         quality,
-                         smoothing,
-                         optimize,
-                         progressive,
-                         comment,
-                         subSample,
-                         arithCode
-                         )
-
-        if bgLayer:
-            pdb.gimp_image_remove_layer(currentImage, bgLayer)
-
-            pdb.gimp_image_clean_all(currentImage)
-            pdb.gimp_displays_flush()
-
-        return result
-
-
-def exportPNG(rSettings):
-
-    bgLayer = False
-    numImages, image_ids = pdb.gimp_image_list()
-
-    if numImages < 1:
-        return False
-    
-    else:
-        currentImage = gimp.image_list()[0]
-        currentDrawable = pdb.gimp_image_get_active_layer(currentImage)
-        filePath = rSettings["outputName"]
-
-        png_Compress = (int(rSettings["png_Compress"]) - 1)    #   so that GUI is 1-10
-        png_Interlaced = rSettings["png_Compress"]
-        png_Gamma = rSettings["png_Compress"]
-        png_Rez = rSettings["png_Compress"]
-        png_BgColor = rSettings["png_Compress"]
-        png_LayerOffset = rSettings["png_Compress"]
-        png_AlphaColor = rSettings["png_Compress"]
-
-        alphaFill = rSettings["alphaFill"]
-
-        comment = rSettings["imageComment"]
-        
-        if pdb.gimp_drawable_has_alpha(currentDrawable):
-            bgLayer = fillAlphaBG(currentImage, alphaFill)
-
-        mergedLayer = pdb.gimp_layer_new_from_visible(currentImage, currentImage, "tempVisable")
-
-        result = savePNG(currentImage,
-                         mergedLayer,
-                         filePath,
-                         png_Interlaced,
-                         png_Compress,
-                         png_BgColor,
-                         png_Gamma,
-                         png_LayerOffset,
-                         png_Rez,
-                         0,
-                        #  comment,
+    result = savePNG(currentImage,
+                        mergedLayer,
+                        filePath,
+                        png_Interlaced,
+                        png_Compress,
+                        png_BgColor,
+                        png_Gamma,
+                        png_LayerOffset,
+                        png_Rez,
+                        1,
                         0,
-                         png_AlphaColor
-                         )
+                        png_AlphaColor
+                        )
+        
+    pdb.gimp_image_remove_layer(currentImage, mergedLayer)
 
-        if bgLayer:
-            pdb.gimp_image_remove_layer(currentImage, bgLayer)
+    pdb.gimp_image_clean_all(currentImage)
+    pdb.gimp_displays_flush()
 
-            pdb.gimp_image_clean_all(currentImage)
-            pdb.gimp_displays_flush()
-
-        return result
-
+    return result
 
 
 def savePNG(image=None,
@@ -551,32 +491,29 @@ def savePNG(image=None,
             interlace=0,
             compression=5,
             bkgd=1,
-            gama=0,
+            gama=1,
             offs=0,
-            phys=0,
-            time=0,
-            comment="",
+            phys=1,
+            time=1,
+            comment=0,
             svtrans=1
             ):
 
-    log.debug("SAVING PNG ***\n")                                                 #   DEBUG
-
     try:
         pdb.file_png_save2(image,
-                        drawable,
-                        filePath,
-                        filePath,
-                        interlace,
-                        compression,
-                        bkgd,
-                        gama,
-                        offs,
-                        phys,
-                        time,
-                        comment,
-                        svtrans)
+                           drawable,
+                           filePath,
+                           filePath,
+                           interlace,
+                           compression,
+                           bkgd,
+                           gama,
+                           offs,
+                           phys,
+                           time,
+                           comment,
+                           svtrans)
 
-        log.debug("AFTER SAVE PNG")                                                   #   DEBUG
         return True
 
     except Exception as e:
@@ -584,12 +521,88 @@ def savePNG(image=None,
         return False
 
 
+def exportEXR(rSettings, currentImage, currentDrawable, filePath):
+
+    colorMode = rSettings["colorMode"]
+    bitDepth = rSettings["bitDepth"]
+    exportScale = int(rSettings["exportScale"])
+    alphaFill = rSettings["alphaFill"]
+
+    mergedLayer = createExportLayer(currentImage, currentDrawable, exportScale, colorMode, bitDepth, alphaFill)
+
+    result = saveEXR(currentImage,
+                        mergedLayer,
+                        filePath,
+                        )
+
+    pdb.gimp_image_remove_layer(currentImage, mergedLayer)
+
+    pdb.gimp_image_clean_all(currentImage)
+    pdb.gimp_displays_flush()
+
+    return result
+
+
+def saveEXR(image=None,                     #   Unfortunatly that is all the options Gimps API has
+            drawable=None,
+            filePath=None,
+            ):
+
+    try: 
+        pdb.file_exr_save(image,
+                           drawable,
+                           filePath,
+                           filePath)
+        
+        return True
+
+    except Exception as e:
+        log.warning("ERROR:  ", e)
+        return False
+
+
+def exportJPG(rSettings, currentImage, currentDrawable, filePath):
+    bgLayer = False
+
+    quality = rSettings["jpg_Quality"]
+    smoothing = rSettings["jpg_Smoothing"]
+    subSample = rSettings["jpg_SubSample"]
+    optimize = rSettings["jpg_Optimize"]
+    progressive = rSettings["jpg_Progressive"]
+    arithCode = rSettings["jpg_ArithCode"]
+    colorMode = rSettings["colorMode"]
+    bitDepth = rSettings["bitDepth"]
+    exportScale = int(rSettings["exportScale"])
+    alphaFill = rSettings["alphaFill"]
+
+    mergedLayer = createExportLayer(currentImage, currentDrawable, exportScale, colorMode, bitDepth, alphaFill)
+
+    result = saveJPG(currentImage,
+                        mergedLayer,
+                        filePath,
+                        quality,
+                        smoothing,
+                        optimize,
+                        progressive,
+                        "",
+                        subSample,
+                        arithCode
+                        )
+
+    pdb.gimp_image_remove_layer(currentImage, mergedLayer)
+
+    pdb.gimp_image_clean_all(currentImage)
+    pdb.gimp_displays_flush()
+
+    return result
+
+
 def saveJPG(image=None,
             drawable=None,
             filePath=None,
             quality=.5,
             smoothing=.5,
-            optimize=0,
+            optimize=1,
             progressive=0,
             comment="",
             subsmp=0,
@@ -597,9 +610,6 @@ def saveJPG(image=None,
             restart=0,
             dct=0
             ):
-
-
-    log.debug("SAVING JPG ***\n")                                                 #   DEBUG
 
     try: 
         pdb.file_jpeg_save(image,
@@ -616,7 +626,6 @@ def saveJPG(image=None,
                            restart,
                            dct)
         
-        log.debug("AFTER SAVE JPG")                                                   #   DEBUG
         return True
 
     except Exception as e:
@@ -624,23 +633,65 @@ def saveJPG(image=None,
         return False
 
 
-def fillAlphaBG(image, fillType):
+def createExportLayer(currentImage, currentDrawable, exportScale, colorMode, bitDepth, alphaFill):
+    tempBgLayer = False
 
-    if fillType == "checker":
-        bgLayer = pdb.gimp_file_load_layer(image, ALPHA_BG_FILE)
-    elif fillType == "white":
-        pass
-    elif fillType == "pink":
-        pass
-    else:           #   fill with Black
-        pass
+    xRez = (pdb.gimp_image_width(currentImage) * exportScale) / 100
+    yRez = (pdb.gimp_image_height(currentImage) * exportScale) / 100
 
-    numLayers, _ = pdb.gimp_image_get_layers(image)
+    if colorMode not in ["RGBA", "GRAYA"]:
+        if pdb.gimp_drawable_has_alpha(currentDrawable):
+            tempBgLayer = fillAlphaBG(currentImage, alphaFill)
 
-    xRez = pdb.gimp_image_width(image)
+    mergedLayer = pdb.gimp_layer_new_from_visible(currentImage, currentImage, "tempVisable")
+    pdb.gimp_image_insert_layer(currentImage, mergedLayer, None, 0)
+
+    if tempBgLayer:
+        pdb.gimp_image_remove_layer(currentImage, tempBgLayer)
+
+    if exportScale != 100:
+        pdb.gimp_layer_scale_full(mergedLayer, xRez, yRez, 1, 2)
+
+    return mergedLayer
+
+
+def fillAlphaBG(image, alphaFill):
+    #   Gets rez of original image
+    xRez = pdb.gimp_image_width(image)  
     yRez = pdb.gimp_image_height(image)
+    #   gets number of layers in the image
+    numLayers, _ = pdb.gimp_image_get_layers(image) 
 
+    #   Uses the checker BG from plugin directory
+    if alphaFill == "checker":
+        bgLayer = pdb.gimp_file_load_layer(image, ALPHA_BG_FILE)
+
+    #   Fills BG with selected color
+    else:
+        #   creates new layer with image dimensions
+        bgLayer = pdb.gimp_layer_new(image, xRez, yRez, 0, "tempBgLayer", 100, 0)
+        #   saves original foreground color
+        origFgColor = pdb.gimp_context_get_foreground()
+
+        if alphaFill == "white":
+            fillColor = gimpcolor.RGB(255, 255, 255)  # White
+        elif alphaFill == "gray":
+            fillColor = gimpcolor.RGB(100, 100, 100)  # Gray
+        elif alphaFill == "pink":
+            fillColor = gimpcolor.RGB(255, 0, 255)    # Pink
+        else:
+            fillColor = gimpcolor.RGB(0, 0, 0)        #   Black
+
+        #   sets foreground color
+        pdb.gimp_context_set_foreground(fillColor)
+        #   Fills layer with FG color
+        pdb.gimp_drawable_fill(bgLayer, 0)  
+        #   Reset Fg color to original
+        pdb.gimp_context_set_foreground(origFgColor)  
+
+    #   inserts this temp layer to bottom
     pdb.gimp_image_insert_layer(image, bgLayer, None, numLayers + 1)
+    #   scales temp layer to image size
     pdb.gimp_layer_scale(bgLayer, xRez, yRez, False)
 
     return bgLayer
