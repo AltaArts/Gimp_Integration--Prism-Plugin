@@ -32,7 +32,7 @@
 # along with Prism.  If not, see <https://www.gnu.org/licenses/>.
 ###########################################################################
 #
-#                    Gimp3 (2.99) Plugin for Prism2
+#                        Gimp2 Plugin for Prism2
 #
 #                           Joshua Breckeen
 #                              Alta Arts
@@ -42,13 +42,11 @@
 
 
 import os
-import sys
 import socket
 import json
 from datetime import datetime
 import logging
 import tempfile
-import time
 
 from qtpy.QtCore import *
 from qtpy.QtGui import *
@@ -66,7 +64,8 @@ if "PRISM_ROOT" in os.environ:
     if not prismRoot:
         raise Exception("PRISM_ROOT is not set")
 else:
-    prismRoot = r"C:/Prism2"     
+    prismRoot = r"C:/Prism2"                #   TODO Integration
+
 
 ##    CONSTANTS    ##                                                       
 GIMPLOCALDIR = os.path.dirname(os.path.dirname(__file__))
@@ -83,15 +82,9 @@ class Prism_Gimp_Functions(object):
         self.core.registerCallback("onStateManagerOpen",
                                     self.onStateManagerOpen,
                                     plugin=self.plugin,
-                                    priority=40
-                                    )
-        
+                                    priority=40)
 
         self.getGimpPluginConfig()
-
-        # self.core.registerCallback(                                           #   NEEDED ????
-        #     "onStateCreated", self.onStateCreated, plugin=self.plugin
-        #     )
 
         logger.debug("Starting Prism_Gimp_Functions")
 
@@ -116,7 +109,6 @@ class Prism_Gimp_Functions(object):
 
 
     def getGimpPluginConfig(self):
-
         logger.debug("Getting Gimp Config")
         try:
             with open(CONFIGFILE, 'r') as file:
@@ -134,13 +126,11 @@ class Prism_Gimp_Functions(object):
 
     @err_catcher(name=__name__)
     def autosaveEnabled(self, origin):
-        # get autosave enabled
         return False
 
 
     @err_catcher(name=__name__)
     def cmdDataToJson(self, command, payload):
-
         pData = {
             "command": command,
             "data": payload
@@ -153,7 +143,6 @@ class Prism_Gimp_Functions(object):
 
     @err_catcher(name=__name__)
     def jsonToCmdData(self, jData):
-
         try:
             pData = json.loads(jData)
 
@@ -184,8 +173,6 @@ class Prism_Gimp_Functions(object):
     @err_catcher(name=__name__)
     def sendGimpComm(self, jData):
         logger.debug("Sending data to GIMP")
-
-        # time.sleep(1)
 
         try:
             # Create a socket object
@@ -221,17 +208,22 @@ class Prism_Gimp_Functions(object):
     @err_catcher(name=__name__)
     def getCurrentFileName(self, origin, path=True):
 
-        # logger.debug("Getting Current Filename")
+        logger.debug("Getting Current Filename")
 
-        sendCommand = "getCurrentFilename"
-        sendPayload = None
+        # sendCommand = "getCurrentFilename"                                                        #   OLD VERSION - DELETE WHEN FINISHED TESTING
+        # sendPayload = None
 
-        rcvCommand, rcvPayload = self.sendCmdToGimp(sendCommand, sendPayload)
+        # rcvCommand, rcvPayload = self.sendCmdToGimp(sendCommand, sendPayload)
 
-        if rcvCommand is not None and rcvCommand == "currentFilename":
-            filePath = rcvPayload.get("filePath")
-        else:
-            filePath = ""
+        # if rcvCommand is not None and rcvCommand == "currentFilename":
+        #     filePath = rcvPayload.get("filePath")
+        # else:
+        #     filePath = ""
+
+        # self.core.popup(f"filePath in PRISM GIMP FUCNT: {filePath}")                                      #    TESTING
+
+
+        filePath = os.environ["Gimp_CurrentImagePath"]
 
         return filePath
 
@@ -243,18 +235,18 @@ class Prism_Gimp_Functions(object):
 
     @err_catcher(name=__name__)
     def saveScene(self, origin, filePath, details={}):
-
         logger.debug("Saving Scenefile")
 
         sendCommand = "saveVersion"
-        sendPayload = {"filePath": filePath}
+        sendPayload = {"imagePath": os.environ["Gimp_CurrentImagePath"],
+                       "savePath": filePath}
         
         try:
             rcvCommand, rcvPayload = self.sendCmdToGimp(sendCommand, sendPayload)
 
             if os.path.exists(filePath):
+                os.environ["Gimp_CurrentImagePath"] = filePath
                 return True
-
             else:
                 self.core.popup("Save Version Failed", severity="warning")
                 return False
@@ -268,9 +260,10 @@ class Prism_Gimp_Functions(object):
         ssPath = tempfile.NamedTemporaryFile(suffix=".jpg").name
 
         sendCommand = "captureScreenShot"
-        sendData = {"filePath": ssPath}
+        sendPayload = {"imagePath": os.environ["Gimp_CurrentImagePath"],
+                       "ssPath": ssPath}
 
-        rcvCommand, rcvData = self.sendCmdToGimp(sendCommand, sendData)
+        rcvCommand, rcvData = self.sendCmdToGimp(sendCommand, sendPayload)
         pm = self.core.media.getPixmapFromPath(ssPath)
 
         try:
@@ -284,215 +277,36 @@ class Prism_Gimp_Functions(object):
             return False
         
 
-    # @err_catcher(name=__name__)
-    # def getImportPaths(self, origin):
-    #     return []
-
-    # @err_catcher(name=__name__)
-    # def getFrameRange(self, origin):
-    #     startframe = 0
-    #     endframe = 100
-
-    #     return [startframe, endframe]
-
-    # @err_catcher(name=__name__)
-    # def setFrameRange(self, origin, startFrame, endFrame):
-    #     pass
-
-    # @err_catcher(name=__name__)
-    # def getFPS(self, origin):
-    #     return 24
-
-    # @err_catcher(name=__name__)
-    # def setFPS(self, origin, fps):
-    #     pass
-
-    @err_catcher(name=__name__)                             #   ???
+    @err_catcher(name=__name__)                                             #   ???
     def getAppVersion(self, origin):
+
+        self.core.popup("GETTING APP VERSION")                                      #    TESTING
         return "1.0"
 
-    @err_catcher(name=__name__)                                 #   ???
+    @err_catcher(name=__name__)
     def openScene(self, origin, filepath, force=False):
-        # load scenefile
+        # load scenefile - I believe it checks if there is an open scenefile
+        # But proably not needed for Gimp
         return True
 
-    # @err_catcher(name=__name__)
-    # def sm_export_addObjects(self, origin, objects=None):
-    #     if not objects:
-    #         objects = []  # get selected objects from scene
-
-    #     for i in objects:
-    #         if not i in origin.nodes:
-    #             origin.nodes.append(i)
-
-    #     origin.updateUi()
-    #     origin.stateManager.saveStatesToScene()
-
-    # @err_catcher(name=__name__)
-    # def getNodeName(self, origin, node):
-    #     if self.isNodeValid(origin, node):
-    #         try:
-    #             return node.name
-    #         except:
-    #             QMessageBox.warning(
-    #                 self.core.messageParent, "Warning", "Cannot get name from %s" % node
-    #             )
-    #             return node
-    #     else:
-    #         return "invalid"
-
-    # @err_catcher(name=__name__)
-    # def selectNodes(self, origin):
-    #     if origin.lw_objects.selectedItems() != []:
-    #         nodes = []
-    #         for i in origin.lw_objects.selectedItems():
-    #             node = origin.nodes[origin.lw_objects.row(i)]
-    #             if self.isNodeValid(origin, node):
-    #                 nodes.append(node)
-    #         # select(nodes)
-
-    # @err_catcher(name=__name__)
-    # def isNodeValid(self, origin, handle):
-    #     return True
-
-    # @err_catcher(name=__name__)
-    # def getCamNodes(self, origin, cur=False):
-    #     sceneCams = []  # get cams from scene
-    #     if cur:
-    #         sceneCams = ["Current View"] + sceneCams
-
-    #     return sceneCams
-
-    # @err_catcher(name=__name__)
-    # def getCamName(self, origin, handle):
-    #     if handle == "Current View":
-    #         return handle
-
-    #     return str(nodes[0])
-
-    # @err_catcher(name=__name__)
-    # def selectCam(self, origin):
-    #     if self.isNodeValid(origin, origin.curCam):
-    #         select(origin.curCam)
-
-    # @err_catcher(name=__name__)
-    # def sm_export_startup(self, origin):
-    #     pass
-
-    # # 	@err_catcher(name=__name__)
-    # # 	def sm_export_setTaskText(self, origin, prevTaskName, newTaskName):
-    # # 		origin.l_taskName.setText(newTaskName)
-
-    # @err_catcher(name=__name__)
-    # def sm_export_removeSetItem(self, origin, node):
-    #     pass
-
-    # @err_catcher(name=__name__)
-    # def sm_export_clearSet(self, origin):
-    #     pass
-
-    # @err_catcher(name=__name__)
-    # def sm_export_updateObjects(self, origin):
-    #     pass
-
-    # @err_catcher(name=__name__)
-    # def sm_export_exportShotcam(self, origin, startFrame, endFrame, outputName):
-    #     result = self.sm_export_exportAppObjects(
-    #         origin,
-    #         startFrame,
-    #         endFrame,
-    #         (outputName + ".abc"),
-    #         nodes=[origin.curCam],
-    #         expType=".abc",
-    #     )
-    #     result = self.sm_export_exportAppObjects(
-    #         origin,
-    #         startFrame,
-    #         endFrame,
-    #         (outputName + ".fbx"),
-    #         nodes=[origin.curCam],
-    #         expType=".fbx",
-    #     )
-    #     return result
-
-    # @err_catcher(name=__name__)
-    # def sm_export_exportAppObjects(
-    #     self,
-    #     origin,
-    #     startFrame,
-    #     endFrame,
-    #     outputName,
-    #     scaledExport=False,
-    #     nodes=None,
-    #     expType=None,
-    # ):
-    #     pass
-
-    # @err_catcher(name=__name__)
-    # def sm_export_preDelete(self, origin):
-    #     pass
-
-    # @err_catcher(name=__name__)
-    # def sm_export_unColorObjList(self, origin):
-    #     origin.lw_objects.setStyleSheet(
-    #         "QListWidget { border: 3px solid rgb(50,50,50); }"
-    #     )
-
-    # @err_catcher(name=__name__)
-    # def sm_export_typeChanged(self, origin, idx):
-    #     pass
-
-    # @err_catcher(name=__name__)
-    # def sm_export_preExecute(self, origin, startFrame, endFrame):
-    #     warnings = []
-
-    #     return warnings
-
-    # @err_catcher(name=__name__)
-    # def sm_export_loadData(self, origin, data):
-    #     pass
-
-    # @err_catcher(name=__name__)
-    # def sm_export_getStateProps(self, origin, stateProps):
-    #     stateProps.update()
-
-    #     return stateProps
-
+    
     @err_catcher(name=__name__)
     def sm_render_startup(self, origin):
         pass
 
-    # @err_catcher(name=__name__)
-    # def sm_render_getRenderLayer(self, origin):
-    #     rlayerNames = []
-
-    #     return rlayerNames
-
-    # @err_catcher(name=__name__)
-    # def sm_render_refreshPasses(self, origin):
-    #     pass
-
-    # @err_catcher(name=__name__)
-    # def sm_render_openPasses(self, origin, item=None):
-    #     pass
-
-    # @err_catcher(name=__name__)
-    # def removeAOV(self, aovName):
-    #     pass
 
     @err_catcher(name=__name__)
     def sm_render_preSubmit(self, origin, rSettings):
         pass
 
 
-
-
-
     @err_catcher(name=__name__)
     def sm_render_startLocalRender(self, origin, outputName, rSettings):
 
         sendCommand = "exportFile"
-        sendPayload = {"rSettings": rSettings}
+
+        sendPayload = {"imagePath": os.environ["Gimp_CurrentImagePath"],
+                       "rSettings": rSettings}
         
         rcvCommand, rcvPayload = self.sendCmdToGimp(sendCommand, sendPayload)
         
@@ -503,13 +317,12 @@ class Prism_Gimp_Functions(object):
     def sm_render_undoRenderSettings(self, origin, rSettings):
         pass
 
-    # @err_catcher(name=__name__)
-    # def sm_render_getDeadlineParams(self, origin, dlParams, homeDir):
-    #     pass
 
-    @err_catcher(name=__name__)                         #   ????
+    @err_catcher(name=__name__)                                             #   ????
     def getCurrentRenderer(self, origin):
+        self.core.popup("GETTING CURRENT RENDERER")                                      #    TESTING
         return "Renderer"
+
 
     @err_catcher(name=__name__)
     def getCurrentSceneFiles(self, origin):
@@ -517,13 +330,6 @@ class Prism_Gimp_Functions(object):
         scenefiles = [curFileName]
         return scenefiles
 
-    # @err_catcher(name=__name__)
-    # def sm_render_getRenderPasses(self, origin):
-    #     return []
-
-    # @err_catcher(name=__name__)
-    # def sm_render_addRenderPass(self, origin, passName, steps):
-    #     pass
 
     @err_catcher(name=__name__)
     def sm_render_preExecute(self, origin):
@@ -531,73 +337,11 @@ class Prism_Gimp_Functions(object):
 
         return warnings
 
-    @err_catcher(name=__name__)                         #   ????
+
+    @err_catcher(name=__name__)                                         #   ????
     def getProgramVersion(self, origin):
+        self.core.popup("GETTING PROGRAM VERSION")                                      #    TESTING
         return "1.0"
-
-    # @err_catcher(name=__name__)
-    # def sm_render_getDeadlineSubmissionParams(self, origin, dlParams, jobOutputFile):
-    #     dlParams["Build"] = dlParams["build"]
-    #     dlParams["OutputFilePath"] = os.path.split(jobOutputFile)[0]
-    #     dlParams["OutputFilePrefix"] = os.path.splitext(
-    #         os.path.basename(jobOutputFile)
-    #     )[0]
-    #     dlParams["Renderer"] = self.getCurrentRenderer(origin)
-
-    #     if origin.chb_resOverride.isChecked() and "resolution" in dlParams:
-    #         resString = "Image"
-    #         dlParams[resString + "Width"] = str(origin.sp_resWidth.value())
-    #         dlParams[resString + "Height"] = str(origin.sp_resHeight.value())
-
-    #     return dlParams
-
-    # @err_catcher(name=__name__)
-    # def deleteNodes(self, origin, handles, num=0):
-    #     pass
-
-    # @err_catcher(name=__name__)
-    # def sm_import_disableObjectTracking(self, origin):
-    #     self.deleteNodes(origin, [origin.setName])
-
-    # @err_catcher(name=__name__)
-    # def sm_import_importToApp(self, origin, doImport, update, impFileName):
-    #     return {"result": result, "doImport": doImport}
-
-    # @err_catcher(name=__name__)
-    # def sm_import_updateObjects(self, origin):
-    #     pass
-
-    # @err_catcher(name=__name__)
-    # def sm_import_removeNameSpaces(self, origin):
-    #     pass
-
-    # @err_catcher(name=__name__)
-    # def sm_playblast_startup(self, origin):
-    #     frange = self.getFrameRange(origin)
-    #     origin.sp_rangeStart.setValue(frange[0])
-    #     origin.sp_rangeEnd.setValue(frange[1])
-
-    # @err_catcher(name=__name__)
-    # def sm_playblast_createPlayblast(self, origin, jobFrames, outputName):
-    #     pass
-
-    # @err_catcher(name=__name__)
-    # def sm_playblast_preExecute(self, origin):
-    #     warnings = []
-
-    #     return warnings
-
-    # @err_catcher(name=__name__)
-    # def sm_playblast_execute(self, origin):
-    #     pass
-
-    # @err_catcher(name=__name__)
-    # def sm_playblast_postExecute(self, origin):
-    #     pass
-
-    # @err_catcher(name=__name__)
-    # def sm_saveImports(self, origin, importPaths):
-    #     pass
 
 
     @err_catcher(name=__name__)
@@ -605,7 +349,8 @@ class Prism_Gimp_Functions(object):
         stateData = json.dumps(buf)
 
         sendCommand = "saveStates"
-        sendPayload = {"stateData": stateData}
+        sendPayload = {"imagePath": os.environ["Gimp_CurrentImagePath"],
+                       "stateData": stateData}
         
         self.sendCmdToGimp(sendCommand, sendPayload)
 
@@ -622,23 +367,21 @@ class Prism_Gimp_Functions(object):
     ]
 }'''
     
-        try:
-            sendCommand = "getStates"
-            sendPayload = None
-            rcvCommand, rcvPayload = self.sendCmdToGimp(sendCommand, sendPayload)
-            stateDataRaw = rcvPayload.get("stateData")
+        # try:                                                                              #   TODO REINSTATE TRY/EXCEPT
+        sendCommand = "getStates"
+        sendPayload = {"imagePath": os.environ["Gimp_CurrentImagePath"]}
+        rcvCommand, rcvPayload = self.sendCmdToGimp(sendCommand, sendPayload)
 
-            if stateDataRaw is not None and stateDataRaw != "":
-                stateData = json.loads(stateDataRaw)
+        stateData = rcvPayload.get("stateData")
 
-                return stateData
-            else:
-                return emptyState
-            
-        except Exception as e:
-            logger.warning(f"Failed to read states: {e}")
+        if stateData is not None and stateData != "":
+            return stateData
+        else:
             return emptyState
-        
+            
+        # except Exception as e:
+        #     logger.warning(f"Failed to read states: {e}")
+        #     return emptyState
 
 
     @err_catcher(name=__name__)

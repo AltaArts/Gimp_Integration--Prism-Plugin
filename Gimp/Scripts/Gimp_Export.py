@@ -46,9 +46,7 @@
 
 
 import os
-import sys
 import time
-import traceback
 import platform
 import logging
 
@@ -56,16 +54,13 @@ from qtpy.QtCore import *
 from qtpy.QtGui import *
 from qtpy.QtWidgets import *
 
-
 from PrismUtils.Decorators import err_catcher
 from StateUserInterfaces import Gimp_Export_ui
-
-
 
 logger = logging.getLogger(__name__)
 
 
-def convertToBit(bool):
+def boolToBit(bool):
     if bool == True:
         return 1
     else:
@@ -172,115 +167,134 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
 
 
     @err_catcher(name=__name__)
-    def loadData(self, data):
-        if "contextType" in data:
-            self.setContextType(data["contextType"])
-        if "customContext" in data:
-            self.customContext = data["customContext"]
-        if "taskname" in data:
-            self.setTaskname(data["taskname"])
+    def loadData(self, stateData):
+
+        if "contextType" in stateData:
+            self.setContextType(stateData["contextType"])
+        if "customContext" in stateData:
+            self.customContext = stateData["customContext"]
+        if "taskname" in stateData:
+            self.setTaskname(stateData["taskname"])
 
         self.updateUi()
 
-        if "stateName" in data:
-            self.e_name.setText(data["stateName"])
-        elif "statename" in data:
-            self.e_name.setText(data["statename"] + " - {identifier}")
+        if "stateName" in stateData:
+            self.e_name.setText(stateData["stateName"])
+        elif "statename" in stateData:
+            self.e_name.setText(stateData["statename"] + " - {identifier}")
 
-        if "masterVersion" in data:
-            idx = self.cb_master.findText(data["masterVersion"])
+        if "masterVersion" in stateData:
+            idx = self.cb_master.findText(stateData["masterVersion"])
             if idx != -1:
                 self.cb_master.setCurrentIndex(idx)
-        if "curoutputpath" in data:
-            idx = self.cb_outPath.findText(data["curoutputpath"])
+        if "curoutputpath" in stateData:
+            idx = self.cb_outPath.findText(stateData["curoutputpath"])
             if idx != -1:
                 self.cb_outPath.setCurrentIndex(idx)
 
-        if "exportScale" in data:
-            idx = self.cb_scale.findText(data["exportScale"])
+        if "specs_xRez" in stateData:
+            self.l_specs_Xrez.setText(str(stateData["specs_xRez"]))
+
+        if "specs_yRez" in stateData:
+            self.l_specs_Yrez.setText(str(stateData["specs_yRez"]))
+
+        if "colorMode" in stateData:
+            self.l_specs_ColorMode.setText(stateData["colorMode"])
+
+        if "bitDepth" in stateData:
+            self.l_specs_BitDepth.setText(stateData["bitDepth"])
+
+        if "gamma" in stateData:
+            self.l_specs_Gamma.setText(stateData["gamma"])
+
+        if "hasAlpha" in stateData:
+            self.l_specs_Alpha.setText(str(stateData["hasAlpha"]))
+
+        if "exportScale" in stateData:
+            idx = self.cb_scale.findText(stateData["exportScale"])
             if idx != -1:
                 self.cb_format.setCurrentIndex(idx)
         
-        if "outputFormat" in data:
-            idx = self.cb_format.findText(data["outputFormat"])
+        if "outputFormat" in stateData:
+            idx = self.cb_format.findText(stateData["outputFormat"])
             if idx != -1:
                 self.cb_format.setCurrentIndex(idx)
 
-        if "colorMode" in data:
-            idx = self.cb_colorMode.findText(data["colorMode"])
+        if "colorMode" in stateData:
+            idx = self.cb_colorMode.findText(stateData["colorMode"])
             if idx != -1:
                 self.cb_colorMode.setCurrentIndex(idx)
 
-        if "alphaFill" in data:
-            idx = self.cb_alphaFill.findText(data["alphaFill"])
-            if idx != -1:
-                self.cb_alphaFill.setCurrentIndex(idx)
-
-        if "bitDepth" in data:
-            idx = self.cb_bitDepth.findText(data["bitDepth"])
+        if "bitDepth" in stateData:
+            idx = self.cb_bitDepth.findText(stateData["bitDepth"])
             if idx != -1:
                 self.cb_bitDepth.setCurrentIndex(idx)
 
-        if "png_Compress" in data:
-            idx = self.cb_png_compress.findText(data["png_Compress"])
+        if "alphaFill" in stateData:
+            idx = self.cb_alphaFill.findText(stateData["alphaFill"])
+            if idx != -1:
+                self.cb_alphaFill.setCurrentIndex(idx)
+
+        if "png_Compress" in stateData:
+            idx = self.cb_png_compress.findText(stateData["png_Compress"])
             if idx != -1:
                 self.cb_png_compress.setCurrentIndex(idx)
 
-        if "png_Interlaced" in data:
-            self.chb_png_interlaced.setChecked(data["png_Interlaced"])
+        if "png_Interlaced" in stateData:
+            self.chb_png_interlaced.setChecked(stateData["png_Interlaced"])
 
-        if "png_Gamma" in data:
-            self.chb_png_gamma.setChecked(data["png_Gamma"])
+        if "png_Gamma" in stateData:
+            self.chb_png_gamma.setChecked(stateData["png_Gamma"])
 
-        if "png_Rez" in data:
-            self.chb_png_rez.setChecked(data["png_Rez"])
+        if "png_Rez" in stateData:
+            self.chb_png_rez.setChecked(stateData["png_Rez"])
             
-        if "png_BgColor" in data:
-            self.chb_png_bgColor.setChecked(data["png_BgColor"])
+        if "png_BgColor" in stateData:
+            self.chb_png_bgColor.setChecked(stateData["png_BgColor"])
 
-        if "png_LayerOffset" in data:
-            self.chb_png_layerOffset.setChecked(data["png_LayerOffset"])
+        if "png_LayerOffset" in stateData:
+            self.chb_png_layerOffset.setChecked(stateData["png_LayerOffset"])
 
-        if "png_AlphaColor" in data:
-            self.chb_png_alphaColor.setChecked(data["png_AlphaColor"])                                    
+        if "png_AlphaColor" in stateData:
+            self.chb_png_alphaColor.setChecked(stateData["png_AlphaColor"])                                    
 
-        if "jpg_Qual" in data:
-            idx = self.cb_jpg_qual.findText(data["jpg_Qual"])
+        if "jpg_Qual" in stateData:
+            idx = self.cb_jpg_qual.findText(stateData["jpg_Qual"])
             if idx != -1:
                 self.cb_jpg_qual.setCurrentIndex(idx)
 
-        if "jpg_Smooth" in data:
-            idx = self.cb_jpg_smooth.findText(data["jpg_Smooth"])
+        if "jpg_Smooth" in stateData:
+            idx = self.cb_jpg_smooth.findText(stateData["jpg_Smooth"])
             if idx != -1:
                 self.cb_jpg_smooth.setCurrentIndex(idx)
 
-        if "jpg_SubSample" in data:
-            idx = self.cb_jpg_subSample.findText(data["jpg_SubSample"])
+        if "jpg_SubSample" in stateData:
+            idx = self.cb_jpg_subSample.findText(stateData["jpg_SubSample"])
             if idx != -1:
                 self.cb_jpg_subSample.setCurrentIndex(idx)
 
-        if "jpg_Optimize" in data:
-            self.chb_jpg_optimize.setChecked(data["jpg_Optimize"])
+        if "jpg_Optimize" in stateData:
+            self.chb_jpg_optimize.setChecked(stateData["jpg_Optimize"])
 
-        if "jpg_Progressive" in data:
-            self.chb_jpg_progressive.setChecked(data["jpg_Progressive"])
+        if "jpg_Progressive" in stateData:
+            self.chb_jpg_progressive.setChecked(stateData["jpg_Progressive"])
 
-        if "jpg_ArithCode" in data:
-            self.chb_jpg_arithCode.setChecked(data["jpg_ArithCode"])
+        if "jpg_ArithCode" in stateData:
+            self.chb_jpg_arithCode.setChecked(stateData["jpg_ArithCode"])
 
-        if "lastexportpath" in data:
-            lePath = self.core.fixPath(data["lastexportpath"])
+        if "lastexportpath" in stateData:
+            lePath = self.core.fixPath(stateData["lastexportpath"])
             self.l_pathLast.setText(lePath)
             self.l_pathLast.setToolTip(lePath)
-        if "stateenabled" in data:
-            if type(data["stateenabled"]) == int:
+        if "stateenabled" in stateData:
+            if type(stateData["stateenabled"]) == int:
                 self.state.setCheckState(
-                    0, Qt.CheckState(data["stateenabled"]),
+                    0, Qt.CheckState(stateData["stateenabled"]),
                 )
 
         self.updateUiOptions()
 
-        self.core.callback("onStateSettingsLoaded", self, data)
+        self.core.callback("onStateSettingsLoaded", self, stateData)
 
 
     @err_catcher(name=__name__)                                                         #   TODO
@@ -292,7 +306,6 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
         self.b_changeTask.clicked.connect(self.changeTask)
         self.cb_master.activated.connect(self.stateManager.saveStatesToScene)
         self.cb_outPath.activated.connect(self.stateManager.saveStatesToScene)
-
         self.cb_format.activated.connect(self.updateUiOptions)
         self.cb_colorMode.activated.connect(self.updateUiOptions)
         self.cb_format.activated.connect(self.stateManager.saveStatesToScene)
@@ -305,11 +318,7 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
         self.chb_jpg_optimize.toggled.connect(self.stateManager.saveStatesToScene)
         self.chb_jpg_progressive.toggled.connect(self.stateManager.saveStatesToScene)
         self.chb_jpg_arithCode.toggled.connect(self.stateManager.saveStatesToScene)
-
-
         self.b_pathLast.clicked.connect(self.showLastPathMenu)
-
-
 
 
     @err_catcher(name=__name__)
@@ -318,39 +327,34 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
         format = self.cb_format.currentText()
         colorMode = self.cb_colorMode.currentText()
         currentMode = self.cb_colorMode.currentText()
-
-        if colorMode in ["RGB", "GRAY"]:
-            self.gb_alphaFill.show()
-        else:
-            self.gb_alphaFill.hide()
+        currentBitIdx = self.cb_bitDepth.currentText()
 
         self.gb_jpgOptions.hide()
         self.gb_pngOptions.hide()
 
-        if format == ".jpg":
-            self.gb_jpgOptions.show()
-            imageColorMode = ["RGB", "GRAY"]
-            colorModeIdx = 0
-            imageBitDepth = ["8"]
-            bitIdx = 0
+        match format:
+            case ".jpg":
+                self.gb_jpgOptions.show()
+                imageColorMode = ["RGB", "GRAY"]
+                colorModeIdx = 0
+                imageBitDepth = ["8"]
+                bitIdx = 0
 
-        elif format == ".png":
-            self.gb_pngOptions.show()
-            imageColorMode = ["RGB", "RGBA", "GRAY", "GRAYA"]
-            colorModeIdx = 0
-            imageBitDepth = ["8", "16"]
-            bitIdx = 1
+            case ".png":
+                self.gb_pngOptions.show()
+                imageColorMode = ["RGB", "RGBA", "GRAY", "GRAYA"]
+                colorModeIdx = 0
+                imageBitDepth = ["8", "16"]
+                bitIdx = 1
 
-        elif format == ".exr":
-            imageColorMode = ["RGB", "RGBA", "GRAY", "GRAYA"]
-            colorModeIdx = 0
-            imageBitDepth = ["16", "32"]
-            bitIdx = 1
-
+            case ".exr":
+                imageColorMode = ["RGB", "RGBA", "GRAY", "GRAYA"]
+                colorModeIdx = 0
+                imageBitDepth = ["16", "32"]
+                bitIdx = 1
 
         self.cb_colorMode.clear()
         self.cb_colorMode.addItems(imageColorMode)
-
         
         idx = self.cb_colorMode.findText(currentMode)
         if idx != -1:
@@ -358,15 +362,19 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
         else:
             self.cb_colorMode.setCurrentIndex(colorModeIdx)
 
-
-
+        if colorMode in ["RGB", "GRAY"]:
+            self.gb_alphaFill.show()
+        else:
+            self.gb_alphaFill.hide()
 
         self.cb_bitDepth.clear()
         self.cb_bitDepth.addItems(imageBitDepth)
-        self.cb_bitDepth.setCurrentIndex(bitIdx)
 
-
-
+        idx = self.cb_bitDepth.findText(currentBitIdx)
+        if idx != -1:
+            self.cb_bitDepth.setCurrentIndex(idx)
+        else:
+            self.cb_bitDepth.setCurrentIndex(bitIdx)
 
 
     @err_catcher(name=__name__)
@@ -377,6 +385,7 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
             self.setTaskname(context.get("task"))
 
         self.updateUi()
+
 
     @err_catcher(name=__name__)
     def showLastPathMenu(self, state=None):
@@ -404,12 +413,14 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
 
         menu.exec_(QCursor.pos())
 
+
     @err_catcher(name=__name__)
     def openInMediaBrowser(self, path):
         self.core.projectBrowser()
         self.core.pb.showTab("Media")
         data = self.core.paths.getRenderProductData(path)
         self.core.pb.mediaBrowser.showRender(entity=data, identifier=data.get("identifier"), version=data.get("version"))
+
 
     @err_catcher(name=__name__)
     def selectContextClicked(self, state=None):
@@ -419,11 +430,13 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
         self.dlg_entity.entitySelected.connect(lambda x: self.setCustomContext(x))
         self.dlg_entity.show()
 
+
     @err_catcher(name=__name__)
     def setCustomContext(self, context):
         self.customContext = context
         self.refreshContext()
         self.stateManager.saveStatesToScene()
+
 
     @err_catcher(name=__name__)
     def onContextTypeChanged(self, state):
@@ -464,9 +477,11 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
 
         self.state.setText(0, name)
 
+
     @err_catcher(name=__name__)
     def getFormat(self):
         self.cb_format.currentText()
+
 
     @err_catcher(name=__name__)
     def setFormat(self, fmt):
@@ -477,11 +492,13 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
             return True
 
         return False
+    
 
     @err_catcher(name=__name__)
     def getContextType(self):
         contextType = self.cb_context.currentText()
         return contextType
+
 
     @err_catcher(name=__name__)
     def setContextType(self, contextType):
@@ -493,10 +510,12 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
 
         return False
 
+
     @err_catcher(name=__name__)
     def getTaskname(self):
         taskName = self.l_taskName.text()
         return taskName
+    
 
     @err_catcher(name=__name__)
     def setTaskname(self, taskname):
@@ -504,9 +523,11 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
         self.setTaskWarn(not bool(taskname))
         self.updateUi()
 
+
     @err_catcher(name=__name__)
     def getSortKey(self):
         return self.getTaskname()
+    
 
     @err_catcher(name=__name__)
     def changeTask(self):
@@ -529,9 +550,11 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
             self.nameChanged(self.e_name.text())
             self.stateManager.saveStatesToScene()
 
+
     @err_catcher(name=__name__)
     def getMasterVersion(self):
         return self.cb_master.currentText()
+    
 
     @err_catcher(name=__name__)
     def setMasterVersion(self, master):
@@ -542,10 +565,12 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
             return True
 
         return False
+    
 
     @err_catcher(name=__name__)
     def getLocation(self):
         return self.cb_outPath.currentText()
+    
 
     @err_catcher(name=__name__)
     def setLocation(self, location):
@@ -556,6 +581,7 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
             return True
 
         return False
+    
 
     @err_catcher(name=__name__)
     def updateUi(self):
@@ -567,12 +593,14 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
 
         self.nameChanged(self.e_name.text())
         return True
+    
 
     @err_catcher(name=__name__)
     def refreshContext(self):
         context = self.getCurrentContext()
         contextStr = self.getContextStrFromEntity(context)
         self.l_context.setText(contextStr)
+
 
     @err_catcher(name=__name__)
     def getCurrentContext(self):
@@ -593,19 +621,20 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
             del context["user"]
 
         return context
+    
 
-    @err_catcher(name=__name__)
-    def refreshSubmitUi(self):
-        if not self.gb_submit.isHidden():
-            if not self.gb_submit.isCheckable():
-                return
+    # @err_catcher(name=__name__)
+    # def refreshSubmitUi(self):
+    #     if not self.gb_submit.isHidden():
+    #         if not self.gb_submit.isCheckable():
+    #             return
 
-            submitChecked = self.gb_submit.isChecked()
-            for idx in reversed(range(self.gb_submit.layout().count())):
-                self.gb_submit.layout().itemAt(idx).widget().setHidden(not submitChecked)
+    #         submitChecked = self.gb_submit.isChecked()
+    #         for idx in reversed(range(self.gb_submit.layout().count())):
+    #             self.gb_submit.layout().itemAt(idx).widget().setHidden(not submitChecked)
 
-            if submitChecked:
-                self.core.plugins.getRenderfarmPlugin(self.cb_manager.currentText()).sm_render_updateUI(self)
+    #         if submitChecked:
+    #             self.core.plugins.getRenderfarmPlugin(self.cb_manager.currentText()).sm_render_updateUI(self)
 
 
     @err_catcher(name=__name__)
@@ -623,6 +652,7 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
 
         context = "%s - %s" % (entityType.capitalize(), entityName)
         return context
+    
 
     @err_catcher(name=__name__)
     def preExecuteState(self):
@@ -633,10 +663,10 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
         if self.tasknameRequired and not self.getTaskname():
             warnings.append(["No identifier is given.", "", 3])
 
-
         warnings += self.core.appPlugin.sm_render_preExecute(self)
 
         return [self.state.text(0), warnings]
+    
 
     @err_catcher(name=__name__)
     def getOutputName(self, useVersion="next"):
@@ -671,22 +701,21 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
         hVersion = outputPathData["version"]
 
         return outputPathData["path"], outputFolder, hVersion
+    
 
     @err_catcher(name=__name__)
     def executeState(self, parent, useVersion="next"):
-
         endFrame = startFrame = 1
-
         updateMaster = True
         fileName = self.core.getCurrentFileName()
         context = self.getCurrentContext()
+
         if not self.renderingStarted:
             if self.tasknameRequired and not self.getTaskname():
                 return [
                     self.state.text(0)
                     + ": error - no identifier is given. Skipped the activation of this state."
                 ]
-
 
             outputName, outputPath, hVersion = self.getOutputName(useVersion=useVersion)
             expandedOutputPath = os.path.expandvars(outputPath)
@@ -742,33 +771,28 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
                 "alphaFill": self.cb_alphaFill.currentText()
                 }
 
-                
-            if outputType == ".png":
-                rSettings.update({"png_Compress": self.cb_png_compress.currentText(),
-                                  "png_Interlaced": convertToBit(self.chb_png_interlaced.isChecked()),
-                                  "png_Gamma": convertToBit(self.chb_png_gamma.isChecked()),
-                                  "png_Rez": convertToBit(self.chb_png_rez.isChecked()),
-                                  "png_BgColor": convertToBit(self.chb_png_bgColor.isChecked()),
-                                  "png_LayerOffset": convertToBit(self.chb_png_layerOffset.isChecked()),
-                                  "png_AlphaColor": convertToBit(not self.chb_png_alphaColor.isChecked())
-                                  })
-                
-                
-            elif outputType == ".exr":
-                pass
+            match outputType:    
+                case ".png":
+                    rSettings.update({"png_Compress": self.cb_png_compress.currentText(),
+                                    "png_Interlaced": boolToBit(self.chb_png_interlaced.isChecked()),
+                                    "png_Gamma": boolToBit(self.chb_png_gamma.isChecked()),
+                                    "png_Rez": boolToBit(self.chb_png_rez.isChecked()),
+                                    "png_BgColor": boolToBit(self.chb_png_bgColor.isChecked()),
+                                    "png_LayerOffset": boolToBit(self.chb_png_layerOffset.isChecked()),
+                                    "png_AlphaColor": boolToBit(not self.chb_png_alphaColor.isChecked())
+                                    })
+                    
+                case ".exr":
+                    pass
 
-
-
-            elif outputType == ".jpg":
-                rSettings.update({"jpg_Quality": self.cb_jpg_qual.currentText(),
-                                  "jpg_Smoothing": self.cb_jpg_smooth.currentText(),
-                                  "jpg_SubSample": self.cb_jpg_subSample.currentIndex(),
-                                  "jpg_Optimize": convertToBit(self.chb_jpg_optimize.isChecked()),
-                                  "jpg_Progressive": convertToBit(self.chb_jpg_progressive.isChecked()),
-                                  "jpg_ArithCode": convertToBit(self.chb_jpg_arithCode.isChecked())
-                                })
-
-
+                case ".jpg":
+                    rSettings.update({"jpg_Quality": self.cb_jpg_qual.currentText(),
+                                    "jpg_Smoothing": self.cb_jpg_smooth.currentText(),
+                                    "jpg_SubSample": self.cb_jpg_subSample.currentIndex(),
+                                    "jpg_Optimize": boolToBit(self.chb_jpg_optimize.isChecked()),
+                                    "jpg_Progressive": boolToBit(self.chb_jpg_progressive.isChecked()),
+                                    "jpg_ArithCode": boolToBit(self.chb_jpg_arithCode.isChecked())
+                                    })
 
 
             self.core.appPlugin.sm_render_preSubmit(self, rSettings)
@@ -856,6 +880,7 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
             return False
 
         return True
+    
 
     @err_catcher(name=__name__)
     def handleMasterVersion(self, outputName):
@@ -865,6 +890,7 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
         masterAction = self.cb_master.currentText()
         if masterAction == "Set as master":
             self.core.mediaProducts.updateMasterVersion(outputName, mediaType="2drenders")
+
 
     @err_catcher(name=__name__)
     def setTaskWarn(self, warn):
@@ -882,6 +908,7 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
             else:
                 self.b_changeTask.setPalette(self.oldPalette)
 
+
     @err_catcher(name=__name__)
     def getStateProps(self):
         stateProps = {
@@ -889,17 +916,13 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
             "contextType": self.getContextType(),
             "customContext": self.customContext,
             "taskname": self.getTaskname(),
-
             "masterVersion": self.cb_master.currentText(),
             "curoutputpath": self.cb_outPath.currentText(),
-
             "exportScale": self.cb_scale.currentText(),
             "outputFormat": self.cb_format.currentText(),
-
             "colorMode": self.cb_colorMode.currentText(),
             "bitDepth": self.cb_bitDepth.currentText(),
             "alphaFill": self.cb_alphaFill.currentText(),
-
             "png_Compress": self.cb_png_compress.currentText(),
             "png_Interlaced": self.chb_png_interlaced.isChecked(),
             "png_Gamma": self.chb_png_gamma.isChecked(),
@@ -907,14 +930,12 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
             "png_BgColor": self.chb_png_bgColor.isChecked(),
             "png_LayerOffset": self.chb_png_layerOffset.isChecked(),
             "png_AlphaColor": self.chb_png_alphaColor.isChecked(),  
-
             "jpg_Qual": self.cb_jpg_qual.currentText(),
             "jpg_Smooth": self.cb_jpg_smooth.currentText(),
             "jpg_SubSample": self.cb_jpg_subSample.currentText(),
             "jpg_Optimize": self.chb_jpg_optimize.isChecked(),
             "jpg_Progressive": self.chb_jpg_progressive.isChecked(),
             "jpg_ArithCode": self.chb_jpg_arithCode.isChecked(),
-
             "lastexportpath": self.l_pathLast.text().replace("\\", "/"),
             "stateenabled": self.core.getCheckStateValue(self.state.checkState(0)),
         }

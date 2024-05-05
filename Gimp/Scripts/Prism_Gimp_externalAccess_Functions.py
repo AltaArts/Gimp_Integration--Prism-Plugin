@@ -78,14 +78,14 @@ class Prism_Gimp_externalAccess_Functions(object):
         ##   defaults    ##
         df_port = "40404"
         df_logSize = 500
-        df_debug = False
         logPath = os.path.join(PLUGIN_PATH, "Logs", "Gimp-Prism_Log.log")
 
-        # Prism->Gimp Comm Port
-        l_port = QLabel("Prism->Gimp Comm Port")
-        origin.e_gimp_port = QLineEdit()
-        origin.e_gimp_port.setText(df_port)  # Default value
-        origin.e_gimp_port.setFixedWidth(100)  # Set the width to 100 pixels
+        # Debug Log Level
+        l_logLevel = QLabel("Gimp Msg Display")
+        logLevelItems = "Log Only", "Minimal", "All" 
+        origin.cb_gimp_logLevel = QComboBox()
+        origin.cb_gimp_logLevel.addItems(logLevelItems)
+        origin.cb_gimp_logLevel.setCurrentIndex(1)
 
         spacer_1 = QSpacerItem(20, 20, QSizePolicy.Expanding, QSizePolicy.Minimum)
 
@@ -99,22 +99,23 @@ class Prism_Gimp_externalAccess_Functions(object):
 
         spacer_2 = QSpacerItem(20, 20, QSizePolicy.Expanding, QSizePolicy.Minimum)
 
-        # Debug Logging Checkbox
-        l_debug = QLabel("Debug Logging")
-        origin.chb_gimp_debug = QCheckBox()
-        origin.chb_gimp_debug.setChecked(df_debug)
+        # Prism->Gimp Comm Port
+        l_port = QLabel("Comm Port")
+        origin.e_gimp_port = QLineEdit()
+        origin.e_gimp_port.setText(df_port)  # Default value
+        origin.e_gimp_port.setFixedWidth(100)  # Set the width to 100 pixels
 
         #   Add to H layout
         lo_settings_1 = QHBoxLayout()
-        lo_settings_1.addWidget(l_port)
-        lo_settings_1.addWidget(origin.e_gimp_port)
+        lo_settings_1.addWidget(l_logLevel)
+        lo_settings_1.addWidget(origin.cb_gimp_logLevel)
         lo_settings_1.addItem(spacer_1)
         lo_settings_1.addWidget(l_maxSize)
         lo_settings_1.addWidget(origin.spb_gimp_maxSize)
         lo_settings_1.addWidget(l_kb)
         lo_settings_1.addItem(spacer_2)
-        lo_settings_1.addWidget(l_debug)
-        lo_settings_1.addWidget(origin.chb_gimp_debug)
+        lo_settings_1.addWidget(l_port)
+        lo_settings_1.addWidget(origin.e_gimp_port)
         container_settings_1 = QWidget()
         container_settings_1.setLayout(lo_settings_1)
 
@@ -147,11 +148,13 @@ class Prism_Gimp_externalAccess_Functions(object):
         but_changeLogLoc.clicked.connect(lambda: self.changeLogDir(origin))
 
         #   Tool Tips
-        tip = ("Port to use for socket communications between Prism and Gimp.\n"
-               "All data is contained in the single machine's local 127.0.0.1.\n"
-               "An open and availble port must be used for Gimp-Prism functions")
-        l_port.setToolTip(tip)
-        origin.e_gimp_port.setToolTip(tip)
+        tip = ("Select how logging is displayed in Gimp.\n"       #   TODO
+               "Messages will be displayed in the Error Console\n\n"
+               "Notes:\n"
+               "    Messages can slow down Gimp's interface\n"
+               "    Messages will always be logged to logfile")
+        l_logLevel.setToolTip(tip)
+        origin.cb_gimp_logLevel.setToolTip(tip)
 
         tip = ("Max Size of the Prism-Gimp log in kilobytes.  After reaching this,\n"
                "the log will be backed up and a new one wil be started.  Max two files.")
@@ -159,12 +162,11 @@ class Prism_Gimp_externalAccess_Functions(object):
         origin.spb_gimp_maxSize.setToolTip(tip)
         l_kb.setToolTip(tip)
 
-        tip = ("When enabled, all messages will be displayed in Gimp's\n"
-               "'Error Console'\n"
-               "All messages will be logged in a custom log file due to\n"
-               "Gimp's code structure.")
-        l_debug.setToolTip(tip)
-        origin.chb_gimp_debug.setToolTip(tip)
+        tip = ("Port to use for socket communications between Prism and Gimp.\n"
+               "All data is contained in the single machine's local 127.0.0.1.\n"
+               "An open and availble port must be used for Gimp-Prism functions")
+        l_port.setToolTip(tip)
+        origin.e_gimp_port.setToolTip(tip)
 
         tip = "Open the Prism-Gimp log file"
         but_openLog.setToolTip(tip)
@@ -176,11 +178,9 @@ class Prism_Gimp_externalAccess_Functions(object):
         tip = ("Change Log File location")
         but_changeLogLoc.setToolTip(tip)
 
-
         lo_settings.addWidget(container_settings_1)
         lo_settings.addWidget(container_settings_2)
         lo_settings.setSpacing(0)
-
 
         origin.gb_settings.setLayout(lo_settings)
         tab.layout().addWidget(origin.gb_settings)
@@ -201,9 +201,9 @@ class Prism_Gimp_externalAccess_Functions(object):
         settings["gimp"]["logMax"] = logMax
         gimpSettings["logMax"] = logMax
 
-        debugEnabled = origin.chb_gimp_debug.isChecked()
-        settings["gimp"]["debugEnabled"] = debugEnabled
-        gimpSettings["debugEnabled"] = debugEnabled
+        logLevel = origin.cb_gimp_logLevel.currentText()
+        settings["gimp"]["logLevel"] = logLevel
+        gimpSettings["logLevel"] = logLevel
 
         logLocation = origin.e_logPath.text()
         settings["gimp"]["logLocation"] = logLocation
@@ -223,8 +223,10 @@ class Prism_Gimp_externalAccess_Functions(object):
             if "logMax" in settings["gimp"]:
                 origin.spb_gimp_maxSize.setValue(settings["gimp"]["logMax"])
 
-            if "debugEnabled" in settings["gimp"]:
-                origin.chb_gimp_debug.setChecked(settings["gimp"]["debugEnabled"])
+            if "logLevel" in settings["gimp"]:
+                idx = origin.cb_gimp_logLevel.findText(settings["gimp"]["logLevel"])
+                if idx != -1:
+                    origin.cb_gimp_logLevel.setCurrentIndex(idx)
 
             if "logLocation" in settings["gimp"]:
                 origin.e_logPath.setText(settings["gimp"]["logLocation"])
