@@ -16,7 +16,7 @@ class Ui_wg_Gimp_Export(object):
     def setupUi(self, wg_Gimp_Export):
         if not wg_Gimp_Export.objectName():
             wg_Gimp_Export.setObjectName(u"wg_Gimp_Export")
-        wg_Gimp_Export.resize(482, 718)
+        wg_Gimp_Export.resize(482, 886)
         self.verticalLayout = QVBoxLayout(wg_Gimp_Export)
         self.verticalLayout.setObjectName(u"verticalLayout")
         self.verticalLayout.setContentsMargins(0, 0, 0, 0)
@@ -120,15 +120,6 @@ class Ui_wg_Gimp_Export(object):
 
         self.verticalLayout_2.addWidget(self.w_taskname)
 
-        self.w_range = QWidget(self.gb_export)
-        self.w_range.setObjectName(u"w_range")
-        self.horizontalLayout_6 = QHBoxLayout(self.w_range)
-        self.horizontalLayout_6.setSpacing(0)
-        self.horizontalLayout_6.setObjectName(u"horizontalLayout_6")
-        self.horizontalLayout_6.setContentsMargins(9, 0, 9, 0)
-
-        self.verticalLayout_2.addWidget(self.w_range)
-
         self.w_master = QWidget(self.gb_export)
         self.w_master.setObjectName(u"w_master")
         self.horizontalLayout_20 = QHBoxLayout(self.w_master)
@@ -176,6 +167,142 @@ class Ui_wg_Gimp_Export(object):
 
 
         self.verticalLayout_2.addWidget(self.w_outPath)
+
+        self.verticalSpacer_2 = QSpacerItem(20, 5, QSizePolicy.Minimum, QSizePolicy.Fixed)
+
+        self.verticalLayout_2.addItem(self.verticalSpacer_2)
+
+        self.bg_imageSpecs = QGroupBox(self.gb_export)
+        self.bg_imageSpecs.setObjectName(u"bg_imageSpecs")
+        self.w_imageSpecs = QVBoxLayout(self.bg_imageSpecs)
+        self.w_imageSpecs.setObjectName(u"w_imageSpecs")
+        self.w_imageSpecs.setContentsMargins(40, -1, 80, -1)
+        self.w_imageSpecsLabel = QHBoxLayout()
+        self.w_imageSpecsLabel.setObjectName(u"w_imageSpecsLabel")
+        self.l_imageSpecs = QLabel(self.bg_imageSpecs)
+        self.l_imageSpecs.setObjectName(u"l_imageSpecs")
+
+        self.w_imageSpecsLabel.addWidget(self.l_imageSpecs)
+
+
+        self.w_imageSpecs.addLayout(self.w_imageSpecsLabel)
+
+        self.w_specs_resolution = QHBoxLayout()
+        self.w_specs_resolution.setObjectName(u"w_specs_resolution")
+        self.w_specs_resolution.setContentsMargins(30, -1, 30, -1)
+        self.l_spec_rezLabel = QLabel(self.bg_imageSpecs)
+        self.l_spec_rezLabel.setObjectName(u"l_spec_rezLabel")
+
+        self.w_specs_resolution.addWidget(self.l_spec_rezLabel)
+
+        self.horizontalSpacer_13 = QSpacerItem(40, 20, QSizePolicy.Expanding, QSizePolicy.Minimum)
+
+        self.w_specs_resolution.addItem(self.horizontalSpacer_13)
+
+        self.l_specs_Xrez = QLabel(self.bg_imageSpecs)
+        self.l_specs_Xrez.setObjectName(u"l_specs_Xrez")
+
+        self.w_specs_resolution.addWidget(self.l_specs_Xrez)
+
+        self.l_specs_rezXtext = QLabel(self.bg_imageSpecs)
+        self.l_specs_rezXtext.setObjectName(u"l_specs_rezXtext")
+
+        self.w_specs_resolution.addWidget(self.l_specs_rezXtext)
+
+        self.l_specs_Yrez = QLabel(self.bg_imageSpecs)
+        self.l_specs_Yrez.setObjectName(u"l_specs_Yrez")
+
+        self.w_specs_resolution.addWidget(self.l_specs_Yrez)
+
+
+        self.w_imageSpecs.addLayout(self.w_specs_resolution)
+
+        self.w_specs_ColorMode = QHBoxLayout()
+        self.w_specs_ColorMode.setObjectName(u"w_specs_ColorMode")
+        self.w_specs_ColorMode.setContentsMargins(30, -1, 30, -1)
+        self.l_specs_ColorMode_text = QLabel(self.bg_imageSpecs)
+        self.l_specs_ColorMode_text.setObjectName(u"l_specs_ColorMode_text")
+
+        self.w_specs_ColorMode.addWidget(self.l_specs_ColorMode_text)
+
+        self.horizontalSpacer_14 = QSpacerItem(40, 20, QSizePolicy.Expanding, QSizePolicy.Minimum)
+
+        self.w_specs_ColorMode.addItem(self.horizontalSpacer_14)
+
+        self.l_specs_ColorMode = QLabel(self.bg_imageSpecs)
+        self.l_specs_ColorMode.setObjectName(u"l_specs_ColorMode")
+
+        self.w_specs_ColorMode.addWidget(self.l_specs_ColorMode)
+
+
+        self.w_imageSpecs.addLayout(self.w_specs_ColorMode)
+
+        self.w_specs_BitDepth = QHBoxLayout()
+        self.w_specs_BitDepth.setObjectName(u"w_specs_BitDepth")
+        self.w_specs_BitDepth.setContentsMargins(30, -1, 30, -1)
+        self.l_specs_BitDepth_text = QLabel(self.bg_imageSpecs)
+        self.l_specs_BitDepth_text.setObjectName(u"l_specs_BitDepth_text")
+
+        self.w_specs_BitDepth.addWidget(self.l_specs_BitDepth_text)
+
+        self.horizontalSpacer_17 = QSpacerItem(40, 20, QSizePolicy.Expanding, QSizePolicy.Minimum)
+
+        self.w_specs_BitDepth.addItem(self.horizontalSpacer_17)
+
+        self.l_specs_BitDepth = QLabel(self.bg_imageSpecs)
+        self.l_specs_BitDepth.setObjectName(u"l_specs_BitDepth")
+
+        self.w_specs_BitDepth.addWidget(self.l_specs_BitDepth)
+
+
+        self.w_imageSpecs.addLayout(self.w_specs_BitDepth)
+
+        self.w_specs_Gamma = QHBoxLayout()
+        self.w_specs_Gamma.setObjectName(u"w_specs_Gamma")
+        self.w_specs_Gamma.setContentsMargins(30, -1, 30, -1)
+        self.l_specs_Gamma_text = QLabel(self.bg_imageSpecs)
+        self.l_specs_Gamma_text.setObjectName(u"l_specs_Gamma_text")
+
+        self.w_specs_Gamma.addWidget(self.l_specs_Gamma_text)
+
+        self.horizontalSpacer_20 = QSpacerItem(40, 20, QSizePolicy.Expanding, QSizePolicy.Minimum)
+
+        self.w_specs_Gamma.addItem(self.horizontalSpacer_20)
+
+        self.l_specs_Gamma = QLabel(self.bg_imageSpecs)
+        self.l_specs_Gamma.setObjectName(u"l_specs_Gamma")
+
+        self.w_specs_Gamma.addWidget(self.l_specs_Gamma)
+
+
+        self.w_imageSpecs.addLayout(self.w_specs_Gamma)
+
+        self.w_specs_Alpha = QHBoxLayout()
+        self.w_specs_Alpha.setObjectName(u"w_specs_Alpha")
+        self.w_specs_Alpha.setContentsMargins(30, -1, 30, -1)
+        self.l_specs_Alpha_text = QLabel(self.bg_imageSpecs)
+        self.l_specs_Alpha_text.setObjectName(u"l_specs_Alpha_text")
+
+        self.w_specs_Alpha.addWidget(self.l_specs_Alpha_text)
+
+        self.horizontalSpacer_19 = QSpacerItem(40, 20, QSizePolicy.Expanding, QSizePolicy.Minimum)
+
+        self.w_specs_Alpha.addItem(self.horizontalSpacer_19)
+
+        self.l_specs_Alpha = QLabel(self.bg_imageSpecs)
+        self.l_specs_Alpha.setObjectName(u"l_specs_Alpha")
+
+        self.w_specs_Alpha.addWidget(self.l_specs_Alpha)
+
+
+        self.w_imageSpecs.addLayout(self.w_specs_Alpha)
+
+
+        self.verticalLayout_2.addWidget(self.bg_imageSpecs)
+
+        self.verticalSpacer_4 = QSpacerItem(20, 5, QSizePolicy.Minimum, QSizePolicy.Fixed)
+
+        self.verticalLayout_2.addItem(self.verticalSpacer_4)
 
         self.w_scale = QWidget(self.gb_export)
         self.w_scale.setObjectName(u"w_scale")
@@ -548,6 +675,19 @@ class Ui_wg_Gimp_Export(object):
         self.b_changeTask.setText(QCoreApplication.translate("wg_Gimp_Export", u"change", None))
         self.l_master.setText(QCoreApplication.translate("wg_Gimp_Export", u"Master Version:", None))
         self.l_outPath.setText(QCoreApplication.translate("wg_Gimp_Export", u"Location:", None))
+        self.l_imageSpecs.setText(QCoreApplication.translate("wg_Gimp_Export", u"Image Info:", None))
+        self.l_spec_rezLabel.setText(QCoreApplication.translate("wg_Gimp_Export", u"Resolution:", None))
+        self.l_specs_Xrez.setText(QCoreApplication.translate("wg_Gimp_Export", u"XXXX", None))
+        self.l_specs_rezXtext.setText(QCoreApplication.translate("wg_Gimp_Export", u"  x  ", None))
+        self.l_specs_Yrez.setText(QCoreApplication.translate("wg_Gimp_Export", u"XXXX", None))
+        self.l_specs_ColorMode_text.setText(QCoreApplication.translate("wg_Gimp_Export", u"Color Mode:", None))
+        self.l_specs_ColorMode.setText(QCoreApplication.translate("wg_Gimp_Export", u"XXXX", None))
+        self.l_specs_BitDepth_text.setText(QCoreApplication.translate("wg_Gimp_Export", u"Bit Depth", None))
+        self.l_specs_BitDepth.setText(QCoreApplication.translate("wg_Gimp_Export", u"XXXX", None))
+        self.l_specs_Gamma_text.setText(QCoreApplication.translate("wg_Gimp_Export", u"Gamma:", None))
+        self.l_specs_Gamma.setText(QCoreApplication.translate("wg_Gimp_Export", u"XXXX", None))
+        self.l_specs_Alpha_text.setText(QCoreApplication.translate("wg_Gimp_Export", u"Has Alpha:", None))
+        self.l_specs_Alpha.setText(QCoreApplication.translate("wg_Gimp_Export", u"XXXX", None))
         self.l_scale.setText(QCoreApplication.translate("wg_Gimp_Export", u"Scale:", None))
         self.l_outType.setText(QCoreApplication.translate("wg_Gimp_Export", u"Outputtype:", None))
         self.l_colorMode.setText(QCoreApplication.translate("wg_Gimp_Export", u"Color Mode", None))
@@ -570,7 +710,6 @@ class Ui_wg_Gimp_Export(object):
         self.l_pathLast.setText(QCoreApplication.translate("wg_Gimp_Export", u"None", None))
         self.b_pathLast.setText(QCoreApplication.translate("wg_Gimp_Export", u"...", None))
     # retranslateUi
-
 
 
 

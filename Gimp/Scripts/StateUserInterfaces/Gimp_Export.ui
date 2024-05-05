@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>482</width>
-    <height>718</height>
+    <height>886</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -211,27 +211,6 @@
        </widget>
       </item>
       <item>
-       <widget class="QWidget" name="w_range" native="true">
-        <layout class="QHBoxLayout" name="horizontalLayout_6">
-         <property name="spacing">
-          <number>0</number>
-         </property>
-         <property name="leftMargin">
-          <number>9</number>
-         </property>
-         <property name="topMargin">
-          <number>0</number>
-         </property>
-         <property name="rightMargin">
-          <number>9</number>
-         </property>
-         <property name="bottomMargin">
-          <number>0</number>
-         </property>
-        </layout>
-       </widget>
-      </item>
-      <item>
        <widget class="QWidget" name="w_master" native="true">
         <layout class="QHBoxLayout" name="horizontalLayout_20">
          <property name="spacing">
@@ -332,6 +311,260 @@
          </item>
         </layout>
        </widget>
+      </item>
+      <item>
+       <spacer name="verticalSpacer_2">
+        <property name="orientation">
+         <enum>Qt::Vertical</enum>
+        </property>
+        <property name="sizeType">
+         <enum>QSizePolicy::Fixed</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>20</width>
+          <height>5</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+      <item>
+       <widget class="QGroupBox" name="bg_imageSpecs">
+        <layout class="QVBoxLayout" name="w_imageSpecs">
+         <property name="leftMargin">
+          <number>40</number>
+         </property>
+         <property name="rightMargin">
+          <number>80</number>
+         </property>
+         <item>
+          <layout class="QHBoxLayout" name="w_imageSpecsLabel">
+           <item>
+            <widget class="QLabel" name="l_imageSpecs">
+             <property name="text">
+              <string>Image Info:</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="w_specs_resolution">
+           <property name="leftMargin">
+            <number>30</number>
+           </property>
+           <property name="rightMargin">
+            <number>30</number>
+           </property>
+           <item>
+            <widget class="QLabel" name="l_spec_rezLabel">
+             <property name="text">
+              <string>Resolution:</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <spacer name="horizontalSpacer_13">
+             <property name="orientation">
+              <enum>Qt::Horizontal</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>40</width>
+               <height>20</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+           <item>
+            <widget class="QLabel" name="l_specs_Xrez">
+             <property name="text">
+              <string>XXXX</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QLabel" name="l_specs_rezXtext">
+             <property name="text">
+              <string>  x  </string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QLabel" name="l_specs_Yrez">
+             <property name="text">
+              <string>XXXX</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="w_specs_ColorMode">
+           <property name="leftMargin">
+            <number>30</number>
+           </property>
+           <property name="rightMargin">
+            <number>30</number>
+           </property>
+           <item>
+            <widget class="QLabel" name="l_specs_ColorMode_text">
+             <property name="text">
+              <string>Color Mode:</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <spacer name="horizontalSpacer_14">
+             <property name="orientation">
+              <enum>Qt::Horizontal</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>40</width>
+               <height>20</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+           <item>
+            <widget class="QLabel" name="l_specs_ColorMode">
+             <property name="text">
+              <string>XXXX</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="w_specs_BitDepth">
+           <property name="leftMargin">
+            <number>30</number>
+           </property>
+           <property name="rightMargin">
+            <number>30</number>
+           </property>
+           <item>
+            <widget class="QLabel" name="l_specs_BitDepth_text">
+             <property name="text">
+              <string>Bit Depth</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <spacer name="horizontalSpacer_17">
+             <property name="orientation">
+              <enum>Qt::Horizontal</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>40</width>
+               <height>20</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+           <item>
+            <widget class="QLabel" name="l_specs_BitDepth">
+             <property name="text">
+              <string>XXXX</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="w_specs_Gamma">
+           <property name="leftMargin">
+            <number>30</number>
+           </property>
+           <property name="rightMargin">
+            <number>30</number>
+           </property>
+           <item>
+            <widget class="QLabel" name="l_specs_Gamma_text">
+             <property name="text">
+              <string>Gamma:</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <spacer name="horizontalSpacer_20">
+             <property name="orientation">
+              <enum>Qt::Horizontal</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>40</width>
+               <height>20</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+           <item>
+            <widget class="QLabel" name="l_specs_Gamma">
+             <property name="text">
+              <string>XXXX</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="w_specs_Alpha">
+           <property name="leftMargin">
+            <number>30</number>
+           </property>
+           <property name="rightMargin">
+            <number>30</number>
+           </property>
+           <item>
+            <widget class="QLabel" name="l_specs_Alpha_text">
+             <property name="text">
+              <string>Has Alpha:</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <spacer name="horizontalSpacer_19">
+             <property name="orientation">
+              <enum>Qt::Horizontal</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>40</width>
+               <height>20</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+           <item>
+            <widget class="QLabel" name="l_specs_Alpha">
+             <property name="text">
+              <string>XXXX</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item>
+       <spacer name="verticalSpacer_4">
+        <property name="orientation">
+         <enum>Qt::Vertical</enum>
+        </property>
+        <property name="sizeType">
+         <enum>QSizePolicy::Fixed</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>20</width>
+          <height>5</height>
+         </size>
+        </property>
+       </spacer>
       </item>
       <item>
        <widget class="QWidget" name="w_scale" native="true">
