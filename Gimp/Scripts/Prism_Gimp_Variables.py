@@ -30,13 +30,21 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with Prism.  If not, see <https://www.gnu.org/licenses/>.
-
+###########################################################################
+#
+#                       Gimp2 Plugin for Prism2
+#
+#                           Joshua Breckeen
+#                              Alta Arts
+#                          josh@alta-arts.com
+#
+###########################################################################
 
 import os
 
 class Prism_Gimp_Variables(object):
     def __init__(self, core, plugin):
-        self.version = "v2.0.5-0.8-beta"
+        self.version = "v2.0.5-0.9-beta"
         self.pluginName = "Gimp"
         self.pluginType = "App"
         self.appShortName = "Gimp"

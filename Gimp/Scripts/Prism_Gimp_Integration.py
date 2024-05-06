@@ -32,7 +32,7 @@
 # along with Prism.  If not, see <https://www.gnu.org/licenses/>.
 ###########################################################################
 #
-#                    Gimp3 (2.99) Plugin for Prism2
+#                       Gimp2 Plugin for Prism2
 #
 #                           Joshua Breckeen
 #                              Alta Arts
@@ -71,7 +71,7 @@ class Prism_Gimp_Integration(object):
         if platform.system() == "Windows":
             self.examplePath = (
                 os.path.dirname(self.getGimpPath())
-                or r"C:\Program Files\GIMP 2.99\lib\gimp\2.99\plug-ins"
+                or r"C:\Program Files\GIMP 2.10\lib\gimp\2.10\plug-ins"
                 )
         elif platform.system() == "Linux":
             userName = (
@@ -94,7 +94,7 @@ class Prism_Gimp_Integration(object):
     def getExecutable(self):
         execPath = ""
         if platform.system() == "Windows":
-            defaultpath = os.path.join(self.getGimpPath(), "Gimp-2.99.exe")
+            defaultpath = os.path.join(self.getGimpPath(), "Gimp-2.10.exe")
             if os.path.exists(defaultpath):
                 execPath = defaultpath
 
@@ -156,12 +156,15 @@ class Prism_Gimp_Integration(object):
                 os.path.dirname(os.path.dirname(__file__)), "Integration"
                 )
             
+            #   Gets Gimp ver number based on .exe 
             gimpVer = self.findGimpVersion(installPath)
             gimpVerNum = float("{:.2f}".format(float(gimpVer)))
 
             if gimpVerNum >= 2.99:
-                intergrationPath = os.path.join(integrationBase, "Gimp3")
-            elif 2 < gimpVerNum < 2.99:                                                       #   TODO Add 2.10 support
+                # intergrationPath = os.path.join(integrationBase, "Gimp3")                         #   TODO add Gimp3 support
+                self.core.popup(f"Gimp{gimpVer} is not supported.  Please use Gimp 2.10.")
+                return False
+            elif 2 < gimpVerNum < 2.99:
                 intergrationPath = os.path.join(integrationBase, "Gimp2")
             else:
                 self.core.popup(f"Gimp{gimpVer} is not supported.  Please use Gimp 2.99 and above")
@@ -178,6 +181,7 @@ class Prism_Gimp_Integration(object):
                     destItem = os.path.join(gimpPluginPath, item)
                     shutil.copytree(srcItem, destItem)
                
+            #   Edits the plugin files to replace hardcoded root paths
             result = self.replacePluginPaths(gimpPluginPath)
 
             if not result:
@@ -210,14 +214,15 @@ class Prism_Gimp_Integration(object):
                         with open(file_path, "r") as interFile:
                             interFileStr = interFile.read()
                         with open(file_path, "w") as interFile:
+                            #   Replaces paths as needed
                             interFileStr = interFileStr.replace(
                                 "PRISMROOTREPLACE", 
                                 '"%s"' % self.core.prismRoot.replace("\\", "/")
-                            )
+                                )
                             interFileStr = interFileStr.replace(
                                 "PLUGINROOTREPLACE", 
                                 '"%s"' % self.pluginRoot.replace("\\", "/")
-                            )
+                                )
                             interFile.write(interFileStr)
 
             if platform.system() in ["Linux", "Darwin"]:

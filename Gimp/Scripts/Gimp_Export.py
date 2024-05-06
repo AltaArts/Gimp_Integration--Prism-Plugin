@@ -45,6 +45,8 @@ import os
 import time
 import platform
 import logging
+import json
+import socket
 
 from qtpy.QtCore import *
 from qtpy.QtGui import *
@@ -54,6 +56,11 @@ from PrismUtils.Decorators import err_catcher
 from StateUserInterfaces import Gimp_Export_ui
 
 logger = logging.getLogger(__name__)
+
+##    CONSTANTS    ##                                                       
+GIMPLOCALDIR = os.path.dirname(os.path.dirname(__file__))
+CONFIGFILE = os.path.join(GIMPLOCALDIR, "GimpConfig.json")
+HOST = "127.0.0.1"
 
 
 def boolToBit(bool):
@@ -81,6 +88,7 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
         self.renderingStarted = False
         self.cleanOutputdir = True
 
+        self.getGimpPluginConfig()
         self.setupUi(self)
 
         self.e_name.setText(state.text(0) + " - {identifier}")
@@ -102,8 +110,8 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
         self.tasknameRequired = True
 
         #   Implemented export formats
-        self.outputFormats = [".png", ".exr", ".jpg"]                   #   TODO
-        self.cb_format.addItems(self.outputFormats)                     #   TODO
+        self.outputFormats = [".png", ".exr", ".jpg", ".psd"]           #   TODO
+        self.cb_format.addItems(self.outputFormats)
 
         #   Scale options for export
         scaleOptions = ["10", "25", "50", "100", "150", "200", "300"]
@@ -114,6 +122,7 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
         alphaFill = ["checker", "black", "gray", "white", "pink"]
         self.cb_alphaFill.addItems(alphaFill)
         self.cb_alphaFill.setCurrentIndex(0)
+        # self.gb_alphaFill.show()
 
         pngCompressItems = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
         self.cb_png_compress.addItems(pngCompressItems)
@@ -143,7 +152,6 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
         self.chb_jpg_baseline.setChecked(True)
 
         self.setToolTips()
-        self.updateUiOptions()
         self.connectEvents()
 
         self.oldPalette = self.b_changeTask.palette()
@@ -154,12 +162,16 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
         self.setTaskWarn(True)
         self.nameChanged(state.text(0))
 
+        self.loadImageSpecs()
+        self.updateUiOptions()
+
         self.core.callback("onStateStartup", self)
 
         if stateData is not None:
             self.loadData(stateData)
         else:
             self.initializeContextBasedSettings()
+
 
 
     @err_catcher(name=__name__)
@@ -393,38 +405,137 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
                     0, Qt.CheckState(stateData["stateenabled"]),
                 )
 
-        self.loadImageSpecs(stateData)
-        self.updateUiOptions()
         self.updateUi()
+        self.alphaFillDisplay()
 
         self.stateManager.saveStatesToScene
         
         self.core.callback("onStateSettingsLoaded", self, stateData)
 
 
-    @err_catcher(name=__name__)                                            #   TODO
-    def loadImageSpecs(self, stateData):
+### vvvvv For Sending Commands to Gimp vvvvv ###
 
-        if "specs_xRez" in stateData:
-            self.l_specs_Xrez.setText(str(stateData["specs_xRez"]))
+    #   Retrieves Gimp config options set in Prism DCC settings
+    @err_catcher(name=__name__)
+    def getGimpPluginConfig(self):
+        logger.debug("Getting Gimp Config")
+        try:
+            with open(CONFIGFILE, 'r') as file:
+                gimpSettings = json.load(file)
 
-        if "specs_yRez" in stateData:
-            self.l_specs_Yrez.setText(str(stateData["specs_yRez"]))
+            self.port = int(gimpSettings.get("commPort"))
 
-        if "specs_colorMode" in stateData:
-            self.l_specs_ColorMode.setText(stateData["specs_colorMode"])
+        except FileNotFoundError:
+            logger.warning("Config file %s not found." % CONFIGFILE)
 
-        if "specs_bitDepth" in stateData:
-            self.l_specs_BitDepth.setText(stateData["specs_bitDepth"])
-
-        if "specs_gamma" in stateData:
-            self.l_specs_Gamma.setText(stateData["specs_gamma"])
-
-        if "specs_hasAlpha" in stateData:
-            self.l_specs_Alpha.setText(str(stateData["specs_hasAlpha"]))
+        except Exception as e:
+            logger.warning("Error reading config file: %s" % e)
+            pass
 
 
-    @err_catcher(name=__name__)                                               #   TODO
+#   To convert cmds to json payload to send over socket
+    @err_catcher(name=__name__)
+    def cmdDataToJson(self, command, payload):
+        try:
+            pData = {
+                "command": command,
+                "data": payload
+                }
+            
+            jData = json.dumps(pData)
+
+            return jData
+        except Exception as e:
+            logger.warning(f"Error converting command file:\n{e}")
+            return None
+
+
+#   To convert json payload to cmds
+    @err_catcher(name=__name__)
+    def jsonToCmdData(self, jData):
+        try:
+            pData = json.loads(jData)
+
+            command = pData.get("command")
+            payload = pData.get("data")
+
+            return command, payload
+        
+        except Exception as e:
+            logger.warning(f"Error converting command file:\n{e}")
+            return None
+
+
+    #   Converts cmd to json, sends to Gimp, receives response,
+    #   then coonvert bck to cmd
+    @err_catcher(name=__name__)
+    def sendCmdToGimp(self, sendCmmand, sendData):
+
+        jData = self.cmdDataToJson(sendCmmand, sendData)
+
+        response = self.sendGimpComm(jData)
+        rcvCommand, rcvData = self.jsonToCmdData(response)
+
+        return rcvCommand, rcvData
+    
+
+    @err_catcher(name=__name__)
+    def sendGimpComm(self, jData):
+        logger.debug("Sending data to GIMP")
+
+        try:
+            # Create a socket object
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                # Connect to GIMP
+                s.connect((HOST, self.port))
+                # Send pDataJson
+                s.sendall(jData.encode())
+                response = s.recv(40960).decode()
+
+                return response
+
+        except Exception as e:
+            logger.error("Error sending data to GIMP: %s", e)
+            return False
+    
+### ^^^^^ For Sending Commands to Gimp ^^^^^ ###
+
+    @err_catcher(name=__name__)
+    def loadImageSpecs(self):
+
+        try:
+            #   Sends current Gimp image path
+            sendCommand = "getImageSpecs"
+            sendPayload = {"imagePath": os.environ["Gimp_CurrentImagePath"]}
+            #   Receives image specs
+            rcvCommand, rcvPayload = self.sendCmdToGimp(sendCommand, sendPayload)
+            imageSpecs = rcvPayload.get("imageSpecs")
+            
+        except Exception as e:
+            logger.warning(f"Failed to read image specs: {e}")
+
+        if "xRez" in imageSpecs:
+            self.l_specs_Xrez.setText(str(imageSpecs["xRez"]))
+
+        if "yRez" in imageSpecs:
+            self.l_specs_Yrez.setText(str(imageSpecs["yRez"]))
+
+        if "colorMode" in imageSpecs:
+            self.l_specs_ColorMode.setText(imageSpecs["colorMode"])
+
+        if "bitDepth" in imageSpecs:
+            self.l_specs_BitDepth.setText(imageSpecs["bitDepth"])
+
+        if "gamma" in imageSpecs:
+            self.l_specs_Gamma.setText(imageSpecs["gamma"])
+
+        if "hasAlpha" in imageSpecs:
+            self.hasAlpha = imageSpecs["hasAlpha"]
+            self.l_specs_Alpha.setText(str(imageSpecs["hasAlpha"]))
+
+
+
+    @err_catcher(name=__name__)
     def connectEvents(self):
         self.e_name.textChanged.connect(self.nameChanged)
         self.e_name.editingFinished.connect(self.stateManager.saveStatesToScene)
@@ -452,17 +563,19 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
     @err_catcher(name=__name__)
     def updateUiOptions(self, *args):
 
+        #   Captures current settings
         format = self.cb_format.currentText()
-        colorMode = self.cb_colorMode.currentText()
         currentMode = self.cb_colorMode.currentText()
         currentBitIdx = self.cb_bitDepth.currentText()
 
         #   Initially Hides all boxes
+        self.gb_imageOptions.hide()
         self.gb_jpgOptions.hide()
         self.gb_pngOptions.hide()
 
         match format:
             case ".jpg":
+                self.gb_imageOptions.show()
                 self.gb_jpgOptions.show()
                 imageColorMode = ["RGB", "GRAY"]
                 colorModeIdx = 0
@@ -470,6 +583,7 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
                 bitIdx = 0
 
             case ".png":
+                self.gb_imageOptions.show()
                 self.gb_pngOptions.show()
                 imageColorMode = ["RGB", "RGBA", "GRAY", "GRAYA"]
                 colorModeIdx = 0
@@ -477,38 +591,54 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
                 bitIdx = 1
 
             case ".exr":
+                self.gb_imageOptions.show()
                 imageColorMode = ["RGB", "RGBA", "GRAY", "GRAYA"]
                 colorModeIdx = 0
                 imageBitDepth = ["16", "32"]
+                bitIdx = 1
+
+            case ".psd":
+                imageColorMode = ["RGB", "RGBA", "GRAY", "GRAYA"]
+                colorModeIdx = 0
+                imageBitDepth = ["8", "16", "32"]
                 bitIdx = 1
 
         #   Clear then load options
         self.cb_colorMode.clear()
         self.cb_colorMode.addItems(imageColorMode)
 
-        #   Captures current index if exists
+        #   Resets from original is exists
         idx = self.cb_colorMode.findText(currentMode)
         if idx != -1:
             self.cb_colorMode.setCurrentIndex(idx)
         else:
             self.cb_colorMode.setCurrentIndex(colorModeIdx)
 
-        #   Shows alphafill if not an alpha format
-        if colorMode in ["RGB", "GRAY"]:
-            self.gb_alphaFill.show()
-        else:
-            self.gb_alphaFill.hide()
-
         #   Clear then load options
         self.cb_bitDepth.clear()
         self.cb_bitDepth.addItems(imageBitDepth)
 
-        #   Captures current index if exists
+        #   Resets from original is exists
         idx = self.cb_bitDepth.findText(currentBitIdx)
         if idx != -1:
             self.cb_bitDepth.setCurrentIndex(idx)
         else:
             self.cb_bitDepth.setCurrentIndex(bitIdx)
+        
+        self.alphaFillDisplay()
+
+
+    @err_catcher(name=__name__)
+    def alphaFillDisplay(self):
+        format = self.cb_format.currentText()
+        self.gb_alphaFill.hide()
+
+        #   Shows alphafill if not an alpha format or .psd
+        if self.hasAlpha and format != ".psd":
+            colorMode = self.cb_colorMode.currentText()
+            if colorMode in ["RGB", "GRAY"]:
+                self.gb_alphaFill.show()
+
 
 
     @err_catcher(name=__name__)
@@ -915,6 +1045,9 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
                                     "jpg_Progressive": boolToBit(self.chb_jpg_progressive.isChecked()),
                                     "jpg_Baseline": boolToBit(self.chb_jpg_baseline.isChecked())
                                     })
+                    
+                case ".psd":
+                    pass
 
 
             self.core.appPlugin.sm_render_preSubmit(self, rSettings)

@@ -64,10 +64,6 @@ if "PRISM_ROOT" in os.environ:
     if not prismRoot:
         raise Exception("PRISM_ROOT is not set")
     
-#   Set during intergration
-else:
-    prismRoot = r"C:/Prism2"                #   TODO Integration
-
 
 ##    CONSTANTS    ##                                                       
 GIMPLOCALDIR = os.path.dirname(os.path.dirname(__file__))
@@ -95,7 +91,7 @@ class Prism_Gimp_Functions(object):
     def startup(self, origin):
         origin.timer.stop()
 
-        self.core.setActiveStyleSheet("Blender")
+        self.core.setActiveStyleSheet("Gimp")
         appIcon = QIcon(
             os.path.join(self.core.prismRoot, "Scripts", "UserInterfacesPrism", "p_tray.png")
             )
@@ -220,7 +216,7 @@ class Prism_Gimp_Functions(object):
     @err_catcher(name=__name__)
     def getCurrentFileName(self, origin, path=True):
         logger.debug("Getting Current Filename")
-
+        #   Gets current image from enviro var
         filePath = os.environ["Gimp_CurrentImagePath"]
 
         return filePath
@@ -243,6 +239,8 @@ class Prism_Gimp_Functions(object):
             rcvCommand, rcvPayload = self.sendCmdToGimp(sendCommand, sendPayload)
 
             if os.path.exists(filePath):
+                #   Saves current image filepath passed from function call arg
+                #   into a enviro var.
                 os.environ["Gimp_CurrentImagePath"] = filePath
                 logger.debug("Scene saved")
                 return True
@@ -406,8 +404,6 @@ class Prism_Gimp_Functions(object):
     def onStateManagerOpen(self, origin):
 
         origin.setProperty("sizePolicy", "Expanding")
-        origin.setMaximumSize(800, 800)  # Adjust the width and height
-
         origin.b_showImportStates.setStyleSheet("padding-left: 1px;padding-right: 1px;")
         origin.b_showExportStates.setStyleSheet("padding-left: 1px;padding-right: 1px;")
         origin.gb_import.setEnabled(False)
@@ -420,7 +416,6 @@ class Prism_Gimp_Functions(object):
         origin.b_description.setMaximumWidth(35 * self.core.uiScaleFactor)
         origin.b_preview.setMinimumWidth(35 * self.core.uiScaleFactor)
         origin.b_preview.setMaximumWidth(35 * self.core.uiScaleFactor)
-
         
         #   Will only load Gimp_Export state if in Gimp
         if self.core.appPlugin.pluginName == "Gimp":
