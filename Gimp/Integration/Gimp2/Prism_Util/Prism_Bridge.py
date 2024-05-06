@@ -45,6 +45,7 @@ import os
 import sys
 import platform
 
+#   Receives prism root via arg
 prismRoot = sys.argv[1]
 
 sys.path.insert(0, os.path.join(prismRoot, "Scripts"))
@@ -54,7 +55,7 @@ from qtpy.QtCore import *
 from qtpy.QtGui import *
 from qtpy.QtWidgets import *
 
-
+#   Receives Gimp's current image via arg and sets enviro var
 os.environ["Gimp_CurrentImagePath"] = sys.argv[3]
 # os.environ["Gimp_CurrentDrawable"] = sys.argv[4]          #   NOT USED RIGHT NOW
 
@@ -63,12 +64,14 @@ qapp = QApplication.instance()
 if qapp is None:
     qapp = QApplication(sys.argv)
 
+#   Creates Prism instance
 pcore = PrismCore.create(app="Gimp", prismArgs=["noProjectBrowser"])
 
 if not platform.system() == "Darwin":
     curPrj = pcore.getConfig("globals", "current project")
 
     result = False
+    #   Receives command from arg
     command = sys.argv[2]
     match command:
         case "SaveVersion":

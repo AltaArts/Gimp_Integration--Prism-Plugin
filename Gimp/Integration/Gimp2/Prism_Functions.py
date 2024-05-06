@@ -59,11 +59,11 @@ if "PRISM_ROOT" in os.environ:
     
 #   Gets set during Intergration installation
 else:
-    PRISMROOT = r"C:/Prism2"
-    # PRISMROOT = r_RISMROOTREPLACE                         #   TODO CHANGE FOR INTERGRATION - change "p"
+    # PRISMROOT = r"C:/Prism2"
+    PRISMROOT = r"C:/Prism2"                         #   TODO CHANGE FOR INTERGRATION - change "p"
 
-PLUGINROOT = r"C:/ProgramData/Prism2/plugins/Gimp"
-# pluginRoot = r_LUGINROOT                                  #   TODO CHANGE FOR INTERGRATION - change "p"
+# PLUGINROOT = r"C:/ProgramData/Prism2/plugins/Gimp"
+PLUGINROOT = r"C:/ProgramData/Prism2/plugins/Gimp"                                  #   TODO CHANGE FOR INTERGRATION - change "p"
 
 ##    CONSTANTS    ##                                                       
 PLUGIN_PATH = os.path.dirname(__file__)
@@ -330,6 +330,9 @@ def handleCmd(jData):
             return getStates(payload)
         elif command == "exportFile":
             return exportFile(payload)
+        elif command == "getImageSpecs":
+            return getImageSpecs(payload)
+        
         else:
             log.warning("ERROR: Invalid Command Received")
             command = "FAILED"
@@ -371,6 +374,10 @@ def saveVersion(data):
         log.warning("ERROR: Failed to save version: \n%s" % e)
         sendCommand = "Failed"
         sendPayload = None
+
+    #   Refreshes UI
+    pdb.gimp_progress_end()
+    pdb.gimp_displays_flush()
 
     jData = cmdDataToJson(sendCommand, sendPayload)
     return jData
@@ -431,6 +438,8 @@ def exportFile(data):
             result = exportEXR(rSettings, currentImage, currentDrawable, filePath)
         elif outputType == ".jpg":
             result = exportJPG(rSettings, currentImage, currentDrawable, filePath)
+        elif outputType == ".psd":
+            result = exportPSD(rSettings, currentImage, currentDrawable, filePath)
 
         if result:
             sendPayload = "Result=Success"
@@ -440,6 +449,10 @@ def exportFile(data):
     except:
         log.warning("ERROR: Failed to Export Image")
         sendPayload = "Result=Failed"
+
+    #   Refreshes UI
+    pdb.gimp_progress_end()
+    pdb.gimp_displays_flush()
 
     sendCommand = "Result"
     jData = cmdDataToJson(sendCommand, sendPayload)
@@ -489,8 +502,7 @@ def exportPNG(rSettings, currentImage, currentDrawable, filePath):
     pdb.gimp_image_delete(tempImage)
     #   Removes unsaved changes flag
     pdb.gimp_image_clean_all(currentImage)
-    #   Refreshes UI
-    pdb.gimp_displays_flush()
+
 
     return result
 
@@ -559,8 +571,6 @@ def exportEXR(rSettings, currentImage, currentDrawable, filePath):
     pdb.gimp_image_delete(tempImage)
     #   Removes unsaved changes flag
     pdb.gimp_image_clean_all(currentImage)
-    #   Refreshes UI
-    pdb.gimp_displays_flush()
 
     return result
 
@@ -626,8 +636,6 @@ def exportJPG(rSettings, currentImage, currentDrawable, filePath):
     pdb.gimp_image_delete(tempImage)
     #   Removes unsaved changes flag
     pdb.gimp_image_clean_all(currentImage)
-    #   Refreshes UI
-    pdb.gimp_displays_flush()
 
     return result
 
@@ -662,6 +670,46 @@ def saveJPG(image=None,
                            dct)
         
         log.debug("Saved JPG")
+
+        return True
+
+    except Exception as e:
+        log.warning("ERROR:  ", e)
+        return False
+
+#   Saves as a .psd to the Media Tab
+def exportPSD(rSettings, currentImage, currentDrawable, filePath):
+
+    log.debug("Saving PSD")
+
+    #   Sends to save method
+    result = savePSD(currentImage,
+                     currentDrawable,
+                     filePath)
+
+    #   Removes unsaved changes flag
+    pdb.gimp_image_clean_all(currentImage)
+
+    return result
+
+
+def savePSD(image=None,
+            drawable=None,
+            filePath=None,
+            compression=0,
+            fillOrder=0
+            ):
+
+    try: 
+        pdb.file_psd_save(image,
+                           drawable,
+                           filePath,
+                           filePath,
+                           compression,
+                           fillOrder)
+                
+        log.debug("Saved PSD")
+
         return True
 
     except Exception as e:
@@ -753,6 +801,10 @@ def captureScreenShot(data):
     except Exception as e:
         log.warning("ERROR: Screenshot Failed:  %s" % e)
         sendCommand = "Failed"
+
+    #   Refreshes UI
+    pdb.gimp_progress_end()
+    pdb.gimp_displays_flush()
     
     sendPayload = {"filePath": ssPath}
 
@@ -897,6 +949,38 @@ def saveStates(data):
     return jData
 
 
+def getImageSpecs(data):
+    numImages, image_ids = pdb.gimp_image_list()
+    #   Checks that an image is open
+    if numImages > 0:
+        #   Gets Gimp Image from supplied filepath
+        currentImage = getImageFromPath(data.get("imagePath"))
+        currentDrawable = pdb.gimp_image_get_active_layer(currentImage)
+
+        try:
+            xRez, yRez = getImageRez(currentImage)
+            bitDepth, gamma = getBitDepthGamma(currentImage)
+            colorMode = getColorMode(currentDrawable)
+            hasAlpha = imageHasAlpha(currentImage)
+
+            specData = {"xRez": xRez,
+                        "yRez": yRez,
+                        "bitDepth": bitDepth,
+                        "gamma": gamma,
+                        "colorMode": colorMode,
+                        "hasAlpha": hasAlpha}
+            
+            sendCommand = "imageSpecs"
+            sendPayload = {"imageSpecs": specData}
+       
+            jData = cmdDataToJson(sendCommand, sendPayload)
+            return jData
+
+        except Exception as e:
+            log.warning("ERROR in getting Image Details:  %s" % e)
+            return "", ""
+
+
 #   Gets StateManager states from image
 def getStates(data):
     #   Gets number of open images
@@ -922,24 +1006,6 @@ def getStates(data):
             if parasite:
                 #   Converts buffer to unicode
                 stateData = json.loads(parasite.data)
-                try:
-                    #   Converts unicode to object
-                    stateDataDict = json.loads(stateData)
-
-                    #   Adds additional items
-                    stateDataDict["states"][1]["specs_xRez"] = xRez
-                    stateDataDict["states"][1]["specs_yRez"] = yRez
-                    stateDataDict["states"][1]["specs_colorMode"] = colorMode
-                    stateDataDict["states"][1]["specs_gamma"] = gamma
-                    stateDataDict["states"][1]["specs_bitDepth"] = bitDepth
-                    stateDataDict["states"][1]["specs_hasAlpha"] = hasAlpha
-
-                    #   Converts object back to unicode
-                    stateData = json.dumps(stateDataDict)
-
-                except:
-                    log.debug("ERROR: Failed to get Image Info")
-
                 log.debug("State data retrieved")
 
             else:
