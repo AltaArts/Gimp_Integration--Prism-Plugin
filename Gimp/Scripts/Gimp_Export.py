@@ -30,19 +30,15 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with Prism.  If not, see <https://www.gnu.org/licenses/>.
-
+###########################################################################
 #
+#                       Gimp2 Plugin for Prism2
 #
+#                           Joshua Breckeen
+#                              Alta Arts
+#                          josh@alta-arts.com
 #
-#
-#
-#
-#                   #######         TODO            ##########
-#
-#
-#
-#
-#
+###########################################################################
 
 
 import os
@@ -65,7 +61,6 @@ def boolToBit(bool):
         return 1
     else:
         return 0
-    
 
 
 class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
@@ -83,14 +78,12 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
         self.canSetVersion = True
         self.customContext = None
         self.allowCustomContext = False
-
         self.renderingStarted = False
         self.cleanOutputdir = True
 
         self.setupUi(self)
 
         self.e_name.setText(state.text(0) + " - {identifier}")
-
         self.l_name.setVisible(False)
         self.e_name.setVisible(False)
 
@@ -104,17 +97,20 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
         if len(self.product_paths) < 2:
             self.w_outPath.setVisible(False)
 
+        #   Changed to 2d
         self.mediaType = "2drenders"
         self.tasknameRequired = True
 
+        #   Implemented export formats
         self.outputFormats = [".png", ".exr", ".jpg"]                   #   TODO
         self.cb_format.addItems(self.outputFormats)                     #   TODO
 
+        #   Scale options for export
         scaleOptions = ["10", "25", "50", "100", "150", "200", "300"]
         self.cb_scale.addItems(scaleOptions)
         self.cb_scale.setCurrentIndex(3)
 
-
+        #   BG alpha fill types
         alphaFill = ["checker", "black", "gray", "white", "pink"]
         self.cb_alphaFill.addItems(alphaFill)
         self.cb_alphaFill.setCurrentIndex(0)
@@ -126,10 +122,9 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
         self.chb_png_interlaced.setChecked(False)
         self.chb_png_gamma.setChecked(True)
         self.chb_png_rez.setChecked(True)
-        self.chb_png_bgColor.setChecked(True)
+        self.chb_png_bgColor.setChecked(False)
         self.chb_png_layerOffset.setChecked(False)
         self.chb_png_alphaColor.setChecked(True)
-
 
         jpgQualItems = ["0", ".1", ".2", ".3", ".4", ".5", ".6", ".7", ".8", ".9", "1"]
         self.cb_jpg_qual.addItems(jpgQualItems)
@@ -145,8 +140,9 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
 
         self.chb_jpg_optimize.setChecked(True)
         self.chb_jpg_progressive.setChecked(False)
-        self.chb_jpg_arithCode.setChecked(False)
+        self.chb_jpg_baseline.setChecked(True)
 
+        self.setToolTips()
         self.updateUiOptions()
         self.connectEvents()
 
@@ -167,6 +163,109 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
 
 
     @err_catcher(name=__name__)
+    def setToolTips(self):
+        tip = "Image Details"
+        self.bg_imageSpecs.setToolTip(tip)
+
+        tip = "Image Resolution"
+        self.l_spec_rezLabel.setToolTip(tip)
+        self.l_specs_Xrez.setToolTip(tip)
+        self.l_specs_Yrez.setToolTip(tip)
+
+        tip = "Image Color Mode"
+        self.l_specs_ColorMode_text.setToolTip(tip)
+        self.l_specs_ColorMode.setToolTip(tip)
+
+        tip = "Image Bit Depth"
+        self.l_specs_BitDepth_text.setToolTip(tip)
+        self.l_specs_BitDepth.setToolTip(tip)
+
+        tip = "Image Display Gamma"
+        self.l_specs_Gamma_text.setToolTip(tip)
+        self.l_specs_Gamma.setToolTip(tip)
+
+        tip = "If the Image's bottom layer has an alpha channel"
+        self.l_specs_Alpha_text.setToolTip(tip)
+        self.l_specs_Alpha.setToolTip(tip)
+
+        tip = ("Export image scale based on image resolution.\n"
+               "Does not affect scenefile.")
+        self.cb_scale.setToolTip(tip)
+
+        tip = "Export File Format"
+        self.cb_format.setToolTip(tip)
+
+        tip = ("Export Image Color Mode.\n"
+               "Does not affect scenefile.")
+        self.l_colorMode.setToolTip(tip)
+        self.cb_colorMode.setToolTip(tip)
+
+        tip = ("Export Image Bit Depth.\n"
+               "Does not affect scenefile.")
+        self.l_bitDepth.setToolTip(tip)
+        self.cb_bitDepth.setToolTip(tip)
+
+        tip = ("Specifies background color if non-alpha formats.\n"
+               "Does not affect scenefile.")
+        self.l_alphaFill.setToolTip(tip)
+        self.cb_alphaFill.setToolTip(tip)
+
+        tip = ("PNG Lossless Compression:\n"
+               "Higher = smaller file but slower to\n"
+               "generate, load and save.")
+        self.l_png_compress.setToolTip(tip)
+        self.cb_png_compress.setToolTip(tip)
+        
+        tip = "Premultiple Alpha Channel"
+        self.chb_png_alphaColor.setToolTip(tip)
+
+        tip = ("Helps with web viewing of images\n"
+               "with many transparent levels.")
+        self.chb_png_bgColor.setToolTip(tip)
+        
+        tip = "Saves images display gamma function"
+        self.chb_png_gamma.setToolTip(tip)
+
+        tip = ("Saves image as interlaced.\n"
+               "Helps progressive load for web.")
+        self.chb_png_interlaced.setToolTip(tip)
+        
+        tip = "Saves resolution in metadata in ppi."
+        self.chb_png_rez.setToolTip(tip)
+
+        tip = ("Saves layer offsets.\n"
+               "Do not use.")
+        self.chb_png_layerOffset.setToolTip(tip)
+
+        tip = ("JPG Qaulity:\n"
+               "Higher = better quality but larger file")
+        self.l_jpg_qual.setToolTip(tip)
+        self.cb_jpg_qual.setToolTip(tip)
+
+        tip = ("JPG Smoothing:\n"
+               "Helps compression artifacts but can blur image")
+        self.l_jpg_smooth.setToolTip(tip)
+        self.cb_jpg_smooth.setToolTip(tip)
+
+        tip = ("Color Sampling mode:\n"
+               "Higher = better image but larger file")
+        self.l_jpg_subSample.setToolTip(tip)
+        self.cb_jpg_subSample.setToolTip(tip)
+        
+        tip = ("Optimize JPG:\n"
+               "Produces smaller file, but slower to generate")
+        self.chb_jpg_optimize.setToolTip(tip)
+        
+        tip = ("Encodes to allow progressive load.\n"
+               "Useful for web, but slightly larger file.")
+        self.chb_jpg_progressive.setToolTip(tip)
+        
+        tip = ("Choose to encode without baseline\n"
+               "Should usually keep enabled")
+        self.chb_jpg_baseline.setToolTip(tip)
+        
+
+    @err_catcher(name=__name__)
     def loadData(self, stateData):
 
         if "contextType" in stateData:
@@ -180,6 +279,7 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
 
         if "stateName" in stateData:
             self.e_name.setText(stateData["stateName"])
+
         elif "statename" in stateData:
             self.e_name.setText(stateData["statename"] + " - {identifier}")
 
@@ -198,17 +298,17 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
         if "specs_yRez" in stateData:
             self.l_specs_Yrez.setText(str(stateData["specs_yRez"]))
 
-        if "colorMode" in stateData:
-            self.l_specs_ColorMode.setText(stateData["colorMode"])
+        if "specs_colorMode" in stateData:
+            self.l_specs_ColorMode.setText(stateData["specs_colorMode"])
 
-        if "bitDepth" in stateData:
-            self.l_specs_BitDepth.setText(stateData["bitDepth"])
+        if "specs_bitDepth" in stateData:
+            self.l_specs_BitDepth.setText(stateData["specs_bitDepth"])
 
-        if "gamma" in stateData:
-            self.l_specs_Gamma.setText(stateData["gamma"])
+        if "specs_gamma" in stateData:
+            self.l_specs_Gamma.setText(stateData["specs_gamma"])
 
-        if "hasAlpha" in stateData:
-            self.l_specs_Alpha.setText(str(stateData["hasAlpha"]))
+        if "specs_hasAlpha" in stateData:
+            self.l_specs_Alpha.setText(str(stateData["specs_hasAlpha"]))
 
         if "exportScale" in stateData:
             idx = self.cb_scale.findText(stateData["exportScale"])
@@ -279,25 +379,52 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
         if "jpg_Progressive" in stateData:
             self.chb_jpg_progressive.setChecked(stateData["jpg_Progressive"])
 
-        if "jpg_ArithCode" in stateData:
-            self.chb_jpg_arithCode.setChecked(stateData["jpg_ArithCode"])
+        if "jpg_Baseline" in stateData:
+            self.chb_jpg_baseline.setChecked(stateData["jpg_Baseline"])
 
         if "lastexportpath" in stateData:
             lePath = self.core.fixPath(stateData["lastexportpath"])
             self.l_pathLast.setText(lePath)
             self.l_pathLast.setToolTip(lePath)
+
         if "stateenabled" in stateData:
             if type(stateData["stateenabled"]) == int:
                 self.state.setCheckState(
                     0, Qt.CheckState(stateData["stateenabled"]),
                 )
 
+        self.loadImageSpecs(stateData)
         self.updateUiOptions()
+        self.updateUi()
 
+        self.stateManager.saveStatesToScene
+        
         self.core.callback("onStateSettingsLoaded", self, stateData)
 
 
-    @err_catcher(name=__name__)                                                         #   TODO
+    @err_catcher(name=__name__)                                            #   TODO
+    def loadImageSpecs(self, stateData):
+
+        if "specs_xRez" in stateData:
+            self.l_specs_Xrez.setText(str(stateData["specs_xRez"]))
+
+        if "specs_yRez" in stateData:
+            self.l_specs_Yrez.setText(str(stateData["specs_yRez"]))
+
+        if "specs_colorMode" in stateData:
+            self.l_specs_ColorMode.setText(stateData["specs_colorMode"])
+
+        if "specs_bitDepth" in stateData:
+            self.l_specs_BitDepth.setText(stateData["specs_bitDepth"])
+
+        if "specs_gamma" in stateData:
+            self.l_specs_Gamma.setText(stateData["specs_gamma"])
+
+        if "specs_hasAlpha" in stateData:
+            self.l_specs_Alpha.setText(str(stateData["specs_hasAlpha"]))
+
+
+    @err_catcher(name=__name__)                                               #   TODO
     def connectEvents(self):
         self.e_name.textChanged.connect(self.nameChanged)
         self.e_name.editingFinished.connect(self.stateManager.saveStatesToScene)
@@ -317,10 +444,11 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
         self.cb_jpg_subSample.activated.connect(self.stateManager.saveStatesToScene)
         self.chb_jpg_optimize.toggled.connect(self.stateManager.saveStatesToScene)
         self.chb_jpg_progressive.toggled.connect(self.stateManager.saveStatesToScene)
-        self.chb_jpg_arithCode.toggled.connect(self.stateManager.saveStatesToScene)
+        self.chb_jpg_baseline.toggled.connect(self.stateManager.saveStatesToScene)
         self.b_pathLast.clicked.connect(self.showLastPathMenu)
 
 
+    #   Updates Ui based on selected options
     @err_catcher(name=__name__)
     def updateUiOptions(self, *args):
 
@@ -329,6 +457,7 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
         currentMode = self.cb_colorMode.currentText()
         currentBitIdx = self.cb_bitDepth.currentText()
 
+        #   Initially Hides all boxes
         self.gb_jpgOptions.hide()
         self.gb_pngOptions.hide()
 
@@ -353,23 +482,28 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
                 imageBitDepth = ["16", "32"]
                 bitIdx = 1
 
+        #   Clear then load options
         self.cb_colorMode.clear()
         self.cb_colorMode.addItems(imageColorMode)
-        
+
+        #   Captures current index if exists
         idx = self.cb_colorMode.findText(currentMode)
         if idx != -1:
             self.cb_colorMode.setCurrentIndex(idx)
         else:
             self.cb_colorMode.setCurrentIndex(colorModeIdx)
 
+        #   Shows alphafill if not an alpha format
         if colorMode in ["RGB", "GRAY"]:
             self.gb_alphaFill.show()
         else:
             self.gb_alphaFill.hide()
 
+        #   Clear then load options
         self.cb_bitDepth.clear()
         self.cb_bitDepth.addItems(imageBitDepth)
 
+        #   Captures current index if exists
         idx = self.cb_bitDepth.findText(currentBitIdx)
         if idx != -1:
             self.cb_bitDepth.setCurrentIndex(idx)
@@ -623,20 +757,6 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
         return context
     
 
-    # @err_catcher(name=__name__)
-    # def refreshSubmitUi(self):
-    #     if not self.gb_submit.isHidden():
-    #         if not self.gb_submit.isCheckable():
-    #             return
-
-    #         submitChecked = self.gb_submit.isChecked()
-    #         for idx in reversed(range(self.gb_submit.layout().count())):
-    #             self.gb_submit.layout().itemAt(idx).widget().setHidden(not submitChecked)
-
-    #         if submitChecked:
-    #             self.core.plugins.getRenderfarmPlugin(self.cb_manager.currentText()).sm_render_updateUI(self)
-
-
     @err_catcher(name=__name__)
     def getContextStrFromEntity(self, entity):
         if not entity:
@@ -738,7 +858,7 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
             if "extension" in details:
                 del details["extension"]
 
-            details["version"] = hVersion                   #   TODO DETAILS SAVED TO VERSIONINFO
+            details["version"] = hVersion                   #   TODO ADD DETAILS SAVED TO VERSIONINFO
             details["sourceScene"] = fileName
             details["identifier"] = self.getTaskname()
             details["comment"] = self.stateManager.publishComment
@@ -758,6 +878,7 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
 
             outputType = self.cb_format.currentText()
 
+            #   Added additional settings
             rSettings = {
                 "outputName": outputName,
                 "outputType": outputType,
@@ -771,6 +892,7 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
                 "alphaFill": self.cb_alphaFill.currentText()
                 }
 
+            #   Add additional settings based on format
             match outputType:    
                 case ".png":
                     rSettings.update({"png_Compress": self.cb_png_compress.currentText(),
@@ -791,7 +913,7 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
                                     "jpg_SubSample": self.cb_jpg_subSample.currentIndex(),
                                     "jpg_Optimize": boolToBit(self.chb_jpg_optimize.isChecked()),
                                     "jpg_Progressive": boolToBit(self.chb_jpg_progressive.isChecked()),
-                                    "jpg_ArithCode": boolToBit(self.chb_jpg_arithCode.isChecked())
+                                    "jpg_Baseline": boolToBit(self.chb_jpg_baseline.isChecked())
                                     })
 
 
@@ -935,7 +1057,7 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
             "jpg_SubSample": self.cb_jpg_subSample.currentText(),
             "jpg_Optimize": self.chb_jpg_optimize.isChecked(),
             "jpg_Progressive": self.chb_jpg_progressive.isChecked(),
-            "jpg_ArithCode": self.chb_jpg_arithCode.isChecked(),
+            "jpg_Baseline": self.chb_jpg_baseline.isChecked(),
             "lastexportpath": self.l_pathLast.text().replace("\\", "/"),
             "stateenabled": self.core.getCheckStateValue(self.state.checkState(0)),
         }

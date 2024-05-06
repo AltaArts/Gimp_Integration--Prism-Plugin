@@ -63,6 +63,8 @@ if "PRISM_ROOT" in os.environ:
     prismRoot = os.environ["PRISM_ROOT"]
     if not prismRoot:
         raise Exception("PRISM_ROOT is not set")
+    
+#   Set during intergration
 else:
     prismRoot = r"C:/Prism2"                #   TODO Integration
 
@@ -108,6 +110,8 @@ class Prism_Gimp_Functions(object):
         origin.startAutosaveTimer()
 
 
+    #   Retrieves Gimp config options set in Prism DCC settings
+    @err_catcher(name=__name__)
     def getGimpPluginConfig(self):
         logger.debug("Getting Gimp Config")
         try:
@@ -129,18 +133,24 @@ class Prism_Gimp_Functions(object):
         return False
 
 
+#   To convert cmds to json payload to send over socket
     @err_catcher(name=__name__)
     def cmdDataToJson(self, command, payload):
-        pData = {
-            "command": command,
-            "data": payload
-            }
-        
-        jData = json.dumps(pData)
+        try:
+            pData = {
+                "command": command,
+                "data": payload
+                }
+            
+            jData = json.dumps(pData)
 
-        return jData
+            return jData
+        except Exception as e:
+            logger.warning(f"Error converting command file:\n{e}")
+            return None
 
 
+#   To convert json payload to cmds
     @err_catcher(name=__name__)
     def jsonToCmdData(self, jData):
         try:
@@ -152,13 +162,15 @@ class Prism_Gimp_Functions(object):
             return command, payload
         
         except Exception as e:
-            self.core.popup(f"Error decoding json:\n{e}")
+            logger.warning(f"Error converting command file:\n{e}")
             return None
     
 
 
 ### vvvvv For Sending Commands to Gimp vvvvv ###
 
+    #   Converts cmd to json, sends to Gimp, receives response,
+    #   then coonvert bck to cmd
     @err_catcher(name=__name__)
     def sendCmdToGimp(self, sendCmmand, sendData):
 
@@ -207,21 +219,7 @@ class Prism_Gimp_Functions(object):
 
     @err_catcher(name=__name__)
     def getCurrentFileName(self, origin, path=True):
-
         logger.debug("Getting Current Filename")
-
-        # sendCommand = "getCurrentFilename"                                                        #   OLD VERSION - DELETE WHEN FINISHED TESTING
-        # sendPayload = None
-
-        # rcvCommand, rcvPayload = self.sendCmdToGimp(sendCommand, sendPayload)
-
-        # if rcvCommand is not None and rcvCommand == "currentFilename":
-        #     filePath = rcvPayload.get("filePath")
-        # else:
-        #     filePath = ""
-
-        # self.core.popup(f"filePath in PRISM GIMP FUCNT: {filePath}")                                      #    TESTING
-
 
         filePath = os.environ["Gimp_CurrentImagePath"]
 
@@ -246,6 +244,7 @@ class Prism_Gimp_Functions(object):
 
             if os.path.exists(filePath):
                 os.environ["Gimp_CurrentImagePath"] = filePath
+                logger.debug("Scene saved")
                 return True
             else:
                 self.core.popup("Save Version Failed", severity="warning")
@@ -257,31 +256,36 @@ class Prism_Gimp_Functions(object):
 
     @err_catcher(name=__name__)
     def captureViewportThumbnail(self):
-        ssPath = tempfile.NamedTemporaryFile(suffix=".jpg").name
-
-        sendCommand = "captureScreenShot"
-        sendPayload = {"imagePath": os.environ["Gimp_CurrentImagePath"],
-                       "ssPath": ssPath}
-
-        rcvCommand, rcvData = self.sendCmdToGimp(sendCommand, sendPayload)
-        pm = self.core.media.getPixmapFromPath(ssPath)
-
         try:
-            os.remove(ssPath)
-        except:
-            pass
+            ssPath = tempfile.NamedTemporaryFile(suffix=".jpg").name
 
-        if rcvCommand == "Success":
-            return pm
-        else:
+            sendCommand = "captureScreenShot"
+            sendPayload = {"imagePath": os.environ["Gimp_CurrentImagePath"],
+                        "ssPath": ssPath}
+
+            rcvCommand, rcvData = self.sendCmdToGimp(sendCommand, sendPayload)
+            pm = self.core.media.getPixmapFromPath(ssPath)
+
+            try:
+                os.remove(ssPath)
+            except:
+                pass
+
+            if rcvCommand == "Success":
+                return pm
+            else:
+                return False
+        except Exception as e:
+            logger.warning(f"Failed to generate thumbnail:\n{e}")
             return False
         
 
-    @err_catcher(name=__name__)                                             #   ???
+    @err_catcher(name=__name__)                                #   ???
     def getAppVersion(self, origin):
 
-        self.core.popup("GETTING APP VERSION")                                      #    TESTING
+        self.core.popup("GETTING APP VERSION")                 #    TESTING
         return "1.0"
+
 
     @err_catcher(name=__name__)
     def openScene(self, origin, filepath, force=False):
@@ -302,7 +306,6 @@ class Prism_Gimp_Functions(object):
 
     @err_catcher(name=__name__)
     def sm_render_startLocalRender(self, origin, outputName, rSettings):
-
         sendCommand = "exportFile"
 
         sendPayload = {"imagePath": os.environ["Gimp_CurrentImagePath"],
@@ -318,9 +321,9 @@ class Prism_Gimp_Functions(object):
         pass
 
 
-    @err_catcher(name=__name__)                                             #   ????
+    @err_catcher(name=__name__)                                     #   ????
     def getCurrentRenderer(self, origin):
-        self.core.popup("GETTING CURRENT RENDERER")                                      #    TESTING
+        self.core.popup("GETTING CURRENT RENDERER")                 #    TESTING
         return "Renderer"
 
 
@@ -338,9 +341,9 @@ class Prism_Gimp_Functions(object):
         return warnings
 
 
-    @err_catcher(name=__name__)                                         #   ????
+    @err_catcher(name=__name__)                                      #   ????
     def getProgramVersion(self, origin):
-        self.core.popup("GETTING PROGRAM VERSION")                                      #    TESTING
+        self.core.popup("GETTING PROGRAM VERSION")                   #    TESTING
         return "1.0"
 
 
@@ -367,21 +370,21 @@ class Prism_Gimp_Functions(object):
     ]
 }'''
     
-        # try:                                                                              #   TODO REINSTATE TRY/EXCEPT
-        sendCommand = "getStates"
-        sendPayload = {"imagePath": os.environ["Gimp_CurrentImagePath"]}
-        rcvCommand, rcvPayload = self.sendCmdToGimp(sendCommand, sendPayload)
+        try:
+            sendCommand = "getStates"
+            sendPayload = {"imagePath": os.environ["Gimp_CurrentImagePath"]}
+            rcvCommand, rcvPayload = self.sendCmdToGimp(sendCommand, sendPayload)
 
-        stateData = rcvPayload.get("stateData")
+            stateData = rcvPayload.get("stateData")
 
-        if stateData is not None and stateData != "":
-            return stateData
-        else:
-            return emptyState
+            if stateData is not None and stateData != "":
+                return stateData
+            else:
+                return emptyState
             
-        # except Exception as e:
-        #     logger.warning(f"Failed to read states: {e}")
-        #     return emptyState
+        except Exception as e:
+            logger.warning(f"Failed to read states: {e}")
+            return emptyState
 
 
     @err_catcher(name=__name__)
@@ -421,12 +424,10 @@ class Prism_Gimp_Functions(object):
         
         #   Will only load Gimp_Export state if in Gimp
         if self.core.appPlugin.pluginName == "Gimp":
-
             self.removeDefaultStates(origin)
-
             origin.loadState(GimpExportClass)
 
-
+    #   Removes unneeded default states for Gimp
     @err_catcher(name=__name__)
     def removeDefaultStates(self, origin):
         removeStates = ["ImageRender",
@@ -441,11 +442,11 @@ class Prism_Gimp_Functions(object):
                 del origin.stateTypes[state]
 
 
-
     @err_catcher(name=__name__)
     def sm_getExternalFiles(self, origin):
         extFiles = []
         return [extFiles, []]
+
 
     @err_catcher(name=__name__)
     def sm_createRenderPressed(self, origin):

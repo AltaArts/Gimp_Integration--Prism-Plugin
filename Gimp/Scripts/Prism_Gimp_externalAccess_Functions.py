@@ -188,6 +188,7 @@ class Prism_Gimp_externalAccess_Functions(object):
 
     @err_catcher(name=__name__)
     def userSettings_saveSettings(self, origin, settings):
+        #   Saves to both Prism settings and Gimp Plugin config
         if "gimp" not in settings:
             settings["gimp"] = {}
         
