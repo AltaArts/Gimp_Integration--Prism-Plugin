@@ -16,7 +16,7 @@ class Ui_wg_Gimp_Export(object):
     def setupUi(self, wg_Gimp_Export):
         if not wg_Gimp_Export.objectName():
             wg_Gimp_Export.setObjectName(u"wg_Gimp_Export")
-        wg_Gimp_Export.resize(482, 886)
+        wg_Gimp_Export.resize(482, 914)
         self.verticalLayout = QVBoxLayout(wg_Gimp_Export)
         self.verticalLayout.setObjectName(u"verticalLayout")
         self.verticalLayout.setContentsMargins(0, 0, 0, 0)
@@ -508,11 +508,11 @@ class Ui_wg_Gimp_Export(object):
 
         self.w_jpg_options.addItem(self.horizontalSpacer_4)
 
-        self.chb_jpg_arithCode = QCheckBox(self.gb_jpgOptions)
-        self.chb_jpg_arithCode.setObjectName(u"chb_jpg_arithCode")
-        self.chb_jpg_arithCode.setLayoutDirection(Qt.RightToLeft)
+        self.chb_jpg_baseline = QCheckBox(self.gb_jpgOptions)
+        self.chb_jpg_baseline.setObjectName(u"chb_jpg_baseline")
+        self.chb_jpg_baseline.setLayoutDirection(Qt.RightToLeft)
 
-        self.w_jpg_options.addWidget(self.chb_jpg_arithCode)
+        self.w_jpg_options.addWidget(self.chb_jpg_baseline)
 
 
         self.gb_jpg_options.addLayout(self.w_jpg_options)
@@ -698,7 +698,7 @@ class Ui_wg_Gimp_Export(object):
         self.l_jpg_subSample.setText(QCoreApplication.translate("wg_Gimp_Export", u"Sub Sample", None))
         self.chb_jpg_optimize.setText(QCoreApplication.translate("wg_Gimp_Export", u"Optimize", None))
         self.chb_jpg_progressive.setText(QCoreApplication.translate("wg_Gimp_Export", u"Progressive", None))
-        self.chb_jpg_arithCode.setText(QCoreApplication.translate("wg_Gimp_Export", u"Arithmetic Coding", None))
+        self.chb_jpg_baseline.setText(QCoreApplication.translate("wg_Gimp_Export", u"Baseline", None))
         self.l_png_compress.setText(QCoreApplication.translate("wg_Gimp_Export", u"Compression", None))
         self.chb_png_alphaColor.setText(QCoreApplication.translate("wg_Gimp_Export", u"PreMult Alpha", None))
         self.chb_png_bgColor.setText(QCoreApplication.translate("wg_Gimp_Export", u"Save Background Color", None))
@@ -710,6 +710,5 @@ class Ui_wg_Gimp_Export(object):
         self.l_pathLast.setText(QCoreApplication.translate("wg_Gimp_Export", u"None", None))
         self.b_pathLast.setText(QCoreApplication.translate("wg_Gimp_Export", u"...", None))
     # retranslateUi
-
 
 

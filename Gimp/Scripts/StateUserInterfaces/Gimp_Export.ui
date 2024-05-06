@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>482</width>
-    <height>886</height>
+    <height>914</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -989,12 +989,12 @@
             </spacer>
            </item>
            <item>
-            <widget class="QCheckBox" name="chb_jpg_arithCode">
+            <widget class="QCheckBox" name="chb_jpg_baseline">
              <property name="layoutDirection">
               <enum>Qt::RightToLeft</enum>
              </property>
              <property name="text">
-              <string>Arithmetic Coding</string>
+              <string>Baseline</string>
              </property>
             </widget>
            </item>
