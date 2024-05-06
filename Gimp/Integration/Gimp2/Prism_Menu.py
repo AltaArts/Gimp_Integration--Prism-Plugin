@@ -32,7 +32,7 @@
 # along with Prism.  If not, see <https://www.gnu.org/licenses/>.
 ###########################################################################
 #
-#                    Gimp3 (2.99) Plugin for Prism2
+#                       Gimp2 Plugin for Prism2
 #
 #                           Joshua Breckeen
 #                              Alta Arts
@@ -40,9 +40,10 @@
 #
 ###########################################################################
 
+
 import sys
 import os
-import subprocess                                                           #   TODO CLEANUP
+import subprocess
 import socket
 import json
 import logging
@@ -50,17 +51,12 @@ import errno
 
 from gimpfu import *
 
-
-# help_doc = r"""
-# Menu items and functions for intergration
-# with Prism Pipeline
-# """
-
-
 if "PRISM_ROOT" in os.environ:
     PRISMROOT = os.environ["PRISM_ROOT"]
     if not PRISMROOT:
         raise Exception("PRISM_ROOT is not set")
+    
+#   Gets set during Intergration installation
 else:
     PRISMROOT = r"C:/Prism2"
     # PRISMROOT = r_RISMROOTREPLACE                         #   TODO CHANGE FOR INTERGRATION - change "p"
@@ -68,6 +64,7 @@ else:
 PLUGINROOT = r"C:/ProgramData/Prism2/plugins/Gimp"
 # pluginRoot = r_LUGINROOT                                  #   TODO CHANGE FOR INTERGRATION - change "p"
 
+#   Sets Prism executable
 if os.path.exists(os.path.join(PRISMROOT, "Python311")):
     PRISMEXE = os.path.join(PRISMROOT, "Python311", "Prism.exe")
 elif os.path.exists(os.path.join(PRISMROOT, "Python39")):
@@ -81,33 +78,44 @@ BRIDGESCRIPT = os.path.join(PLUGINPATH, "Prism_Util", "Prism_Bridge.py")
 HOST = "127.0.0.1"
 
 
-
+#   Custom logger since Gimps logging is not great
+#   This will print to the logfile, and display in Gimps Error Console
 class PrismGimpLogger:
-    def __init__(self, debugEnabled, logPath):
-        self.debugEnabled = debugEnabled
+    def __init__(self, logLevel, logPath):
+        self.logLevel = logLevel
         sys.stderr = open(logPath, 'a')
         sys.stdout = sys.stderr
-        
+
+    #   Debug will only be printed to logfile unless All
+    #   is selected in Prism settings
     def debug(self, message):
-        if self.debugEnabled:
+        if self.logLevel == "All":
             pdb.gimp_message("PRISM MENU:   %s" % message)
             
         logging.warning("PRISM MENU:  %s" % message)
 
+    #   Warning will be printed in both the logfile
+    #   and Gimps Error Console
     def warning(self, message):
+        if self.logLevel in ["Minimal", "All"]:
+            pdb.gimp_message("PRISM MENU:   %s" % message)
+
         logging.warning("PRISM MENU:  %s" % message)
-        pdb.gimp_message("PRISM MENU:   %s" % message)
 
 
-#   To perform actions when Gimp loads
+#   To perform actions when Gimp first loads
 def initActions():
     global log
 
-    debugEnabled, logPath = getGimpPluginConfig()
+    #   Retrieves Gimp config items
+    logLevel, logPath = getGimpPluginConfig()
 
-    log = PrismGimpLogger(debugEnabled, logPath)
+    #   Gets logger instance
+    log = PrismGimpLogger(logLevel, logPath)
 
 
+#   Gets config items set in Prism Settings
+#   under DCC->Gimp
 def getGimpPluginConfig():
     global port
 
@@ -115,57 +123,27 @@ def getGimpPluginConfig():
         with open(CONFIGFILE, 'r') as file:
             gimpSettings = json.load(file)
 
-        # Update global variables with values from gimpSettings dictionary
+        # Update global variables
         port = int(gimpSettings.get("commPort"))
-        debugEnabled = gimpSettings.get("debugEnabled")
+        logLevel = gimpSettings.get("logLevel")
         logPath = gimpSettings.get("logLocation")
 
-        return debugEnabled, logPath
+        return logLevel, logPath
 
     except FileNotFoundError:
-        log.warning("Config file %s not found." % CONFIGFILE)
+        log.warning("ERROR:  Config file %s not found." % CONFIGFILE)
 
     except Exception as e:
-        log.warning("Error reading config file: %s" % e)
+        log.warning("ERROR:  Error reading config file: %s" % e)
         pass
 
 
-def cmdDataToJson(command, payload):
-    log.debug("Creating json for:  %s" % command)
-
-    pData = {
-        "command": command,
-        "data": payload
-        }
-    
-    jData = json.dumps(pData)
-    return jData
-
-
-def jsonToCmdData(jData):
-    log.debug("decoding json")
-
-    try:
-        pData = json.loads(jData)
-
-        command = pData.get("command")
-        payload = pData.get("data")
-
-        log.debug("decoded:   %s" % command)
-
-        return command, payload
-    
-    except Exception as e:
-        log.warning("Error decoding json:   %s" % e)
-        return None
-    
-
+#   Checks if socket is in use
 def isServerRunning():
     log.debug("Checking Server")
 
     getGimpPluginConfig()
     try:
-        # Create a new socket
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
         # Try to bind the socket to the host and port
@@ -176,55 +154,68 @@ def isServerRunning():
         return False
 
     except socket.error as e:
-        # If the bind fails with the error code 10048 (EADDRINUSE equivalent on Windows), the port is already in use
+        # If error code 10048 (EADDRINUSE equivalent on Windows), the port is already in use
         if e.errno == 10048:
             return True
-        # If the bind fails with the error code EADDRINUSE (for non-Windows systems), the port is already in use
+        # If error code EADDRINUSE (non-Windows), the port is already in use
         elif e.errno == errno.EADDRINUSE:
             return True
         else:
-            # Handle other socket errors
-            log.warning("Socket error: %s" % e)
+            log.warning("ERROR:  Socket error: %s" % e)
             return False
 
     finally:
-        # Close the socket if it was created
         sock.close()
 
 
-#  vvvvv PROCEDURES CALLED FROM GIMP MENU vvvvv #
-def save_version():
+#        vvvvv PROCEDURES CALLED FROM GIMP MENU vvvvv                       #
+#   each on opens a process that calls for a Prism instance                 #
+#   passes an arg to launch desired Prism function, and the current Image   #
+
+def save_version(currentImage, currentDrawable):
+
+    filePath = pdb.gimp_image_get_filename(currentImage)
+    imageArg = "%s" % filePath
 
     if isServerRunning():
         log.warning("Saving New Version")
-        subprocess.Popen([PRISMEXE, BRIDGESCRIPT, PRISMROOT, "SaveVersion"])
+        subprocess.Popen([PRISMEXE, BRIDGESCRIPT, PRISMROOT, "SaveVersion", imageArg])
     else:
         log.warning("Start Server First")
 
 
-def save_ver_with_comment():
+def save_verWithComment(currentImage, currentDrawable):
+
+    filePath = pdb.gimp_image_get_filename(currentImage)
+    imageArg = "%s" % filePath
 
     if isServerRunning():
         log.warning("Opening Save Dialogue")
-        subprocess.Popen([PRISMEXE, BRIDGESCRIPT, PRISMROOT, "SaveComment"])
+        subprocess.Popen([PRISMEXE, BRIDGESCRIPT, PRISMROOT, "SaveComment", imageArg])
     else:
         log.warning("Start Server First")
 
 
-def project_browser():
+def project_browser(currentImage, currentDrawable):
+
+    filePath = pdb.gimp_image_get_filename(currentImage)
+    imageArg = "%s" % filePath
 
     if isServerRunning():
         log.warning("Opening Project Browser")
-        subprocess.Popen([PRISMEXE, BRIDGESCRIPT, PRISMROOT, "ProjectBrowser"])
+        subprocess.Popen([PRISMEXE, BRIDGESCRIPT, PRISMROOT, "ProjectBrowser", imageArg])
     else:
         log.warning("Start Server First")
 
 
-def state_manager():
+def state_manager(currentImage, currentDrawable):
+
+    filePath = pdb.gimp_image_get_filename(currentImage)
+    imageArg = "%s" % filePath
 
     if isServerRunning():
         log.warning("Opening State Manager")
-        subprocess.Popen([PRISMEXE, BRIDGESCRIPT, PRISMROOT, "StateManager"])
+        subprocess.Popen([PRISMEXE, BRIDGESCRIPT, PRISMROOT, "StateManager", imageArg])
     else:
         log.warning("Start Server First")
 
@@ -233,19 +224,31 @@ def state_manager():
 initActions()   #   Run init actions such getting config info and setting up logger
 
 
-### vvvvv REGISTER PLUG-IN vvvvv ###
+
+### vvvvv REGISTER PLUG-IN PROCEDURES vvvvv ###
+
+helpDoc = r"""
+Menu items and functions for intergration
+with Prism Pipeline
+"""
+
+attribution = "Prism: Richard Frangenberg\nPlugin: Joshua Breckeen"
+copyright = "GNU LGPL-3.0-or-later"
 
 # SAVE VERSION
 register(
-    "python-fu_prism_saveVersion",                              #   TODO Complete descriptions etc
-    "Save Version",
-    "Description of Save Action",
-    "Joshua Breckeen",
-    "Copyright (C) Your Year",
+    "python-fu_prism_saveVersion",
+    "Saves new vesion of scenefile to Prism",
+    helpDoc,
+    attribution,
+    copyright,
     "2023",
     "2 - Save Version",
     "",
-    [],
+    [
+        (PF_IMAGE, "image", "Input image", None),
+        (PF_DRAWABLE, "drawable", "Input drawable", None)
+    ],
     [],
     save_version,
     "<Image>/Prism",
@@ -254,30 +257,36 @@ register(
 # SAVE VER WITH COMMENT
 register(
     "python-fu_prism_saveVerWithComment",
-    "Save Ver with Comment",
-    "Description of Save Action",
-    "Joshua Breckeen",
-    "Copyright (C) Your Year",
+    "Opens dialogue to save a new version\n of scenefile to Prism",
+    helpDoc,
+    attribution,
+    copyright,
     "2023",
     "3 - Save Ver with Comment",
-    "",  # No need for * when it's not a submenu
+    "",
+    [
+        (PF_IMAGE, "image", "Input image", None),
+        (PF_DRAWABLE, "drawable", "Input drawable", None)
+    ],
     [],
-    [],
-    save_ver_with_comment,
+    save_verWithComment,
     "<Image>/Prism",
 )
 
 # OPEN PROJECT BROWSER
 register(
-    "python-fu_prism_project_browser",
-    "Project Browser",
-    "Description of Save Action",
-    "Joshua Breckeen",
-    "Copyright (C) Your Year",
+    "python-fu_prism_openProjectBrowser",
+    "Opens the Project Browser",
+    helpDoc,
+    attribution,
+    copyright,
     "2023",
     "4 - Project Browser",
-    "",  # No need for * when it's not a submenu
-    [],
+    "",
+    [
+        (PF_IMAGE, "image", "Input image", None),
+        (PF_DRAWABLE, "drawable", "Input drawable", None)
+    ],
     [],
     project_browser,
     "<Image>/Prism",
@@ -286,14 +295,18 @@ register(
 # OPEN STATE MANAGER
 register(
     "python-fu_prism_openStateManager",
-    "State Manager",
-    "Description of Save Action",
-    "Joshua Breckeen",
-    "Copyright (C) Your Year",
+    "Opens the State Manager",
+    helpDoc,
+    attribution,
+    copyright,
     "2023",
     "5 - State Manager",
-    "",  # No need for * when it's not a submenu
-    [],
+    "",
+    # [(PF_IMAGE, "image", "Input image", None)],
+    [
+        (PF_IMAGE, "image", "Input image", None),
+        (PF_DRAWABLE, "drawable", "Input drawable", None)
+    ],
     [],
     state_manager,
     "<Image>/Prism",

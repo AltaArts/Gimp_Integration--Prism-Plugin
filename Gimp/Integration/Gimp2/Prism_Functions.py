@@ -32,7 +32,7 @@
 # along with Prism.  If not, see <https://www.gnu.org/licenses/>.
 ###########################################################################
 #
-#                    Gimp3 (2.99) Plugin for Prism2
+#                       Gimp2 Plugin for Prism2
 #
 #                           Joshua Breckeen
 #                              Alta Arts
@@ -41,7 +41,6 @@
 ###########################################################################
 
 import os
-import time
 import socket
 import logging
 import sys
@@ -57,6 +56,8 @@ if "PRISM_ROOT" in os.environ:
     PRISMROOT = os.environ["PRISM_ROOT"]
     if not PRISMROOT:
         raise Exception("PRISM_ROOT is not set")
+    
+#   Gets set during Intergration installation
 else:
     PRISMROOT = r"C:/Prism2"
     # PRISMROOT = r_RISMROOTREPLACE                         #   TODO CHANGE FOR INTERGRATION - change "p"
@@ -70,23 +71,45 @@ CONFIGFILE = os.path.join(PLUGINROOT, "GimpConfig.json")
 ALPHA_BG_FILE = os.path.join(PLUGIN_PATH, "Prism_Util", "alpha_BG.png")
 HOST = "127.0.0.1"
 
+#   Conversion Dict for Gimp Codes
+COLORMODEDATA = {
+    "8_Linear": {"precision": 100, "display": "8 bit", "bitDepth": 8, "gamma": "Linear"},
+    "8_sRGB": {"precision": 150, "display": "8 bit", "bitDepth": 8, "gamma": "sRGB"},
+    "16_Linear": {"precision": 200, "display": "16 bit", "bitDepth": 16, "gamma": "Linear"},
+    "16_sRGB": {"precision": 250, "display": "16 bit", "bitDepth": 16, "gamma": "sRGB"},
+    "32_Linear": {"precision": 300, "display": "32 bit", "bitDepth": 32, "gamma": "Linear"},
+    "32_sRGB": {"precision": 350, "display": "32 bit", "bitDepth": 32, "gamma": "sRGB"},
+    "Half-float-16_Linear": {"precision": 500, "display": "Half-float 16", "bitDepth": 16, "gamma": "Linear"},
+    "Half-float-16_sRGB": {"precision": 550, "display": "Half-float 16", "bitDepth": 16, "gamma": "sRGB"},
+    "Float-32_Linear": {"precision": 600, "display": "Float 32", "bitDepth": 32, "gamma": "Linear"},
+    "Float-32_sRGB": {"precision": 650, "display": "Float 32", "bitDepth": 32, "gamma": "sRGB"}
+    }
 
 
+
+#   Custom logger since Gimps logging is not great
+#   This will print to the logfile, and display in Gimps Error Console
 class PrismGimpLogger:
-    def __init__(self, debugEnabled, logPath):
-        self.debugEnabled = debugEnabled
+    def __init__(self, logLevel, logPath):
+        self.logLevel = logLevel
         sys.stderr = open(logPath, 'a')
         sys.stdout = sys.stderr
-        
+
+    #   Debug: will only be printed to logfile unless All
+    #   is selected in Prism settings
     def debug(self, message):
-        if self.debugEnabled:
+        if self.logLevel == "All":
             pdb.gimp_message("PRISM FUNCTIONS:   %s" % message)
             
         logging.warning("PRISM FUNCTIONS:  %s" % message)
 
+    #   Warning: will be printed in both the logfile
+    #   and Gimps Error Console
     def warning(self, message):
+        if self.logLevel in ["Minimal", "All"]:
+            pdb.gimp_message("PRISM FUNCTIONS:   %s" % message)
+
         logging.warning("PRISM FUNCTIONS:  %s" % message)
-        pdb.gimp_message("PRISM FUNCTIONS:   %s" % message)
 
 
 
@@ -105,10 +128,11 @@ class PrismServer:
         
         while True:
             conn, addr = self.socket.accept()
-            # with conn:
-            log.debug("Connected by:  %s" % str(addr))
-            jData = conn.recv(40960)
 
+            log.debug("Connected by:  %s" % str(addr))
+
+            #   Gets large blocks since the StateData can be large-ish
+            jData = conn.recv(40960)
             if not jData:
                 break
             
@@ -120,18 +144,18 @@ class PrismServer:
                 responseData = ""
             conn.sendall(responseData.encode())
 
+    #   Not Used right now
+    # def stop(self):
+    #     if self.socket:
+    #         self.socket.close()
+    #         self.socket = None
+    #         log.warning("Server stopped.")
 
-    def stop(self):
-        if self.socket:
-            self.socket.close()
-            self.socket = None
-            log.warning("Server stopped.")
-
-
-    def reset(self):
-        self.stop()
-        self.start()
-        log.warning("Reset Comms")
+    #   Not used right now
+    # def reset(self):
+    #     self.stop()
+    #     self.start()
+    #     log.warning("Reset Comms")
 
 
 #   To perform actions when Gimp loads
@@ -140,12 +164,16 @@ def initActions():
     global server
     global logMaxSize
 
-    debugEnabled, logPath, logMaxSize  = getGimpPluginConfig()
-
-    log = PrismGimpLogger(debugEnabled, logPath)
+    #   Gets Gimp config items set in Prism settings
+    logLevel, logPath, logMaxSize  = getGimpPluginConfig()
+    #   Sets custom logger instance
+    log = PrismGimpLogger(logLevel, logPath)
+    #   Sets socket server instance
     server = PrismServer()
 
 
+#   Gets config items set in Prism Settings
+#   under DCC->Gimp
 def getGimpPluginConfig():
     global port
     global logPath
@@ -157,34 +185,34 @@ def getGimpPluginConfig():
 
         # Update global variables with values from gimpSettings dictionary
         port = int(gimpSettings.get("commPort"))
-        debugEnabled = gimpSettings.get("debugEnabled")
+        logLevel = gimpSettings.get("logLevel")
         logPath = gimpSettings.get("logLocation")
         logMaxSize = gimpSettings.get("logMax")
 
-        return debugEnabled, logPath, logMaxSize
+        return logLevel, logPath, logMaxSize
 
     except FileNotFoundError:
-        log.warning("Config file %s not found." % CONFIGFILE)
+        log.warning("ERROR: Config file %s not found." % CONFIGFILE)
 
     except Exception as e:
-        log.warning("Error reading config file: %s" % e)
+        log.warning("ERROR: Cannot read config file: %s" % e)
         pass
 
 
+#   Is called with Gimp menu item
 def startServer():
-
+    #   Starts log
     handleServerLog()
-    time.sleep(1)                        #   NEEDED?
-
+    #   Checks if server is already running
     if not isServerRunning():
         log.warning("Launching Server")
         server.start()
-
     else:
         log.warning("Server is already running")
         pass
 
 
+#   Deals with custom log
 def handleServerLog():
     global logPath
     global logMaxSize
@@ -196,7 +224,6 @@ def handleServerLog():
             thresholdSize = logMaxSize * 1024  # logSizeMax in kb's
             
             if logSize > thresholdSize:
-
                 # Generate the new filename with "_old" suffix
                 oldLogfile = logPath.replace(".log", "_OLD.log")
                 log.debug("*** Backing up log to %s ***" % oldLogfile)
@@ -211,13 +238,14 @@ def handleServerLog():
                 log.debug("The logfile has been renamed to: %s" % oldLogfile)
 
         except Exception as e:
-            log.warning("ERROR:  %s" % e)
+            log.warning("ERROR: Log Error:  %s" % e)
 
     else:
         if not os.path.exists(logDir):
             os.mkdir(logDir)
 
 
+#   To convert cmds to json payload to send over socket
 def cmdDataToJson(command, payload):
     log.debug("Creating json for:  %s" % command)
 
@@ -230,10 +258,12 @@ def cmdDataToJson(command, payload):
         jData = json.dumps(pData)
         return jData
     
-    except:
+    except Exception as e:
+        log.warning("ERROR: Cannot code json:  %s" % e)
         return None
 
 
+#   To convert json payload to cmds
 def jsonToCmdData(jData):
     log.debug("decoding json:")
     log.debug(jData)
@@ -249,10 +279,11 @@ def jsonToCmdData(jData):
         return command, payload
     
     except Exception as e:
-        log.warning("Error decoding json:   %s" % e)
+        log.warning("ERROR:  Cannot decode json:   %s" % e)
         return None
     
-
+    
+#   Checks if server is already running
 def isServerRunning():
     log.debug("Checking Server")
     try:
@@ -265,43 +296,51 @@ def isServerRunning():
         return False
 
     except socket.error as e:
-        # If the bind fails with the error code 10048 (EADDRINUSE equivalent on Windows), the port is already in use
+        #   If the bind fails with the error code 10048
+        #   (EADDRINUSE equivalent on Windows), the port is already in use
         if e.errno == 10048:
             return True
-        # If the bind fails with the error code EADDRINUSE (for non-Windows systems), the port is already in use
+        
+        #   If the bind fails with the error code EADDRINUSE
+        #   (for non-Windows systems), the port is already in use
         elif e.errno == errno.EADDRINUSE:
             return True
+        
         else:
-            log.warning("Socket error: %s" % e)
+            log.warning("ERROR: Socket error: %s" % e)
             return False
-
     finally:
         sock.close()
 
-
+#   Receives data from socket and handles command
 def handleCmd(jData):
+    try:
+        #   Converts from dict to command/payload
+        command, payload = jsonToCmdData(jData)
 
-    command, payload = jsonToCmdData(jData)
+        log.debug("Command received:   %s" % command)
 
-    log.debug("Command received:   %s" % command)
+        if command ==  "saveVersion":
+            return saveVersion(payload)
+        elif command == "captureScreenShot":
+            return captureScreenShot(payload)
+        elif command == "saveStates":
+            return saveStates(payload)
+        elif command == "getStates":
+            return getStates(payload)
+        elif command == "exportFile":
+            return exportFile(payload)
+        else:
+            log.warning("ERROR: Invalid Command Received")
+            command = "FAILED"
+            payload = "FAILED"
 
-    if command == "getCurrentFilename":
-        return getCurrentFilename()
-    elif command == "saveVersion":
-        return saveVersion(payload)
-    elif command == "captureScreenShot":
-        return captureScreenShot(payload)
-    elif command == "saveStates":
-        return saveStates(payload)
-    elif command == "getStates":
-        return getStates()
-    elif command == "exportFile":
-        return exportFile(payload)
-
-    else:
+    except Exception as e:
+        log.warning("ERROR: Error in Command Comms: %s" % e)
         command = "FAILED"
         payload = "FAILED"
-        return cmdDataToJson(command, payload)
+
+    return cmdDataToJson(command, payload)
 
 ### ^^^^^ Socket Comms from Prism ^^^^^ ###
 ##############################################################
@@ -311,135 +350,95 @@ def handleCmd(jData):
 #########################################
 ### vvvvv Functions inside Gimp vvvvv ###
 
-#   Gets the currently open image's filepath
-def getCurrentFilename():
-
-    try:
-        image = gimp.image_list()[0]
-        filePath = pdb.gimp_image_get_filename(image)
-    except:
-        filePath = ""
-
-    log.debug("Current Filename:   %s" % filePath)                                          #    DEBUG
-
-    sendCommand = "currentFilename"
-    sendPayload = {"filePath": filePath}
-
-    jData = cmdDataToJson(sendCommand, sendPayload)
-
-    return jData
-
-
 def saveVersion(data):
+    log.debug("Saving new version")
+    try:
+        imagePath = data.get("imagePath")
+        savePath = data.get("savePath")
 
-    filePath = data.get("filePath")
+        #   saves the .xcf and receives the original image
+        currentFile = saveXCF(imagePath, savePath)
+        #   Loads the newly saved image
+        newFile = openXCF(currentFile, savePath)
+        #   Handles the display of the new image
+        switchUIimages(currentFile, newFile)
 
-    currentFile = saveXCF(filePath)
-
-    newFile = openXCF(filePath)
-
-    switchUIimages(currentFile, newFile)
-
-    sendCommand = "Success"
-    sendPayload = {"filePath": filePath}
-
-    jData = cmdDataToJson(sendCommand, sendPayload)
-
-    return jData
-
-
-def switchUIimages(oldImage, newImage):
-
-    pdb.gimp_displays_reconnect(oldImage, newImage)
-    pdb.gimp_image_clean_all(newImage)
-
-
-def captureScreenShot(data):
-
-    log.debug("IN SCREENSHOT")                                                #   DEBUG
-
-    currentImage = gimp.image_list()[0]
-    currentDrawable = pdb.gimp_image_get_active_layer(currentImage)
-    ssPath = data.get("filePath")
-
-    if pdb.gimp_drawable_has_alpha(currentDrawable):
-
-        alphaBGLayer = pdb.gimp_file_load_layer(currentImage, ALPHA_BG_FILE)
-        numLayers, _ = pdb.gimp_image_get_layers(currentImage)
-
-        xRez = pdb.gimp_image_width(currentImage)
-        yRez = pdb.gimp_image_height(currentImage)
-
-        pdb.gimp_image_insert_layer(currentImage, alphaBGLayer, None, numLayers + 1)
-        pdb.gimp_layer_scale(alphaBGLayer, xRez, yRez, False)
-
-        mergedLayer = pdb.gimp_layer_new_from_visible(currentImage, currentImage, "tempVisable")
-
-        result = saveJPG(currentImage, mergedLayer, ssPath)
-
-        pdb.gimp_image_remove_layer(currentImage, alphaBGLayer)
-        pdb.gimp_image_clean_all(currentImage)
-        pdb.gimp_displays_flush()
-
-    else:
-        result = saveJPG(currentImage, currentDrawable, ssPath)
-
-    if result:
         sendCommand = "Success"
-    else:
+        sendPayload = {"filePath": savePath}
+        log.debug("New Version Saved")
+
+    except Exception as e:
+        log.warning("ERROR: Failed to save version: \n%s" % e)
         sendCommand = "Failed"
-    
-    sendPayload = {"filePath": ssPath}
+        sendPayload = None
 
     jData = cmdDataToJson(sendCommand, sendPayload)
-
     return jData
 
 
-#   Saves curretly open image to the supplied filepath
-def saveXCF(filePath):
+#   Saves currently open image to the supplied filepath
+def saveXCF(imagePath, savePath):
 
-    log.debug("IN saveAction")                          #   DEBUG
+    log.debug("Saving .XCF")
+    try:
+        #   Checks if the image is alreadt an .xcf
+        if os.path.splitext(imagePath)[1] == ".xcf":
+            currentImage = getImageFromPath(imagePath)
+        else:
+            #   Loads the non-.xcf into a new temp image
+            currentImage = pdb.file_png_load(imagePath, imagePath)
 
-    currentImage = gimp.image_list()[0]
+        currentDrawable = pdb.gimp_image_get_active_layer(currentImage)
+        #   Saves the image to .xcf using supplied Prism Path
+        pdb.gimp_xcf_save(1, currentImage, currentDrawable, savePath, savePath)
 
-    currentDrawable = pdb.gimp_image_get_active_layer(currentImage)
-
-    pdb.gimp_xcf_save(1, currentImage, currentDrawable, filePath, filePath)
+    except Exception as e:
+        log.warning("ERROR: Failed to Save XCF")
+        return None
 
     return currentImage
 
 
-def openXCF(filePath):
-    
-    newImage = pdb.gimp_xcf_load(1, filePath, filePath)
-    return newImage
+#   Self explanitory
+def openXCF(currentFile, filePath):
+    try:
+        newImage = pdb.gimp_xcf_load(1, filePath, filePath)
+        return newImage
+    except:
+        log.debug("Could not load new image")
+        return currentFile
 
 
 def exportFile(data):
-    numImages, image_ids = pdb.gimp_image_list()
-    if numImages < 1:
-        return False
-    
-    rSettings = data.get("rSettings")
+    log.debug("Exporting Image")
+    try:
+        #   Checks there is an open image
+        numImages, image_ids = pdb.gimp_image_list()
+        if numImages < 1:
+            return False
+        
+        rSettings = data.get("rSettings")
+        #   Gets Gimp Image from supplied filepath
+        currentImage = getImageFromPath(data.get("imagePath"))
+        currentDrawable = pdb.gimp_image_get_active_layer(currentImage)
+        filePath = rSettings["outputName"]
 
-    log.debug(rSettings)
+        #   Handles file type
+        outputType = rSettings["outputType"]
+        if outputType == ".png":
+            result = exportPNG(rSettings, currentImage, currentDrawable, filePath)
+        elif outputType == ".exr":
+            result = exportEXR(rSettings, currentImage, currentDrawable, filePath)
+        elif outputType == ".jpg":
+            result = exportJPG(rSettings, currentImage, currentDrawable, filePath)
 
-    currentImage = gimp.image_list()[0]
-    currentDrawable = pdb.gimp_image_get_active_layer(currentImage)
-    filePath = rSettings["outputName"]
+        if result:
+            sendPayload = "Result=Success"
+        else:
+            sendPayload = "Result=Failed"
 
-    outputType = rSettings["outputType"]
-    if outputType == ".png":
-        result = exportPNG(rSettings, currentImage, currentDrawable, filePath)
-    elif outputType == ".exr":
-        result = exportEXR(rSettings, currentImage, currentDrawable, filePath)
-    elif outputType == ".jpg":
-        result = exportJPG(rSettings, currentImage, currentDrawable, filePath)
-
-    if result:
-        sendPayload = "Result=Success"
-    else:
+    except:
+        log.warning("ERROR: Failed to Export Image")
         sendPayload = "Result=Failed"
 
     sendCommand = "Result"
@@ -448,7 +447,6 @@ def exportFile(data):
 
 
 def exportPNG(rSettings, currentImage, currentDrawable, filePath):
-
     png_Compress = int(rSettings["png_Compress"]) - 1    #   so that GUI is 1-10
     png_Interlaced = rSettings["png_Interlaced"]
     png_Gamma = rSettings["png_Compress"]
@@ -460,11 +458,21 @@ def exportPNG(rSettings, currentImage, currentDrawable, filePath):
     bitDepth = rSettings["bitDepth"]
     exportScale = int(rSettings["exportScale"])
     alphaFill = rSettings["alphaFill"]
+    exportFormat = "png"
     
-    mergedLayer = createExportLayer(currentImage, currentDrawable, exportScale, colorMode, bitDepth, alphaFill)
+    #   Creates temp export image
+    tempImage, tempLayer = createTempImage(currentImage,
+                                           exportFormat,
+                                           exportScale,
+                                           colorMode,
+                                           bitDepth,
+                                           alphaFill)
 
-    result = savePNG(currentImage,
-                        mergedLayer,
+    log.debug("Exporting PNG")
+
+    #   Sends to save method
+    result = savePNG(tempImage,
+                        tempLayer,
                         filePath,
                         png_Interlaced,
                         png_Compress,
@@ -476,10 +484,12 @@ def exportPNG(rSettings, currentImage, currentDrawable, filePath):
                         0,
                         png_AlphaColor
                         )
-        
-    pdb.gimp_image_remove_layer(currentImage, mergedLayer)
-
+    
+    #   Removes temp image
+    pdb.gimp_image_delete(tempImage)
+    #   Removes unsaved changes flag
     pdb.gimp_image_clean_all(currentImage)
+    #   Refreshes UI
     pdb.gimp_displays_flush()
 
     return result
@@ -514,36 +524,48 @@ def savePNG(image=None,
                            comment,
                            svtrans)
 
+        log.debug("Saved PNG")
         return True
 
     except Exception as e:
-        log.warning("ERROR:  ", e)
+        log.warning("ERROR:  %s" % e)
         return False
 
 
 def exportEXR(rSettings, currentImage, currentDrawable, filePath):
-
     colorMode = rSettings["colorMode"]
     bitDepth = rSettings["bitDepth"]
     exportScale = int(rSettings["exportScale"])
     alphaFill = rSettings["alphaFill"]
+    exportFormat = "exr"
 
-    mergedLayer = createExportLayer(currentImage, currentDrawable, exportScale, colorMode, bitDepth, alphaFill)
+    #   Creates temp export image
+    tempImage, tempLayer = createTempImage(currentImage,
+                                           exportFormat,
+                                           exportScale,
+                                           colorMode,
+                                           bitDepth,
+                                           alphaFill)
 
-    result = saveEXR(currentImage,
-                        mergedLayer,
+    log.debug("Exporting EXR")
+
+    #   Sends to save method
+    result = saveEXR(tempImage,
+                        tempLayer,
                         filePath,
                         )
-
-    pdb.gimp_image_remove_layer(currentImage, mergedLayer)
-
+    
+    #   Removes temp image
+    pdb.gimp_image_delete(tempImage)
+    #   Removes unsaved changes flag
     pdb.gimp_image_clean_all(currentImage)
+    #   Refreshes UI
     pdb.gimp_displays_flush()
 
     return result
 
 
-def saveEXR(image=None,                     #   Unfortunatly that is all the options Gimps API has
+def saveEXR(image=None,        #   Unfortunatly all the options Gimps API has
             drawable=None,
             filePath=None,
             ):
@@ -554,6 +576,7 @@ def saveEXR(image=None,                     #   Unfortunatly that is all the opt
                            filePath,
                            filePath)
         
+        log.debug("Saved EXR")
         return True
 
     except Exception as e:
@@ -569,16 +592,26 @@ def exportJPG(rSettings, currentImage, currentDrawable, filePath):
     subSample = rSettings["jpg_SubSample"]
     optimize = rSettings["jpg_Optimize"]
     progressive = rSettings["jpg_Progressive"]
-    arithCode = rSettings["jpg_ArithCode"]
+    baseline = rSettings["jpg_Baseline"]
     colorMode = rSettings["colorMode"]
     bitDepth = rSettings["bitDepth"]
     exportScale = int(rSettings["exportScale"])
     alphaFill = rSettings["alphaFill"]
+    exportFormat = "jpg"
 
-    mergedLayer = createExportLayer(currentImage, currentDrawable, exportScale, colorMode, bitDepth, alphaFill)
+    #   Creates temp export image
+    tempImage, tempLayer = createTempImage(currentImage,
+                                           exportFormat,
+                                           exportScale,
+                                           colorMode,
+                                           bitDepth,
+                                           alphaFill)
 
-    result = saveJPG(currentImage,
-                        mergedLayer,
+    log.debug("Saving JPG")
+
+    #   Sends to save method
+    result = saveJPG(tempImage,
+                        tempLayer,
                         filePath,
                         quality,
                         smoothing,
@@ -586,12 +619,14 @@ def exportJPG(rSettings, currentImage, currentDrawable, filePath):
                         progressive,
                         "",
                         subSample,
-                        arithCode
+                        baseline
                         )
 
-    pdb.gimp_image_remove_layer(currentImage, mergedLayer)
-
+    #   Removes temp image
+    pdb.gimp_image_delete(tempImage)
+    #   Removes unsaved changes flag
     pdb.gimp_image_clean_all(currentImage)
+    #   Refreshes UI
     pdb.gimp_displays_flush()
 
     return result
@@ -626,6 +661,7 @@ def saveJPG(image=None,
                            restart,
                            dct)
         
+        log.debug("Saved JPG")
         return True
 
     except Exception as e:
@@ -633,115 +669,283 @@ def saveJPG(image=None,
         return False
 
 
-def createExportLayer(currentImage, currentDrawable, exportScale, colorMode, bitDepth, alphaFill):
-    tempBgLayer = False
+#   Gets Gimp Image from supplied filepath
+def getImageFromPath(imagePath):
+    #   Iterates through open images and finds the image matching the name
+    try:
+        log.debug("Getting Gimp Image")
 
-    xRez = (pdb.gimp_image_width(currentImage) * exportScale) / 100
-    yRez = (pdb.gimp_image_height(currentImage) * exportScale) / 100
-
-    if colorMode not in ["RGBA", "GRAYA"]:
-        if pdb.gimp_drawable_has_alpha(currentDrawable):
-            tempBgLayer = fillAlphaBG(currentImage, alphaFill)
-
-    mergedLayer = pdb.gimp_layer_new_from_visible(currentImage, currentImage, "tempVisable")
-    pdb.gimp_image_insert_layer(currentImage, mergedLayer, None, 0)
-
-    if tempBgLayer:
-        pdb.gimp_image_remove_layer(currentImage, tempBgLayer)
-
-    if exportScale != 100:
-        pdb.gimp_layer_scale_full(mergedLayer, xRez, yRez, 1, 2)
-
-    return mergedLayer
+        fileName = os.path.basename(imagePath)
+        for image in gimp.image_list():
+            if image.name == fileName:
+                return image
+    except:    
+        log.debug("ERROR: Failed to get Gimp Image")
+        return None
 
 
-def fillAlphaBG(image, alphaFill):
-    #   Gets rez of original image
-    xRez = pdb.gimp_image_width(image)  
-    yRez = pdb.gimp_image_height(image)
-    #   gets number of layers in the image
-    numLayers, _ = pdb.gimp_image_get_layers(image) 
-
-    #   Uses the checker BG from plugin directory
-    if alphaFill == "checker":
-        bgLayer = pdb.gimp_file_load_layer(image, ALPHA_BG_FILE)
-
-    #   Fills BG with selected color
+#   Converts Gimp 0/1 to True/False
+def bitToBool(binary):
+    if binary == 1:
+        bool = True
     else:
-        #   creates new layer with image dimensions
-        bgLayer = pdb.gimp_layer_new(image, xRez, yRez, 0, "tempBgLayer", 100, 0)
-        #   saves original foreground color
-        origFgColor = pdb.gimp_context_get_foreground()
+        bool = False
+    return bool
 
-        if alphaFill == "white":
-            fillColor = gimpcolor.RGB(255, 255, 255)  # White
-        elif alphaFill == "gray":
-            fillColor = gimpcolor.RGB(100, 100, 100)  # Gray
-        elif alphaFill == "pink":
-            fillColor = gimpcolor.RGB(255, 0, 255)    # Pink
+
+def switchUIimages(oldImage, newImage):
+    #   Try to reconnect, works if it is already a .xcf
+    try:
+        log.debug("Swapping UI Images")
+        pdb.gimp_displays_reconnect(oldImage, newImage)
+
+    #   If it was an imported image, will open in new tab
+    except:
+        log.debug("Opening new image")
+
+        gimp.Display(newImage)
+        gimp.displays_flush()
+    #   Makes the open file not show needs saving
+    pdb.gimp_image_clean_all(newImage)
+
+
+def captureScreenShot(data):
+    log.debug("Taking Screenshot")
+    #   Gets image from supplied filepath
+    currentImage = getImageFromPath(data.get("imagePath"))
+    currentDrawable = pdb.gimp_image_get_active_layer(currentImage)
+    ssPath = data.get("ssPath")
+
+    try:
+        #   If there is alpha
+        if imageHasAlpha(currentImage):
+            #   Loads the checker image from plugin folder
+            alphaBGLayer = pdb.gimp_file_load_layer(currentImage, ALPHA_BG_FILE)
+            numLayers, _ = pdb.gimp_image_get_layers(currentImage)
+            #   Gets current image size
+            xRez, yRez = getImageRez(currentImage)
+            #   Inserts the checker at the bottom
+            pdb.gimp_image_insert_layer(currentImage, alphaBGLayer, None, numLayers + 1)
+            pdb.gimp_layer_scale(alphaBGLayer, xRez, yRez, False)
+
+            #   Flattens the image to a temp layer
+            mergedLayer = pdb.gimp_layer_new_from_visible(currentImage,
+                                                          currentImage,
+                                                          "tempVisable")
+            
+            #   Saves the temp layer to the supplied temp path
+            result = saveJPG(currentImage, mergedLayer, ssPath)
+            #   Delete temp layer
+            pdb.gimp_image_remove_layer(currentImage, alphaBGLayer)
+            #   Cleans and refreshes UI
+            pdb.gimp_image_clean_all(currentImage)
+            pdb.gimp_displays_flush()
+
         else:
-            fillColor = gimpcolor.RGB(0, 0, 0)        #   Black
+            result = saveJPG(currentImage, currentDrawable, ssPath)
 
-        #   sets foreground color
-        pdb.gimp_context_set_foreground(fillColor)
-        #   Fills layer with FG color
-        pdb.gimp_drawable_fill(bgLayer, 0)  
-        #   Reset Fg color to original
-        pdb.gimp_context_set_foreground(origFgColor)  
+        if result:
+            sendCommand = "Success"
+        else:
+            log.warning("ERROR: Screenshot Failed")
+            sendCommand = "Failed"
 
-    #   inserts this temp layer to bottom
-    pdb.gimp_image_insert_layer(image, bgLayer, None, numLayers + 1)
-    #   scales temp layer to image size
-    pdb.gimp_layer_scale(bgLayer, xRez, yRez, False)
+    except Exception as e:
+        log.warning("ERROR: Screenshot Failed:  %s" % e)
+        sendCommand = "Failed"
+    
+    sendPayload = {"filePath": ssPath}
 
-    return bgLayer
+    jData = cmdDataToJson(sendCommand, sendPayload)
+    return jData
 
 
-def saveStates(data):
+def createTempImage(currentImage,
+                    exportFormat,
+                    exportScale,
+                    exportColorMode,
+                    exportBitDepth,
+                    alphaFill
+                    ):
 
-    numImages, image_ids = pdb.gimp_image_list()
+    #   Gets image resolution
+    xRez, yRez = getImageRez(currentImage)
+    #   Creates copy to temp image
+    tempImage = pdb.gimp_image_duplicate(currentImage)
 
-    if numImages > 0:
-        currentImage = gimp.image_list()[0]
-        
+    try:
+        #   Converts bitDepth to Gimp code
+        bitDepthCode = getBitDepthCode(exportBitDepth)
+        #   Converts temp image to new bit depth
+        pdb.gimp_image_convert_precision(tempImage, bitDepthCode)
+    except:
+        log.warning("ERROR: Failed to convert image's bit depth")
+
+    #   Checks if bottom layer has alpha
+    if exportColorMode not in ["RGBA", "GRAYA"]:
         try:
+            if imageHasAlpha(tempImage):
+                #   Fills BG with selected type
+                fillAlphaBG(tempImage, alphaFill)
+            #   Flattens to remove alpha channel
+            mergedLayer = pdb.gimp_image_flatten(tempImage)
+        except:
+            log.warning("ERROR: Failed to apply alpha background")
+
+    else:
+        #   Merge visable to keep alpha channel if output is RGBA or GRAYA
+        mergedLayer = pdb.gimp_image_merge_visible_layers(tempImage, 1)
+
+    try:
+        #   Converts to GRAY if needed
+        if getColorMode(mergedLayer) == "RGB":
+            if exportColorMode in ["GRAY", "GRAYA"]:
+                pdb.gimp_image_convert_grayscale(tempImage)
+
+        #   Converts to RGB if needed
+        elif getColorMode(mergedLayer) == "GRAY":
+            if exportColorMode in ["RGB", "RGBA"]:
+                pdb.gimp_image_convert_rgb(tempImage)
+    except Exception as e:
+        log.warning("ERROR: Cannot convert color mode")
+
+    try:
+        #   Scales image from options
+        if exportScale != 100:
+            xRez = (xRez * exportScale) / 100
+            yRez = (yRez * exportScale) / 100
+            pdb.gimp_layer_scale_full(mergedLayer, xRez, yRez, 1, 2)
+    except Exception as e:
+        log.warning("ERROR: Cannot scale image")
+
+    return tempImage, mergedLayer
+
+
+#   Used to fill the background of alpha images if needed
+def fillAlphaBG(image, alphaFill):
+    try:
+        #   Gets rez of original image
+        xRez, yRez = getImageRez(image)
+        #   gets number of layers in the image
+        numLayers, _ = pdb.gimp_image_get_layers(image) 
+        #   Uses the checker BG from plugin directory
+        if alphaFill == "checker":
+            bgLayer = pdb.gimp_file_load_layer(image, ALPHA_BG_FILE)
+
+        #   Fills BG with selected color
+        else:
+            #   creates new layer with image dimensions
+            bgLayer = pdb.gimp_layer_new(image, xRez, yRez, 0, "tempBgLayer", 100, 0)
+            #   saves original foreground color
+            origFgColor = pdb.gimp_context_get_foreground()
+
+            if alphaFill == "white":
+                fillColor = gimpcolor.RGB(255, 255, 255)  # White
+            elif alphaFill == "gray":
+                fillColor = gimpcolor.RGB(100, 100, 100)  # Gray
+            elif alphaFill == "pink":
+                fillColor = gimpcolor.RGB(255, 0, 255)    # Pink
+            else:
+                fillColor = gimpcolor.RGB(0, 0, 0)        #   Black
+
+            #   Sets foreground color
+            pdb.gimp_context_set_foreground(fillColor)
+            #   Fills layer with FG color
+            pdb.gimp_drawable_fill(bgLayer, 0)  
+            #   Reset Fg color to original
+            pdb.gimp_context_set_foreground(origFgColor)  
+
+        #   inserts this temp layer at the bottom
+        pdb.gimp_image_insert_layer(image, bgLayer, None, numLayers + 1)
+        #   scales temp layer to image size
+        pdb.gimp_layer_scale(bgLayer, xRez, yRez, False)
+
+        return bgLayer
+    
+    except Exception as e:
+        log.warning("ERROR: Failed to generate background:\n%s" % e)
+        return None
+
+
+#   Saves StateManager states
+def saveStates(data):
+    #   Gets number of open images
+    numImages, image_ids = pdb.gimp_image_list()
+    #   Checks that an image is open
+    if numImages > 0:
+        try:
+            #   Gets Gimp Image from supplied filepath
+            currentImage = getImageFromPath(data.get("imagePath"))
+            #   Get State data
             stateData = data.get("stateData")
+            #   Attaches State data to the image
             currentImage.attach_new_parasite("stateData", 5, stateData)
 
             log.debug("Saved States")
             sendCommand = "Success"
         
         except:
-            log.warning("Save State Failed")
+            log.warning("ERROR: Save State Failed")
             sendCommand = "Failed"
     else:
-        log.warning("No image open")
+        log.warning("ERROR: No image open")
         sendCommand = "Failed"
 
     sendPayload = ""
-
 
     jData = cmdDataToJson(sendCommand, sendPayload)
     return jData
 
 
-def getStates():
-
+#   Gets StateManager states from image
+def getStates(data):
+    #   Gets number of open images
     numImages, image_ids = pdb.gimp_image_list()
-
+    #   Checks that an image is open
     if numImages > 0:
-        currentImage = gimp.image_list()[0]
+        #   Gets Gimp Image from supplied filepath
+        currentImage = getImageFromPath(data.get("imagePath"))
+        currentDrawable = pdb.gimp_image_get_active_layer(currentImage)
 
         try:
+            xRez, yRez = getImageRez(currentImage)
+            bitDepth, gamma = getBitDepthGamma(currentImage)
+            colorMode = getColorMode(currentDrawable)
+            hasAlpha = imageHasAlpha(currentImage)
+
+        except Exception as e:
+            log.warning("ERROR in getting Image Details:  %s" % e)
+
+        try:
+            #   Gets parasite from image
             parasite  = currentImage.parasite_find("stateData")
-
-            log.debug("strData:   %s" % parasite )                                          #    DEBUG
-
             if parasite:
-                stateData = parasite.data
+                #   Converts buffer to unicode
+                stateData = json.loads(parasite.data)
+                try:
+                    #   Converts unicode to object
+                    stateDataDict = json.loads(stateData)
+
+                    #   Adds additional items
+                    stateDataDict["states"][1]["specs_xRez"] = xRez
+                    stateDataDict["states"][1]["specs_yRez"] = yRez
+                    stateDataDict["states"][1]["specs_colorMode"] = colorMode
+                    stateDataDict["states"][1]["specs_gamma"] = gamma
+                    stateDataDict["states"][1]["specs_bitDepth"] = bitDepth
+                    stateDataDict["states"][1]["specs_hasAlpha"] = hasAlpha
+
+                    #   Converts object back to unicode
+                    stateData = json.dumps(stateDataDict)
+
+                except:
+                    log.debug("ERROR: Failed to get Image Info")
+
+                log.debug("State data retrieved")
+
             else:
+                log.debug("No State data in Image")
                 stateData = ""
-        
+
         except Exception as e:
             log.warning("ERROR in getting State Data:  %s" % e)
             stateData = ""
@@ -753,46 +957,101 @@ def getStates():
     sendPayload = {"stateData": stateData}
 
     jData = cmdDataToJson(sendCommand, sendPayload)
-
     return jData
+
+
+def getImageRez(image):
+    try:
+        xRez = pdb.gimp_image_width(image)
+        yRez = pdb.gimp_image_height(image)
+        return xRez, yRez
+    except:
+        return " - ", " - "
+
+
+#   Returns image Color Mode
+def getColorMode(drawable):
+    try:
+        isGrayBinary = pdb.gimp_drawable_is_gray(drawable)
+        if bitToBool(isGrayBinary):
+            colorMode = "GRAY"
+        else:
+            colorMode = "RGB"
+        return colorMode
+    except:
+        return " - "
+
+
+#   Returns BitDepth and Display gamma from Gimp's precision code
+def getBitDepthGamma(image):
+    try:
+        #   Gets image precision code
+        precision = pdb.gimp_image_get_precision(image)
+
+        #   Looks in dict to find code
+        for key, value in COLORMODEDATA.items():
+            if value["precision"] == precision:
+                bitDepth = value["display"]
+                gamma = value["gamma"]
+
+                return bitDepth, gamma
+
+        return " - ", " - "
+    
+    except:
+        log.warning("ERROR: Cannot get images bitDepth")
+        return " - ", " - "
+
+
+def getBitDepthCode(bitDepth):
+    #   Returns Gimp code from desired bitDepth
+    for key, value in COLORMODEDATA.items():
+        if str(value["bitDepth"]) == bitDepth:
+            return value["precision"]
+        
+    return None
+
+
+#   Returns if the bottom layer has an alpha channel
+def imageHasAlpha(image):
+    try:
+        btmLayer = image.layers[-1]
+        hasAlpha = pdb.gimp_drawable_has_alpha(btmLayer)
+        return bitToBool(hasAlpha)
+    except:
+        log.warning("ERROR: Alpha check failed")
+        return True
 
 
 
 initActions()   #   Run init actions such getting config info and setting up logger
 
 
-### vvvvv REGISTER PLUG-IN vvvvv ###
 
-# START SERVER
+# ### vvvvv REGISTER PLUG-IN vvvvv ###
+
+helpDoc = r"""
+Menu items and functions for intergration
+with Prism Pipeline
+"""
+
+attribution = "Prism: Richard Frangenberg\nPlugin: Joshua Breckeen"
+copyright = "GNU LGPL-3.0-or-later"
+
+# # START SERVER
 register(
-    "python-fu_prism_serverStart",                      #   UNIQUE NAME
-    "Prism Server Start Action",                        #   BLURB
-    "Enables socket comms between Prism and Gimp",      #   DESCRIPTION
-    "Joshua Breckeen",                                  #   AUTHORS NAME
-    "Copyright (C) Your Year",                          #   COPYRIGHT INFO
-    "2023",                                             #   VERSION OF SCRIPT
-    "1 - Start Prism Server",                           #   NAME DISPLAYED IN MENU
-    "",                                                 #   TYPE OF DRAWABLE: '' = can be none, * = any drawable, RGB, RGB, RGB* etc
-    [],                                                 #   ADDITIONAL ARGS
-    [],                                                 #   RETURN TYPES
-    startServer,                                        #   FUNCTION CALLED WHEN ACTIVATED
-    "<Image>/Prism",                                    #   WHERE IN MENU
+    "python-fu_prism_serverStart",                              #   UNIQUE NAME
+    "Enables socket communications\nbetween Prism and Gimp",    #   TOOLTIP
+    helpDoc,                                                    #   DESCRIPTION
+    attribution,                                                #   AUTHORS NAME
+    copyright,                                                  #   COPYRIGHT INFO
+    "2023",                                                     #   VERSION or DATA
+    "1 - Start Prism Server",                                   #   NAME DISPLAYED IN GUI MENU
+    "",                                                         #   TYPE OF DRAWABLE: '' = can be none, * = any drawable, RGB, RGB, RGB* etc
+    [],                                                         #   ADDITIONAL ARGS
+    [],                                                         #   RETURN TYPES
+    startServer,                                                #   FUNCTION CALLED WHEN ACTIVATED
+    "<Image>/Prism",                                            #   WHERE IN GIMP UI
 )
-
-# START SERVER
-# register(
-#     "python-fu_prism_serverReset",
-#     "Prism Server Reset Action",
-#     "Resets socket comms between Prism and Gimp",
-#     "Joshua Breckeen",
-#     "Copyright (C) Your Year",
-#     "2023",
-#     "6 - Reset Prism Server",
-#     "",
-#     [],
-#     [],
-#     resetServer,
-#     "<Image>/Prism",
-# )
 
 main()

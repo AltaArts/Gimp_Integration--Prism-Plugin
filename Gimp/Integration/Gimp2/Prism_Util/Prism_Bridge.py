@@ -32,7 +32,7 @@
 # along with Prism.  If not, see <https://www.gnu.org/licenses/>.
 ###########################################################################
 #
-#                    Gimp3 (2.99) Plugin for Prism2
+#                        Gimp2 Plugin for Prism2
 #
 #                           Joshua Breckeen
 #                              Alta Arts
@@ -54,6 +54,11 @@ from qtpy.QtCore import *
 from qtpy.QtGui import *
 from qtpy.QtWidgets import *
 
+
+os.environ["Gimp_CurrentImagePath"] = sys.argv[3]
+# os.environ["Gimp_CurrentDrawable"] = sys.argv[4]          #   NOT USED RIGHT NOW
+
+
 qapp = QApplication.instance()
 if qapp is None:
     qapp = QApplication(sys.argv)
@@ -64,19 +69,18 @@ if not platform.system() == "Darwin":
     curPrj = pcore.getConfig("globals", "current project")
 
     result = False
-    if sys.argv[2] == "SaveVersion":
-        pcore.saveScene()
-    elif sys.argv[2] == "SaveComment":
-        result = pcore.saveWithComment()
-    elif sys.argv[2] == "Export":
-        result = pcore.appPlugin.exportImage()
-    elif sys.argv[2] == "ProjectBrowser":
-        result = pcore.projectBrowser()
-    elif sys.argv[2] == "StateManager":
-        result = pcore.stateManager()
-
-    if len(sys.argv) > 3:
-        pcore.appPlugin.openScene(origin=pcore, filepath=sys.argv[3])
+    command = sys.argv[2]
+    match command:
+        case "SaveVersion":
+            result = pcore.saveScene()
+        case "SaveComment":
+            result = pcore.saveWithComment()
+        case "Export":
+            result = pcore.appPlugin.exportImage()
+        case "ProjectBrowser":
+            result = pcore.projectBrowser()
+        case "StateManager":
+            result = pcore.stateManager()
 
     if result:
         qapp.exec_()
