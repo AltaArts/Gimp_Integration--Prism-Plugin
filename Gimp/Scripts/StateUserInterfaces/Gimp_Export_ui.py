@@ -16,7 +16,7 @@ class Ui_wg_Gimp_Export(object):
     def setupUi(self, wg_Gimp_Export):
         if not wg_Gimp_Export.objectName():
             wg_Gimp_Export.setObjectName(u"wg_Gimp_Export")
-        wg_Gimp_Export.resize(482, 914)
+        wg_Gimp_Export.resize(482, 950)
         self.verticalLayout = QVBoxLayout(wg_Gimp_Export)
         self.verticalLayout.setObjectName(u"verticalLayout")
         self.verticalLayout.setContentsMargins(0, 0, 0, 0)
@@ -356,15 +356,17 @@ class Ui_wg_Gimp_Export(object):
 
         self.verticalLayout_2.addWidget(self.w_outType)
 
-        self.w_imageOptions = QHBoxLayout()
+        self.gb_imageOptions = QGroupBox(self.gb_export)
+        self.gb_imageOptions.setObjectName(u"gb_imageOptions")
+        self.w_imageOptions = QHBoxLayout(self.gb_imageOptions)
         self.w_imageOptions.setObjectName(u"w_imageOptions")
-        self.w_imageOptions.setContentsMargins(30, -1, 30, -1)
-        self.l_colorMode = QLabel(self.gb_export)
+        self.w_imageOptions.setContentsMargins(30, 5, 30, 0)
+        self.l_colorMode = QLabel(self.gb_imageOptions)
         self.l_colorMode.setObjectName(u"l_colorMode")
 
         self.w_imageOptions.addWidget(self.l_colorMode)
 
-        self.cb_colorMode = QComboBox(self.gb_export)
+        self.cb_colorMode = QComboBox(self.gb_imageOptions)
         self.cb_colorMode.setObjectName(u"cb_colorMode")
         self.cb_colorMode.setMinimumSize(QSize(80, 0))
 
@@ -374,25 +376,26 @@ class Ui_wg_Gimp_Export(object):
 
         self.w_imageOptions.addItem(self.horizontalSpacer_9)
 
-        self.l_bitDepth = QLabel(self.gb_export)
+        self.l_bitDepth = QLabel(self.gb_imageOptions)
         self.l_bitDepth.setObjectName(u"l_bitDepth")
 
         self.w_imageOptions.addWidget(self.l_bitDepth)
 
-        self.cb_bitDepth = QComboBox(self.gb_export)
+        self.cb_bitDepth = QComboBox(self.gb_imageOptions)
         self.cb_bitDepth.setObjectName(u"cb_bitDepth")
         self.cb_bitDepth.setMinimumSize(QSize(80, 0))
 
         self.w_imageOptions.addWidget(self.cb_bitDepth)
 
 
-        self.verticalLayout_2.addLayout(self.w_imageOptions)
+        self.verticalLayout_2.addWidget(self.gb_imageOptions)
 
         self.gb_alphaFill = QGroupBox(self.gb_export)
         self.gb_alphaFill.setObjectName(u"gb_alphaFill")
         self.gb_alphaFill.setEnabled(True)
         self.gb_jpg_options_2 = QVBoxLayout(self.gb_alphaFill)
         self.gb_jpg_options_2.setObjectName(u"gb_jpg_options_2")
+        self.gb_jpg_options_2.setContentsMargins(-1, 5, -1, 0)
         self.w_alphaFill = QHBoxLayout()
         self.w_alphaFill.setObjectName(u"w_alphaFill")
         self.w_alphaFill.setContentsMargins(30, -1, 30, -1)
@@ -487,7 +490,7 @@ class Ui_wg_Gimp_Export(object):
 
         self.w_jpg_options = QHBoxLayout()
         self.w_jpg_options.setObjectName(u"w_jpg_options")
-        self.w_jpg_options.setContentsMargins(20, -1, 20, -1)
+        self.w_jpg_options.setContentsMargins(20, -1, 30, -1)
         self.chb_jpg_optimize = QCheckBox(self.gb_jpgOptions)
         self.chb_jpg_optimize.setObjectName(u"chb_jpg_optimize")
         self.chb_jpg_optimize.setLayoutDirection(Qt.RightToLeft)
@@ -568,12 +571,21 @@ class Ui_wg_Gimp_Export(object):
 
         self.verticalLayout_5 = QVBoxLayout()
         self.verticalLayout_5.setObjectName(u"verticalLayout_5")
-        self.verticalLayout_5.setContentsMargins(-1, -1, 60, -1)
+        self.verticalLayout_5.setContentsMargins(-1, -1, 40, -1)
+        self.horizontalLayout_3 = QHBoxLayout()
+        self.horizontalLayout_3.setObjectName(u"horizontalLayout_3")
+        self.horizontalSpacer_16 = QSpacerItem(40, 20, QSizePolicy.Expanding, QSizePolicy.Minimum)
+
+        self.horizontalLayout_3.addItem(self.horizontalSpacer_16)
+
         self.cb_png_compress = QComboBox(self.gb_pngOptions)
         self.cb_png_compress.setObjectName(u"cb_png_compress")
         self.cb_png_compress.setMinimumSize(QSize(124, 0))
 
-        self.verticalLayout_5.addWidget(self.cb_png_compress)
+        self.horizontalLayout_3.addWidget(self.cb_png_compress)
+
+
+        self.verticalLayout_5.addLayout(self.horizontalLayout_3)
 
         self.chb_png_interlaced = QCheckBox(self.gb_pngOptions)
         self.chb_png_interlaced.setObjectName(u"chb_png_interlaced")
@@ -701,7 +713,7 @@ class Ui_wg_Gimp_Export(object):
         self.chb_jpg_baseline.setText(QCoreApplication.translate("wg_Gimp_Export", u"Baseline", None))
         self.l_png_compress.setText(QCoreApplication.translate("wg_Gimp_Export", u"Compression", None))
         self.chb_png_alphaColor.setText(QCoreApplication.translate("wg_Gimp_Export", u"PreMult Alpha", None))
-        self.chb_png_bgColor.setText(QCoreApplication.translate("wg_Gimp_Export", u"Save Background Color", None))
+        self.chb_png_bgColor.setText(QCoreApplication.translate("wg_Gimp_Export", u"Save BG Color", None))
         self.chb_png_gamma.setText(QCoreApplication.translate("wg_Gimp_Export", u"Save Gamma     ", None))
         self.chb_png_interlaced.setText(QCoreApplication.translate("wg_Gimp_Export", u"Interlaced          ", None))
         self.chb_png_rez.setText(QCoreApplication.translate("wg_Gimp_Export", u"Save Resolution", None))
@@ -710,5 +722,8 @@ class Ui_wg_Gimp_Export(object):
         self.l_pathLast.setText(QCoreApplication.translate("wg_Gimp_Export", u"None", None))
         self.b_pathLast.setText(QCoreApplication.translate("wg_Gimp_Export", u"...", None))
     # retranslateUi
+
+
+
 
 
