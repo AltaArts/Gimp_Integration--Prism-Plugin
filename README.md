@@ -35,7 +35,8 @@ You can add the additional plugin search paths in Prism2 settings.  Go to Settin
 
 Once added, you can either restart Prism2, or select the "Add existing plugin" (plus icon) and navigate to where you saved the Gimp folder.
 
-![Add Existing Plugin](https://github.com/AltaArts/Gimp_Integration--Prism-Plugin/assets/86539171/d86e3b34-d172-4cd8-b238-147ff6a25106) ![Select Plugin Folder](https://github.com/AltaArts/Gimp_Integration--Prism-Plugin/assets/86539171/d28d76f7-c11e-4daf-8f53-4a98e25b5918)
+![Add Existing Plugin](https://github.com/AltaArts/Gimp_Integration--Prism-Plugin/assets/86539171/d86e3b34-d172-4cd8-b238-147ff6a25106)<br/><br/>
+![Select Plugin Folder](https://github.com/AltaArts/Gimp_Integration--Prism-Plugin/assets/86539171/d28d76f7-c11e-4daf-8f53-4a98e25b5918)
 
 
 
