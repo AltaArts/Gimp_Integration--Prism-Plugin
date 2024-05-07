@@ -13,6 +13,14 @@ https://prism-pipeline.com/
 - Gimp 2 versions are supported.  Gimp 3 (2.99) support will be added in the future.
 - Prism and Gimp communicate through a socket.  The port listed in the Gimp tab in Prism's DCC settings must be available, and any anti-virus must allow the port to be used.
 
+- Sluggish
+
+- Logging in Gimp is somewhat trickey, 
+
+- EXR 32 bit zip compression only
+
+
+
 
 
 
@@ -21,9 +29,9 @@ https://prism-pipeline.com/
 
 This plugin is for Windows only, as Prism2 only supports Windows at this time.
 
-You can either download the latest stable release version from: [Latest Release](https://github.com/AltaArts/Gimp_Integration--Prism-Plugin/releases/latest)             TODO
+You can either download the latest stable release version from: [Latest Release](https://github.com/AltaArts/Gimp_Integration--Prism-Plugin/releases/latest)
 
-or download the current code zip file from the green "Code" button above or on [Github](https://github.com/AltaArts/Gimp_Integration--Prism-Plugin))                   TODO
+or download the current code zip file from the green "Code" button above or on [Github](https://github.com/AltaArts/Gimp_Integration--Prism-Plugin)
 
 Copy the directory named "Gimp" to a directory of your choice, or a Prism2 plugin directory.
 
@@ -33,7 +41,7 @@ It is suggested to have the Gimp plugin with the other DCC plugins in: *{drive}\
 
 You can add the additional plugin search paths in Prism2 settings.  Go to Settings->Plugins and click the gear icon.  This opens a dialogue and you may add additional search paths at the bottom.
 
-Once added, you can either restart Prism2, or select the "Add existing plugin" (plus icon) and navigate to where you saved the Gimp folder.
+Once added, select the "Add existing plugin" (plus icon) and navigate to where you saved the Gimp folder.
 
 ![Add Existing Plugin](https://github.com/AltaArts/Gimp_Integration--Prism-Plugin/assets/86539171/d86e3b34-d172-4cd8-b238-147ff6a25106)<br/><br/>
 ![Select Plugin Folder](https://github.com/AltaArts/Gimp_Integration--Prism-Plugin/assets/86539171/8a434886-9520-4048-83d1-e9d7a19e427c)
@@ -49,7 +57,21 @@ Then to add the integration, go to the "DCC Apps" -> "Gimp" tab.  Then click the
 
 
 ## **Usage**
-A Prism functions are utilized from a Prism menu in Gimp's UI.
+Prism functions are accessed through the Prism menu in the top bar of Gimp's UI.  The communication server must be started before Prism functions may be executed.  This opens a socket port between Prism and the Gimp integrtion only, and no data is communicated outside the local computer.
+
+Default executable:
+
+
+Messages / logging:
+Messages can be displayed several ways, with several levels of detail.  Viewing logfile.  Changing location. Details: Log Only, Minimal, All.  Messages in lower status bar vs Error console.
+
+Saving versions:
+
+Exporting images:
+
+Socket Port:
+
+
 
 
 
