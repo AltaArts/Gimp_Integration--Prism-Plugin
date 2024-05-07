@@ -17,7 +17,7 @@ https://prism-pipeline.com/
 - As of now: .png, .exr, .jpg, and .psd exports are supported.  More formats will be added.
 - Gimp saves .exr's in full-float 32bit zip compression only.  
 - To aid is use, tooltips are provided throughout.
-
+<br/><br/>
 
 ## **Installation**
 
@@ -41,26 +41,24 @@ Once added, select the "Add existing plugin" (plus icon) and navigate to where y
 
 ![Select Plugin Folder](https://github.com/AltaArts/Gimp_Integration--Prism-Plugin/assets/86539171/31ad18bf-4658-4da2-ad65-3c5500a7b284)
 
-
-
 Afterwards, you can select the Plugin autoload as desired:
 
 ![AutoLoad](https://github.com/AltaArts/Gimp_Integration--Prism-Plugin/assets/86539171/1f0295c3-709d-4937-88fb-3d63d43d779c)
 
 To add the integration, go to the "DCC Apps" -> "Gimp" tab.  Then click the "add" button and navigate to the folder containing the Gimp executable - ie "Gimp-2.10.exe".  If there is more than one version of Gimp installed, it is advisable to set the executable in the "Override" box in the DCC settings.
 
-
 ![Intergration](https://github.com/AltaArts/Gimp_Integration--Prism-Plugin/assets/86539171/41923782-3672-430e-93b8-7c405daa7856)
 
-
+<br/>
 
 ## **Usage**
 
 ### **Menu**
-Prism functions are accessed through the Prism menu in the top bar of Gimp's UI.  The communication server must be started before Prism functions may be executed.  This opens a socket port between Prism and the Gimp integration only, and there is no data communicated outside the local computer.  You can change the socket number in Settings->DCCs->Gimp if needed.
+Prism functions are accessed through the Prism menu in the top bar of Gimp's UI.  The communication server must be started before Prism functions may be executed.  This opens a socket port between Prism and the Gimp integration only, and there is no data communicated outside the local computer.  You can change the port number in Settings->DCCs->Gimp if needed.
 
 ![Prism Menu](https://github.com/AltaArts/Gimp_Integration--Prism-Plugin/assets/86539171/46afa882-72d0-4153-b7bf-ae9cac63ebfc)
 
+<br/>
 
 ### **Messages / Logging**
 
@@ -78,7 +76,8 @@ Keep in mind that having "All" messages displayed will show many messages and sl
 
 
 
-The Gimp log may be viewed by opening the directory with the "open Log" button in Settings->DCCs->Gimp.  The log will update until it reaches the max size limit set in settings, and then will be renamed to "_OLD" with a maximum of those two files.  By default, the logs are saved in the root directory of the Gimp plugin and you can change the save location in the settings.
+The Gimp log may be viewed by opening the directory with the "open Log" button in Settings->DCCs->Gimp.  The log will update until it reaches the max size limit set in settings, and then will be renamed to "_OLD" with a maximum of those two files.  By default, the logs are saved in the Gimp plugin directory and you can change the save location in the settings.
+<br/><br/>
 
 ### **Exporting**
 
@@ -86,8 +85,11 @@ To export (save) images we use the StateManager via a custom Gimp_Render state. 
 
 ![Gimp Render](https://github.com/AltaArts/Gimp_Integration--Prism-Plugin/assets/86539171/5d989db8-205d-4484-b5e6-d64528bad250)
 
+If the lowest layer of the scenefile image has an alpha channel, and the export format is not an alpha format (not RGBA or GRAYA), then an option will be displayed to select the desired background to be used.
 
+![AlphaFill](https://github.com/AltaArts/Gimp_Integration--Prism-Plugin/assets/86539171/fe812ace-7ff5-4862-9915-b5a6ef12ed3e)
 
+<br/><br/>
 
 ## **Issues / Suggestions**
 
