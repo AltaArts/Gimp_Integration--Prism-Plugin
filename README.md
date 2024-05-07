@@ -21,7 +21,7 @@ https://prism-pipeline.com/
 
 This plugin is for Windows only, as Prism2 only supports Windows at this time.
 
-You can either download the latest stable release version from: [Latest Release](https://github.com/AltaArts/DeleteFunctions--Prism-Plugin/releases/latest)             TODO
+You can either download the latest stable release version from: [Latest Release](https://github.com/AltaArts/Gimp_Integration--Prism-Plugin/releases/latest)             TODO
 
 or download the current code zip file from the green "Code" button above or on [Github](https://github.com/AltaArts/Gimp_Integration--Prism-Plugin))                   TODO
 
