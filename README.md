@@ -22,9 +22,6 @@ https://prism-pipeline.com/
 
 
 
-
-
-
 ## **Installation**
 
 This plugin is for Windows only, as Prism2 only supports Windows at this time.
@@ -63,11 +60,11 @@ If there is more than one version of Gimp installed, it is advisable to set the 
 
 Messages / logging:  Messages can be displayed several ways, with several levels of detail.  Gimp displays messages through the status bar at the bottom, and the "Error Console".
 
-INSERT ERROR CONSOLE
+![Gimp Error Console](https://github.com/AltaArts/Gimp_Integration--Prism-Plugin/assets/86539171/67df98e5-ae36-4a11-a60d-dbd3bbfdb3c5)
 
 There are three level of message display - but all messages will always be saved in the log.  With "Log Only", no messages will be displayed in the Gimp UI.  "Minimal" will display some messages that may be useful to the user such as "Starting Server".  "All" will display all messages in the UI.  Depending on how the Gimp UMessages in lower status bar vs Error console.
 
-INSERT LOG MENU
+![Log Menu](https://github.com/AltaArts/Gimp_Integration--Prism-Plugin/assets/86539171/f0de1aef-72b2-4b4c-bc5f-495414f321a6)
 
 The Gimp log may be viewed by opening the directory with the "open Log" button in Settings->DCCs->Gimp.  The log will update until it reaches the max size limit set in settings, and then will be renamed to "_OLD" with a maximum of those two files.  The logs are saved in the root directory of the Gimp plugin and you can change the save location in the settings.
 
