@@ -59,9 +59,9 @@ if "PRISM_ROOT" in os.environ:
     
 #   Gets set during Intergration installation
 else:
-    PRISMROOT = rPRISMROOTREPLACE
+    PRISMROOT = r"C:/Prism2"
 
-PLUGINROOT = rPLUGINROOTREPLACE
+PLUGINROOT = r"C:/ProgramData/Prism2/plugins/Gimp"
 
 ##    CONSTANTS    ##                                                       
 PLUGIN_PATH = os.path.dirname(__file__)
@@ -460,20 +460,22 @@ def exportFile(data):
 def exportPNG(rSettings, currentImage, currentDrawable, filePath):
     png_Compress = int(rSettings["png_Compress"]) - 1    #   so that GUI is 1-10
     png_Interlaced = rSettings["png_Interlaced"]
-    png_Gamma = rSettings["png_Compress"]
+    png_Gamma = rSettings["png_Gamma"]
     png_Rez = rSettings["png_Rez"]
     png_BgColor = rSettings["png_BgColor"]
     png_LayerOffset = rSettings["png_LayerOffset"]
     png_AlphaColor = rSettings["png_AlphaColor"]
+    exportGamma = rSettings["outputGamma"]
     colorMode = rSettings["colorMode"]
     bitDepth = rSettings["bitDepth"]
     exportScale = int(rSettings["exportScale"])
     alphaFill = rSettings["alphaFill"]
-    exportFormat = "png"
+    exportFormat = rSettings["outputType"]
     
     #   Creates temp export image
     tempImage, tempLayer = createTempImage(currentImage,
                                            exportFormat,
+                                           exportGamma,
                                            exportScale,
                                            colorMode,
                                            bitDepth,
@@ -547,11 +549,13 @@ def exportEXR(rSettings, currentImage, currentDrawable, filePath):
     bitDepth = rSettings["bitDepth"]
     exportScale = int(rSettings["exportScale"])
     alphaFill = rSettings["alphaFill"]
-    exportFormat = "exr"
+    exportGamma = rSettings["outputGamma"]
+    exportFormat = rSettings["outputType"]
 
     #   Creates temp export image
     tempImage, tempLayer = createTempImage(currentImage,
                                            exportFormat,
+                                           exportGamma,
                                            exportScale,
                                            colorMode,
                                            bitDepth,
@@ -605,11 +609,13 @@ def exportJPG(rSettings, currentImage, currentDrawable, filePath):
     bitDepth = rSettings["bitDepth"]
     exportScale = int(rSettings["exportScale"])
     alphaFill = rSettings["alphaFill"]
-    exportFormat = "jpg"
+    exportGamma = rSettings["outputGamma"]
+    exportFormat = rSettings["outputType"]
 
     #   Creates temp export image
     tempImage, tempLayer = createTempImage(currentImage,
                                            exportFormat,
+                                           exportGamma,
                                            exportScale,
                                            colorMode,
                                            bitDepth,
@@ -812,6 +818,7 @@ def captureScreenShot(data):
 
 def createTempImage(currentImage,
                     exportFormat,
+                    exportGamma,
                     exportScale,
                     exportColorMode,
                     exportBitDepth,
@@ -825,7 +832,7 @@ def createTempImage(currentImage,
 
     try:
         #   Converts bitDepth to Gimp code
-        bitDepthCode = getBitDepthCode(exportBitDepth)
+        bitDepthCode = getBitDepthCode(exportFormat, exportGamma, exportBitDepth)
         #   Converts temp image to new bit depth
         pdb.gimp_image_convert_precision(tempImage, bitDepthCode)
     except:
@@ -1054,12 +1061,19 @@ def getBitDepthGamma(image):
     except:
         log.warning("ERROR: Cannot get images bitDepth")
         return " - ", " - "
+    
 
-
-def getBitDepthCode(bitDepth):
-    #   Returns Gimp code from desired bitDepth
-    for key, value in COLORMODEDATA.items():
-        if str(value["bitDepth"]) == bitDepth:
+def getBitDepthCode(format, gamma, bitDepth):
+    #   Seperates dict to float for .exr
+    if format == ".exr":
+        filtered_data = {key: value for key, value in COLORMODEDATA.items() if value["precision"] >= 500}
+    #   and integer for other formats
+    else:
+        filtered_data = {key: value for key, value in COLORMODEDATA.items() if value["precision"] < 500}
+    #   Matches gamma and bitDepth in dict
+    for key, value in filtered_data.items():
+        if value["gamma"] == gamma and value["bitDepth"] == int(bitDepth):
+            #   Returns matching Gimp code
             return value["precision"]
         
     return None
