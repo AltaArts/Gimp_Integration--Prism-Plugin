@@ -328,9 +328,29 @@ class Ui_wg_Gimp_Export(object):
 
         self.verticalLayout_2.addWidget(self.w_scale)
 
-        self.verticalSpacer = QSpacerItem(20, 5, QSizePolicy.Minimum, QSizePolicy.Fixed)
+        self.w_outGamma = QWidget(self.gb_export)
+        self.w_outGamma.setObjectName(u"w_outGamma")
+        self.horizontalLayout_24 = QHBoxLayout(self.w_outGamma)
+        self.horizontalLayout_24.setSpacing(0)
+        self.horizontalLayout_24.setObjectName(u"horizontalLayout_24")
+        self.horizontalLayout_24.setContentsMargins(9, 0, 9, 0)
+        self.l_outGamma = QLabel(self.w_outGamma)
+        self.l_outGamma.setObjectName(u"l_outGamma")
 
-        self.verticalLayout_2.addItem(self.verticalSpacer)
+        self.horizontalLayout_24.addWidget(self.l_outGamma)
+
+        self.horizontalSpacer_41 = QSpacerItem(113, 20, QSizePolicy.Expanding, QSizePolicy.Minimum)
+
+        self.horizontalLayout_24.addItem(self.horizontalSpacer_41)
+
+        self.cb_outGamma = QComboBox(self.w_outGamma)
+        self.cb_outGamma.setObjectName(u"cb_outGamma")
+        self.cb_outGamma.setMinimumSize(QSize(124, 0))
+
+        self.horizontalLayout_24.addWidget(self.cb_outGamma)
+
+
+        self.verticalLayout_2.addWidget(self.w_outGamma)
 
         self.w_outType = QWidget(self.gb_export)
         self.w_outType.setObjectName(u"w_outType")
@@ -700,8 +720,9 @@ class Ui_wg_Gimp_Export(object):
         self.l_specs_Gamma.setText(QCoreApplication.translate("wg_Gimp_Export", u"XXXX", None))
         self.l_specs_Alpha_text.setText(QCoreApplication.translate("wg_Gimp_Export", u"Has Alpha:", None))
         self.l_specs_Alpha.setText(QCoreApplication.translate("wg_Gimp_Export", u"XXXX", None))
-        self.l_scale.setText(QCoreApplication.translate("wg_Gimp_Export", u"Scale:", None))
-        self.l_outType.setText(QCoreApplication.translate("wg_Gimp_Export", u"Outputtype:", None))
+        self.l_scale.setText(QCoreApplication.translate("wg_Gimp_Export", u"Output Scale:", None))
+        self.l_outGamma.setText(QCoreApplication.translate("wg_Gimp_Export", u"Output Gamma:", None))
+        self.l_outType.setText(QCoreApplication.translate("wg_Gimp_Export", u"Output Format:", None))
         self.l_colorMode.setText(QCoreApplication.translate("wg_Gimp_Export", u"Color Mode", None))
         self.l_bitDepth.setText(QCoreApplication.translate("wg_Gimp_Export", u"Bit Depth", None))
         self.l_alphaFill.setText(QCoreApplication.translate("wg_Gimp_Export", u"Fill Transparent Pixels with:", None))
@@ -722,8 +743,4 @@ class Ui_wg_Gimp_Export(object):
         self.l_pathLast.setText(QCoreApplication.translate("wg_Gimp_Export", u"None", None))
         self.b_pathLast.setText(QCoreApplication.translate("wg_Gimp_Export", u"...", None))
     # retranslateUi
-
-
-
-
 
