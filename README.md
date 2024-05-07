@@ -38,14 +38,13 @@ Once added, you can either restart Prism2, or select the "Add existing plugin" (
 ![Add Existing Plugin](https://github.com/AltaArts/Gimp_Integration--Prism-Plugin/assets/86539171/d86e3b34-d172-4cd8-b238-147ff6a25106)<br/><br/>
 ![Select Plugin Folder](https://github.com/AltaArts/Gimp_Integration--Prism-Plugin/assets/86539171/d28d76f7-c11e-4daf-8f53-4a98e25b5918)
 
-
-
 Afterwards, you can select the Plugin autoload as desired:
 
-INSERT
+![AutoLoad](https://github.com/AltaArts/Gimp_Integration--Prism-Plugin/assets/86539171/1f0295c3-709d-4937-88fb-3d63d43d779c)
 
 Then to add the integration, go to the "DCC Apps" -> "Gimp" tab.  Then click the "add" button and navigate to the folder containing the gimp executable
 
+![Intergration](https://github.com/AltaArts/Gimp_Integration--Prism-Plugin/assets/86539171/8c0b64d6-b0c2-44fa-a159-fe7512d9b0c2)
 
 
 ## **Usage**
