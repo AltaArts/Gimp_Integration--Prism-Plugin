@@ -87,6 +87,7 @@ class Prism_Gimp_externalAccess_Functions(object):
         df_port = "40404"
         df_logSize = 500
         logPath = os.path.join(PLUGIN_PATH, "Logs", "Gimp-Prism_Log.log")
+        logPath = os.path.normpath(logPath)
 
         # Debug Log Level
         l_logLevel = QLabel("Gimp Msg Display")
@@ -256,16 +257,18 @@ class Prism_Gimp_externalAccess_Functions(object):
 
     @err_catcher(name=__name__)
     def openLog(self, origin):
+        logDir = os.path.dirname(origin.e_logPath.text())
 
-        logFile = origin.e_logPath.text()
+        try:
+            if os.name == 'nt':  # For Windows
+                subprocess.Popen(['explorer', logDir], shell=True)
+            elif os.name == 'posix':  # For Linux/Unix
+                subprocess.Popen(['xdg-open', logDir])
+            else:
+                self.core.popup(f"Error opening log dir:\n{e}")
 
-        if os.path.exists(logFile):
-            try:
-                subprocess.Popen([logFile], shell=True)
-            except Exception as e:
-                self.core.popup(f"Error opening log file:\n{e}")
-        else:
-            self.core.popup(f"Log file does not exist: {logFile}")
+        except Exception as e:
+            self.core.popup(f"Cannot open Log Dir: {e}")
 
 
     @err_catcher(name=__name__)
