@@ -35,9 +35,9 @@ or download the current code zip file from the green "Code" button above or on [
 
 Copy the directory named "Gimp" to a directory of your choice, or a Prism2 plugin directory.
 
-Prism's default plugin directories are: *{installation path}\Plugins\Apps* and *{installation Path}\Plugins\Custom*.
-
 It is suggested to have the Gimp plugin with the other DCC plugins in: *{drive}\ProgramData\Prism2\plugins*
+
+Prism's default plugin directories are: *{installation path}\Plugins\Apps* and *{installation Path}\Plugins\Custom*.
 
 You can add the additional plugin search paths in Prism2 settings.  Go to Settings->Plugins and click the gear icon.  This opens a dialogue and you may add additional search paths at the bottom.
 
@@ -51,25 +51,33 @@ Afterwards, you can select the Plugin autoload as desired:
 
 ![AutoLoad](https://github.com/AltaArts/Gimp_Integration--Prism-Plugin/assets/86539171/1f0295c3-709d-4937-88fb-3d63d43d779c)
 
-Then to add the integration, go to the "DCC Apps" -> "Gimp" tab.  Then click the "add" button and navigate to the folder containing the gimp executable
+To add the integration, go to the "DCC Apps" -> "Gimp" tab.  Then click the "add" button and navigate to the folder containing the Gimp executable - ie "Gimp-2.10.exe"
 
 ![Intergration](https://github.com/AltaArts/Gimp_Integration--Prism-Plugin/assets/86539171/8c0b64d6-b0c2-44fa-a159-fe7512d9b0c2)
 
 
 ## **Usage**
-Prism functions are accessed through the Prism menu in the top bar of Gimp's UI.  The communication server must be started before Prism functions may be executed.  This opens a socket port between Prism and the Gimp integrtion only, and no data is communicated outside the local computer.
+Prism functions are accessed through the Prism menu in the top bar of Gimp's UI.  The communication server must be started before Prism functions may be executed.  This opens a socket port between Prism and the Gimp integration only, and there is no data communicated outside the local computer.  You can change the socket number in Settings->DCCs->Gimp if needed.
 
-Default executable:
+If there is more than one version of Gimp installed, it is advisable to set the executable in the "Override" box in the DCC settings.
+
+Messages / logging:  Messages can be displayed several ways, with several levels of detail.  Gimp displays messages through the status bar at the bottom, and the "Error Console".
+
+INSERT ERROR CONSOLE
+
+There are three level of message display - but all messages will always be saved in the log.  With "Log Only", no messages will be displayed in the Gimp UI.  "Minimal" will display some messages that may be useful to the user such as "Starting Server".  "All" will display all messages in the UI.  Depending on how the Gimp UMessages in lower status bar vs Error console.
+
+INSERT LOG MENU
+
+The Gimp log may be viewed by opening the directory with the "open Log" button in Settings->DCCs->Gimp.  The log will update until it reaches the max size limit set in settings, and then will be renamed to "_OLD" with a maximum of those two files.  The logs are saved in the root directory of the Gimp plugin and you can change the save location in the settings.
 
 
-Messages / logging:
-Messages can be displayed several ways, with several levels of detail.  Viewing logfile.  Changing location. Details: Log Only, Minimal, All.  Messages in lower status bar vs Error console.
 
 Saving versions:
 
 Exporting images:
 
-Socket Port:
+
 
 
 
