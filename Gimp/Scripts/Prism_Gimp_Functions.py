@@ -194,9 +194,6 @@ class Prism_Gimp_Functions(object):
 
         except Exception as e:
             logger.error("Error sending data to GIMP: %s", e)
-            self.core.popup(f"Error sending data to GIMP:\n{e}")                                      #    TESTING
-            # Handle the error as needed
-
             return False
     
 ### ^^^^^ For Sending Commands to Gimp ^^^^^ ###
