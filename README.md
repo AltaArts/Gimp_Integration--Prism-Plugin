@@ -1,5 +1,5 @@
-# **Gimp Intergration for Prism Pipeline 2**
-A Gimp intergration to be used with version 2 of Prism Pipeline 
+# **Gimp Integration for Prism Pipeline 2**
+A Gimp integration to be used with version 2 of Prism Pipeline 
 
 Prism automates and simplifies the workflow of animation and VFX projects.
 
@@ -41,7 +41,7 @@ Afterwards, you can select the Plugin autoload as desired:
 
 INSERT
 
-Then to add the intergration, go to the "DCC Apps" -> "Gimp" tab.  Then click the "add" button and navigate to the folder containing the gimp executable
+Then to add the integration, go to the "DCC Apps" -> "Gimp" tab.  Then click the "add" button and navigate to the folder containing the gimp executable
 
 
 
