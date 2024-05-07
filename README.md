@@ -56,6 +56,9 @@ To add the integration, go to the "DCC Apps" -> "Gimp" tab.  Then click the "add
 ## **Usage**
 Prism functions are accessed through the Prism menu in the top bar of Gimp's UI.  The communication server must be started before Prism functions may be executed.  This opens a socket port between Prism and the Gimp integration only, and there is no data communicated outside the local computer.  You can change the socket number in Settings->DCCs->Gimp if needed.
 
+![Prism Menu](https://github.com/AltaArts/Gimp_Integration--Prism-Plugin/assets/86539171/46afa882-72d0-4153-b7bf-ae9cac63ebfc)
+
+
 If there is more than one version of Gimp installed, it is advisable to set the executable in the "Override" box in the DCC settings.
 
 Messages / logging:  Messages can be displayed several ways, with several levels of detail.  Gimp displays messages through the status bar at the bottom, and the "Error Console".
