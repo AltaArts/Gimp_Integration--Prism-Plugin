@@ -74,10 +74,7 @@ The Gimp log may be viewed by opening the directory with the "open Log" button i
 
 Exporting images:  To export (save) images we use the StateManager via a custom Gimp_Render state.  Various output image formats are supported, with more being added.  The current image's details will be displayed along with format-specific settings for each state.  A user has the option to scale the resulting image, or change the color mode and bit depth of the resulting export.  These changes will not alter the scenefile.
 
-
-INSERT STATEMANAGER
-
-
+![Gimp Render](https://github.com/AltaArts/Gimp_Integration--Prism-Plugin/assets/86539171/25c55eb1-a483-4b23-8739-73e879cd1c1d)
 
 
 
