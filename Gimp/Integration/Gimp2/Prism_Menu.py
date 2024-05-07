@@ -58,11 +58,9 @@ if "PRISM_ROOT" in os.environ:
     
 #   Gets set during Intergration installation
 else:
-    # PRISMROOT = r"C:/Prism2"
-    PRISMROOT = r"C:/Prism2"                         #   TODO CHANGE FOR INTERGRATION - change "p"
+    PRISMROOT = rPRISMROOTREPLACE
 
-# PLUGINROOT = r"C:/ProgramData/Prism2/plugins/Gimp"
-PLUGINROOT = r"C:/ProgramData/Prism2/plugins/Gimp"
+PLUGINROOT = rPLUGINROOTREPLACE
 
 #   Sets Prism executable
 if os.path.exists(os.path.join(PRISMROOT, "Python311")):

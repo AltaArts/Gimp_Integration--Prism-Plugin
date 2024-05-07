@@ -59,11 +59,9 @@ if "PRISM_ROOT" in os.environ:
     
 #   Gets set during Intergration installation
 else:
-    # PRISMROOT = r"C:/Prism2"
-    PRISMROOT = r"C:/Prism2"                         #   TODO CHANGE FOR INTERGRATION - change "p"
+    PRISMROOT = rPRISMROOTREPLACE
 
-# PLUGINROOT = r"C:/ProgramData/Prism2/plugins/Gimp"
-PLUGINROOT = r"C:/ProgramData/Prism2/plugins/Gimp"                                  #   TODO CHANGE FOR INTERGRATION - change "p"
+PLUGINROOT = rPLUGINROOTREPLACE
 
 ##    CONSTANTS    ##                                                       
 PLUGIN_PATH = os.path.dirname(__file__)
@@ -989,22 +987,11 @@ def getStates(data):
     if numImages > 0:
         #   Gets Gimp Image from supplied filepath
         currentImage = getImageFromPath(data.get("imagePath"))
-        currentDrawable = pdb.gimp_image_get_active_layer(currentImage)
-
-        try:
-            xRez, yRez = getImageRez(currentImage)
-            bitDepth, gamma = getBitDepthGamma(currentImage)
-            colorMode = getColorMode(currentDrawable)
-            hasAlpha = imageHasAlpha(currentImage)
-
-        except Exception as e:
-            log.warning("ERROR in getting Image Details:  %s" % e)
 
         try:
             #   Gets parasite from image
             parasite  = currentImage.parasite_find("stateData")
             if parasite:
-                #   Converts buffer to unicode
                 stateData = json.loads(parasite.data)
                 log.debug("State data retrieved")
 
