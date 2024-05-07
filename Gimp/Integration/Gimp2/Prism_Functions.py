@@ -59,9 +59,9 @@ if "PRISM_ROOT" in os.environ:
     
 #   Gets set during Intergration installation
 else:
-    PRISMROOT = r"C:/Prism2"
+    PRISMROOT = rPRISMROOTREPLACE
 
-PLUGINROOT = r"C:/ProgramData/Prism2/plugins/Gimp"
+PLUGINROOT = rPLUGINROOTREPLACE
 
 ##    CONSTANTS    ##                                                       
 PLUGIN_PATH = os.path.dirname(__file__)
