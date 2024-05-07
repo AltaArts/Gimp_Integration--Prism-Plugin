@@ -43,7 +43,7 @@
 from Prism_Gimp_Variables import Prism_Gimp_Variables
 from Prism_Gimp_externalAccess_Functions import (
     Prism_Gimp_externalAccess_Functions,
-)
+    )
 from Prism_Gimp_Integration import Prism_Gimp_Integration
 
 

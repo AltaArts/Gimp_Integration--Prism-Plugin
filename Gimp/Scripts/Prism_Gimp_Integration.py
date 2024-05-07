@@ -41,7 +41,6 @@
 ###########################################################################
 
 
-from genericpath import isdir, isfile
 import os
 import sys
 import platform
@@ -100,6 +99,7 @@ class Prism_Gimp_Integration(object):
 
         return execPath
 
+
     @err_catcher(name=__name__)
     def getGimpPath(self):
         try:
@@ -146,7 +146,6 @@ class Prism_Gimp_Integration(object):
     @err_catcher(name=__name__)
     def addIntegration(self, installPath):
         try:
-
             if platform.system() != "Windows":
                 msgStr = ("Gimp may only be Installed on Windows at this time")
                 QMessageBox.warning(self.core.messageParent, "Prism Integration", msgStr)
@@ -244,9 +243,6 @@ class Prism_Gimp_Integration(object):
             return False
 
 
-
-
-
     @err_catcher(name=__name__)
     def removeIntegration(self, installPath):
         try:
@@ -271,7 +267,6 @@ class Prism_Gimp_Integration(object):
                 for dirname in dirnames:
                     removeDir = os.path.join(dirpath, dirname)
                     shutil.rmtree(removeDir)
-
 
             return True
 

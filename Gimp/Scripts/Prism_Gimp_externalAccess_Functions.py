@@ -147,8 +147,21 @@ class Prism_Gimp_externalAccess_Functions(object):
         container_settings_2 = QWidget()
         container_settings_2.setLayout(lo_settings_2)
 
+        #   Checks if Gimp has a valid intergration and
+        #   and enables the Gimp settings
+        gimpInstalled = False
+        integrations = self.core.integration.getIntegrations()
+        if "Gimp" in integrations:
+            try:
+                gimpPaths = integrations["Gimp"]  # Access the list of paths
+                gimpPath = gimpPaths[0]            # Extract the first path
+                if os.path.exists(gimpPath):
+                    gimpInstalled = True
+            except:
+                pass
+        origin.gb_settings.setEnabled(gimpInstalled)
+
         origin.gb_settings.setStyleSheet("QGroupBox { margin-left: 10px; margin-right: 10px; }")
-        # lo_settings.setVerticalSpacing(1)  # Set the spacing between rows to 5 pixels
 
         #   Connections
         origin.e_gimp_port.editingFinished.connect(lambda: self.checkPortInput(origin))

@@ -44,7 +44,6 @@
 import os
 import socket
 import json
-from datetime import datetime
 import logging
 import tempfile
 
