@@ -49,6 +49,7 @@ Then to add the integration, go to the "DCC Apps" -> "Gimp" tab.  Then click the
 
 
 ## **Usage**
+A Prism functions are utilized from a Prism menu in Gimp's UI.
 
 
 
