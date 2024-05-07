@@ -113,6 +113,10 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
         self.outputFormats = [".png", ".exr", ".jpg", ".psd"]           #   TODO
         self.cb_format.addItems(self.outputFormats)
 
+        #   Export Gamma
+        self.outputGamma = ["sRGB", "Linear"]
+        self.cb_outGamma.addItems(self.outputGamma)
+
         #   Scale options for export
         scaleOptions = ["10", "25", "50", "100", "150", "200", "300"]
         self.cb_scale.addItems(scaleOptions)
@@ -203,6 +207,10 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
         tip = ("Export image scale based on image resolution.\n"
                "Does not affect scenefile.")
         self.cb_scale.setToolTip(tip)
+
+        tip = ("Display gamma of exported image.\n"
+               "Does not affect scenefile.")
+        self.cb_outGamma.setToolTip(tip)
 
         tip = "Export File Format"
         self.cb_format.setToolTip(tip)
@@ -321,6 +329,11 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
 
         if "specs_hasAlpha" in stateData:
             self.l_specs_Alpha.setText(str(stateData["specs_hasAlpha"]))
+
+        if "outputGamma" in stateData:
+            idx = self.cb_outGamma.findText(stateData["outputGamma"])
+            if idx != -1:
+                self.cb_outGamma.setCurrentIndex(idx)
 
         if "exportScale" in stateData:
             idx = self.cb_scale.findText(stateData["exportScale"])
@@ -544,6 +557,7 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
         self.b_changeTask.clicked.connect(self.changeTask)
         self.cb_master.activated.connect(self.stateManager.saveStatesToScene)
         self.cb_outPath.activated.connect(self.stateManager.saveStatesToScene)
+        self.cb_outGamma.activated.connect(self.stateManager.saveStatesToScene)
         self.cb_format.activated.connect(self.updateUiOptions)
         self.cb_colorMode.activated.connect(self.updateUiOptions)
         self.cb_format.activated.connect(self.stateManager.saveStatesToScene)
@@ -1019,7 +1033,8 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
                 "exportScale": self.cb_scale.currentText(),
                 "colorMode": self.cb_colorMode.currentText(),
                 "bitDepth": self.cb_bitDepth.currentText(),
-                "alphaFill": self.cb_alphaFill.currentText()
+                "alphaFill": self.cb_alphaFill.currentText(),
+                "outputGamma": self.cb_outGamma.currentText()
                 }
 
             #   Add additional settings based on format
@@ -1174,6 +1189,7 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
             "masterVersion": self.cb_master.currentText(),
             "curoutputpath": self.cb_outPath.currentText(),
             "exportScale": self.cb_scale.currentText(),
+            "outputGamma": self.cb_outGamma.currentText(),
             "outputFormat": self.cb_format.currentText(),
             "colorMode": self.cb_colorMode.currentText(),
             "bitDepth": self.cb_bitDepth.currentText(),
