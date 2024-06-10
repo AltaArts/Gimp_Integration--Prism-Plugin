@@ -15,7 +15,7 @@ https://prism-pipeline.com/
 - Hint: if you click an Prism Menu item such as "State Manager" and nothing happens, you probably need to start the server in the Prism menu. If message display is active, there will be a reminder shown.
 - Hint: clicking a Prism action from the menu loads an instance of Prism, and thus there is a slight delay for the actions such as requesting the Project Browser or State Manager.
 - New unsaved .xcr scenefiles cannot be saved into project using "Create new version from Current".  Either use presets for new scenefile, or "Copy path for next version".
-- As of now: .png, .exr, .jpg, and .psd exports are supported.  More formats will be added.
+- As of now: .png, .exr, .jpg, .tif, and .psd exports are supported.  More formats will be added.
 - Gimp saves .exr's in full-float 32bit zip compression only.  
 - To aid is use, tooltips are provided throughout.
 <br/><br/>
