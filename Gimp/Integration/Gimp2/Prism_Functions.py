@@ -427,17 +427,21 @@ def exportFile(data):
         currentImage = getImageFromPath(data.get("imagePath"))
         currentDrawable = pdb.gimp_image_get_active_layer(currentImage)
         filePath = rSettings["outputName"]
-
-        #   Handles file type
         outputType = rSettings["outputType"]
-        if outputType == ".png":
-            result = exportPNG(rSettings, currentImage, currentDrawable, filePath)
-        elif outputType == ".exr":
-            result = exportEXR(rSettings, currentImage, currentDrawable, filePath)
-        elif outputType == ".jpg":
-            result = exportJPG(rSettings, currentImage, currentDrawable, filePath)
-        elif outputType == ".psd":
-            result = exportPSD(rSettings, currentImage, currentDrawable, filePath)
+
+        exportFuncts = {".png": exportPNG,
+                        ".exr": exportEXR,
+                        ".jpg": exportJPG,
+                        ".psd": exportPSD,
+                        ".tif": exportTIFF
+                        }
+        
+        # Call the appropriate export function
+        if outputType in exportFuncts:
+            log.debug("Exporting %s" % outputType)
+            result = exportFuncts[outputType](rSettings, currentImage, currentDrawable, filePath)
+        else:
+            log.warning("Export file type not supported")
 
         if result:
             sendPayload = "Result=Success"
@@ -680,6 +684,7 @@ def saveJPG(image=None,
     except Exception as e:
         log.warning("ERROR:  ", e)
         return False
+    
 
 #   Saves as a .psd to the Media Tab
 def exportPSD(rSettings, currentImage, currentDrawable, filePath):
@@ -721,18 +726,123 @@ def savePSD(image=None,
         return False
 
 
+def exportTIFF(rSettings, currentImage, currentDrawable, filePath):
+    bgLayer = False
+
+    compression = rSettings["tiff_Compression"]
+    useBigTIFF = rSettings["tiff_useBigTiff"]
+    saveTransPx = rSettings["tiff_SaveTransPx"]
+    colorMode = rSettings["colorMode"]
+    bitDepth = rSettings["bitDepth"]
+    exportScale = int(rSettings["exportScale"])
+    alphaFill = rSettings["alphaFill"]
+    exportGamma = rSettings["outputGamma"]
+    exportFormat = rSettings["outputType"]
+
+    tiffCompressMap = {"None": 0,
+                       "LZW (lossless)": 1,
+                       "Pack Bits (lossless)": 2,
+                       "Deflate (lossless)": 3,
+                       "JPEG (lossy)": 4
+                        }
+    
+    compressCode = tiffCompressMap.get(compression)
+
+    #   Creates temp export image
+    tempImage, tempLayer = createTempImage(currentImage,
+                                           exportFormat,
+                                           exportGamma,
+                                           exportScale,
+                                           colorMode,
+                                           bitDepth,
+                                           alphaFill)
+
+    log.debug("Saving TIFF")
+
+    #   Sends to save method
+    result = saveTIFF(tempImage,
+                      tempLayer,
+                      filePath,
+                      compressCode,
+                      boolToBit(useBigTIFF),
+                      boolToBit(saveTransPx)
+                      )
+
+    #   Removes temp image
+    pdb.gimp_image_delete(tempImage)
+    #   Removes unsaved changes flag
+    pdb.gimp_image_clean_all(currentImage)
+
+    return result
+
+
+def saveTIFF(image=None,
+            drawable=None,
+            filePath=None,
+            compression=3,
+            useBigTiff=0,
+            saveTransPx=0
+            ):
+
+    try:
+        #   For Gimp bug with filenaming using tiff bigTiff & save2
+        fileHack = "file:///%s" % filePath
+
+        if useBigTiff == 1:
+            pdb.file_bigtiff_save(image,
+                                drawable,
+                                fileHack,
+                                fileHack,
+                                compression,
+                                saveTransPx,
+                                useBigTiff)
+            
+            log.debug("Saved BigTIFF")
+            return True
+        
+        else:
+            pdb.file_tiff_save2(image,
+                                drawable,
+                                fileHack,
+                                fileHack,
+                                compression,
+                                saveTransPx)
+            
+            log.debug("Saved Tiff using save2")
+            return True
+
+    #   Fallback in case using the file hack fails or they fix it
+    except RuntimeError: 
+        pdb.file_tiff_save(image,
+                            drawable,
+                            filePath,
+                            filePath,
+                            compression
+                            )
+        
+        log.debug("Saved Fallback TIFF")
+
+        return True
+
+    except Exception as e:
+        log.warning("ERROR:  ", e)
+        return False
+
+
 #   Gets Gimp Image from supplied filepath
 def getImageFromPath(imagePath):
     #   Iterates through open images and finds the image matching the name
-    try:
-        log.debug("Getting Gimp Image")
 
+    log.debug("Getting Gimp Image")
+
+    try:
         fileName = os.path.basename(imagePath)
         for image in gimp.image_list():
             if image.name == fileName:
+                log.debug("Resolved Image from Path")
                 return image
     except:    
-        log.debug("ERROR: Failed to get Gimp Image")
+        log.debug("ERROR: Failed to get Gimp Image from Path")
         return None
 
 
@@ -743,6 +853,14 @@ def bitToBool(binary):
     else:
         bool = False
     return bool
+
+
+#   Converts True/False to Gimp 0/1
+def boolToBit(bool):
+    if bool == True:
+        return 1
+    else:
+        return 0
 
 
 def switchUIimages(oldImage, newImage):
@@ -825,19 +943,25 @@ def createTempImage(currentImage,
                     alphaFill
                     ):
 
+    log.debug("Creating Temp Image")
+
     #   Gets image resolution
     xRez, yRez = getImageRez(currentImage)
     #   Creates copy to temp image
     tempImage = pdb.gimp_image_duplicate(currentImage)
 
+    log.debug("Converting Bit Depth of Temp Image")
     try:
         #   Converts bitDepth to Gimp code
         bitDepthCode = getBitDepthCode(exportFormat, exportGamma, exportBitDepth)
+        log.debug("bitDepthCode: %s" % bitDepthCode)                                    #   TESTING
+
         #   Converts temp image to new bit depth
         pdb.gimp_image_convert_precision(tempImage, bitDepthCode)
     except:
         log.warning("ERROR: Failed to convert image's bit depth")
 
+    log.debug("Applying Alpha Background to Temp Image")
     #   Checks if bottom layer has alpha
     if exportColorMode not in ["RGBA", "GRAYA"]:
         try:
@@ -853,6 +977,7 @@ def createTempImage(currentImage,
         #   Merge visable to keep alpha channel if output is RGBA or GRAYA
         mergedLayer = pdb.gimp_image_merge_visible_layers(tempImage, 1)
 
+    log.debug("Converting Temp Image Color Mode")
     try:
         #   Converts to GRAY if needed
         if getColorMode(mergedLayer) == "RGB":
@@ -866,6 +991,7 @@ def createTempImage(currentImage,
     except Exception as e:
         log.warning("ERROR: Cannot convert color mode")
 
+    log.debug("Scaling Temp Image")
     try:
         #   Scales image from options
         if exportScale != 100:
