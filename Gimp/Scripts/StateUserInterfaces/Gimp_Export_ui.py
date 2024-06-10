@@ -634,6 +634,87 @@ class Ui_wg_Gimp_Export(object):
 
         self.verticalLayout_2.addWidget(self.gb_pngOptions)
 
+        self.gb_tiffOptions = QGroupBox(self.gb_export)
+        self.gb_tiffOptions.setObjectName(u"gb_tiffOptions")
+        self.gb_tiffOptions.setEnabled(True)
+        self.gb_jpg_options_6 = QVBoxLayout(self.gb_tiffOptions)
+        self.gb_jpg_options_6.setObjectName(u"gb_jpg_options_6")
+        self.horizontalLayout_6 = QHBoxLayout()
+        self.horizontalLayout_6.setObjectName(u"horizontalLayout_6")
+        self.verticalLayout_7 = QVBoxLayout()
+        self.verticalLayout_7.setObjectName(u"verticalLayout_7")
+        self.verticalLayout_7.setContentsMargins(-1, -1, 40, -1)
+        self.horizontalLayout_7 = QHBoxLayout()
+        self.horizontalLayout_7.setObjectName(u"horizontalLayout_7")
+        self.horizontalSpacer_25 = QSpacerItem(40, 20, QSizePolicy.Expanding, QSizePolicy.Minimum)
+
+        self.horizontalLayout_7.addItem(self.horizontalSpacer_25)
+
+        self.l_tiff_compress = QLabel(self.gb_tiffOptions)
+        self.l_tiff_compress.setObjectName(u"l_tiff_compress")
+        self.l_tiff_compress.setLayoutDirection(Qt.RightToLeft)
+
+        self.horizontalLayout_7.addWidget(self.l_tiff_compress)
+
+
+        self.verticalLayout_7.addLayout(self.horizontalLayout_7)
+
+        self.l_tiff_useBig = QLabel(self.gb_tiffOptions)
+        self.l_tiff_useBig.setObjectName(u"l_tiff_useBig")
+        self.l_tiff_useBig.setLayoutDirection(Qt.RightToLeft)
+        self.l_tiff_useBig.setAlignment(Qt.AlignRight|Qt.AlignTrailing|Qt.AlignVCenter)
+
+        self.verticalLayout_7.addWidget(self.l_tiff_useBig)
+
+        self.l_tiff_alphaColor = QLabel(self.gb_tiffOptions)
+        self.l_tiff_alphaColor.setObjectName(u"l_tiff_alphaColor")
+        self.l_tiff_alphaColor.setLayoutDirection(Qt.RightToLeft)
+        self.l_tiff_alphaColor.setAlignment(Qt.AlignRight|Qt.AlignTrailing|Qt.AlignVCenter)
+
+        self.verticalLayout_7.addWidget(self.l_tiff_alphaColor)
+
+
+        self.horizontalLayout_6.addLayout(self.verticalLayout_7)
+
+        self.verticalLayout_8 = QVBoxLayout()
+        self.verticalLayout_8.setObjectName(u"verticalLayout_8")
+        self.verticalLayout_8.setContentsMargins(-1, -1, 40, -1)
+        self.horizontalLayout_8 = QHBoxLayout()
+        self.horizontalLayout_8.setObjectName(u"horizontalLayout_8")
+        self.horizontalSpacer_18 = QSpacerItem(40, 20, QSizePolicy.Expanding, QSizePolicy.Minimum)
+
+        self.horizontalLayout_8.addItem(self.horizontalSpacer_18)
+
+        self.cb_tiff_compress = QComboBox(self.gb_tiffOptions)
+        self.cb_tiff_compress.setObjectName(u"cb_tiff_compress")
+        self.cb_tiff_compress.setMinimumSize(QSize(124, 0))
+
+        self.horizontalLayout_8.addWidget(self.cb_tiff_compress)
+
+
+        self.verticalLayout_8.addLayout(self.horizontalLayout_8)
+
+        self.chb_tiff_useBig = QCheckBox(self.gb_tiffOptions)
+        self.chb_tiff_useBig.setObjectName(u"chb_tiff_useBig")
+        self.chb_tiff_useBig.setLayoutDirection(Qt.LeftToRight)
+
+        self.verticalLayout_8.addWidget(self.chb_tiff_useBig)
+
+        self.chb_tiff_alphaColor = QCheckBox(self.gb_tiffOptions)
+        self.chb_tiff_alphaColor.setObjectName(u"chb_tiff_alphaColor")
+        self.chb_tiff_alphaColor.setLayoutDirection(Qt.LeftToRight)
+
+        self.verticalLayout_8.addWidget(self.chb_tiff_alphaColor)
+
+
+        self.horizontalLayout_6.addLayout(self.verticalLayout_8)
+
+
+        self.gb_jpg_options_6.addLayout(self.horizontalLayout_6)
+
+
+        self.verticalLayout_2.addWidget(self.gb_tiffOptions)
+
         self.verticalSpacer_3 = QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding)
 
         self.verticalLayout_2.addItem(self.verticalSpacer_3)
@@ -689,6 +770,7 @@ class Ui_wg_Gimp_Export(object):
         self.cb_jpg_smooth.setCurrentIndex(-1)
         self.cb_jpg_subSample.setCurrentIndex(-1)
         self.cb_png_compress.setCurrentIndex(-1)
+        self.cb_tiff_compress.setCurrentIndex(-1)
 
 
         QMetaObject.connectSlotsByName(wg_Gimp_Export)
@@ -739,6 +821,11 @@ class Ui_wg_Gimp_Export(object):
         self.chb_png_interlaced.setText(QCoreApplication.translate("wg_Gimp_Export", u"Interlaced          ", None))
         self.chb_png_rez.setText(QCoreApplication.translate("wg_Gimp_Export", u"Save Resolution", None))
         self.chb_png_layerOffset.setText(QCoreApplication.translate("wg_Gimp_Export", u"Save Layer Offset", None))
+        self.l_tiff_compress.setText(QCoreApplication.translate("wg_Gimp_Export", u"Compression Method", None))
+        self.l_tiff_useBig.setText(QCoreApplication.translate("wg_Gimp_Export", u"Save as BIGTIFF", None))
+        self.l_tiff_alphaColor.setText(QCoreApplication.translate("wg_Gimp_Export", u"Save Tranparent Color", None))
+        self.chb_tiff_useBig.setText("")
+        self.chb_tiff_alphaColor.setText("")
         self.gb_previous.setTitle(QCoreApplication.translate("wg_Gimp_Export", u"Last export", None))
         self.l_pathLast.setText(QCoreApplication.translate("wg_Gimp_Export", u"None", None))
         self.b_pathLast.setText(QCoreApplication.translate("wg_Gimp_Export", u"...", None))
