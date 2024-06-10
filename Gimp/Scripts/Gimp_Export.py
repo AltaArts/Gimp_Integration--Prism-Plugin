@@ -110,7 +110,7 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
         self.tasknameRequired = True
 
         #   Implemented export formats
-        self.outputFormats = [".png", ".exr", ".jpg", ".psd"]           #   TODO
+        self.outputFormats = [".png", ".exr", ".jpg", ".tif", ".psd"]           #   TODO
         self.cb_format.addItems(self.outputFormats)
 
         #   Export Gamma
@@ -154,6 +154,10 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
         self.chb_jpg_optimize.setChecked(True)
         self.chb_jpg_progressive.setChecked(False)
         self.chb_jpg_baseline.setChecked(True)
+
+        tiffCompressOptions = ["None", "LZW (lossless)", "Pack Bits (lossless)", "Deflate (lossless)", "JPEG (lossy)"]
+        self.cb_tiff_compress.addItems(tiffCompressOptions)
+        self.cb_tiff_compress.setCurrentIndex(3)
 
         self.setToolTips()
         self.connectEvents()
@@ -280,10 +284,24 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
                "Useful for web, but slightly larger file.")
         self.chb_jpg_progressive.setToolTip(tip)
         
-        tip = ("Choose to encode without baseline\n"
+        tip = ("Choose to encode without baseline.\n"
                "Should usually keep enabled")
         self.chb_jpg_baseline.setToolTip(tip)
-        
+
+        tip = "Choose method of compression."
+        self.l_tiff_compress.setToolTip(tip)
+        self.cb_tiff_compress.setToolTip(tip)
+
+        tip = ("Save as a BigTIFF file.\n"
+               "This allows for file sizes greater than 4gb."
+               "Not all applications can read BigTIFFs.")
+        self.l_tiff_useBig.setToolTip(tip)
+        self.chb_tiff_useBig.setToolTip(tip)
+
+        tip = "Save color values of transparent pixels"
+        self.l_tiff_alphaColor.setToolTip(tip)
+        self.chb_tiff_alphaColor.setToolTip(tip)
+
 
     @err_catcher(name=__name__)
     def loadData(self, stateData):
@@ -406,6 +424,17 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
 
         if "jpg_Baseline" in stateData:
             self.chb_jpg_baseline.setChecked(stateData["jpg_Baseline"])
+
+        if "tiff_Compression" in stateData:
+            idx = self.cb_tiff_compress.findText(stateData["tiff_Compression"])
+            if idx != -1:
+                self.cb_tiff_compress.setCurrentIndex(idx)
+
+        if "tiff_useBigTiff" in stateData:
+            self.chb_tiff_alphaColor.setChecked(stateData["tiff_useBigTiff"])
+
+        if "tiff_SaveTransPx" in stateData:
+            self.chb_tiff_alphaColor.setChecked(stateData["tiff_SaveTransPx"])
 
         if "lastexportpath" in stateData:
             lePath = self.core.fixPath(stateData["lastexportpath"])
@@ -547,7 +576,6 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
             self.l_specs_Alpha.setText(str(imageSpecs["hasAlpha"]))
 
 
-
     @err_catcher(name=__name__)
     def connectEvents(self):
         self.e_name.textChanged.connect(self.nameChanged)
@@ -586,6 +614,7 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
         self.gb_imageOptions.hide()
         self.gb_jpgOptions.hide()
         self.gb_pngOptions.hide()
+        self.gb_tiffOptions.hide()
 
         match format:
             case ".jpg":
@@ -616,6 +645,15 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
                 colorModeIdx = 0
                 imageBitDepth = ["8", "16", "32"]
                 bitIdx = 1
+
+            case ".tif":
+                self.gb_imageOptions.show()
+                self.gb_tiffOptions.show()
+                imageColorMode = ["RGB", "RGBA", "GRAY", "GRAYA"]
+                colorModeIdx = 0
+                imageBitDepth = ["8", "16"]
+                bitIdx = 1
+
 
         #   Clear then load options
         self.cb_colorMode.clear()
@@ -1064,6 +1102,12 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
                 case ".psd":
                     pass
 
+                case ".tif":
+                    rSettings.update({"tiff_Compression": self.cb_tiff_compress.currentText(),
+                                    "tiff_useBigTiff": self.chb_tiff_useBig.isChecked(),
+                                    "tiff_SaveTransPx": self.chb_tiff_alphaColor.isChecked()
+                                    })
+
 
             self.core.appPlugin.sm_render_preSubmit(self, rSettings)
 
@@ -1207,6 +1251,9 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
             "jpg_Optimize": self.chb_jpg_optimize.isChecked(),
             "jpg_Progressive": self.chb_jpg_progressive.isChecked(),
             "jpg_Baseline": self.chb_jpg_baseline.isChecked(),
+            "tiff_Compression": self.cb_tiff_compress.currentText(),
+            "tiff_useBigTiff": self.chb_tiff_useBig.isChecked(),
+            "tiff_SaveTransPx": self.chb_tiff_alphaColor.isChecked(),
             "lastexportpath": self.l_pathLast.text().replace("\\", "/"),
             "stateenabled": self.core.getCheckStateValue(self.state.checkState(0)),
         }

@@ -44,7 +44,7 @@ import os
 
 class Prism_Gimp_Variables(object):
     def __init__(self, core, plugin):
-        self.version = "v2.0.5-1.0"
+        self.version = "v2.0.5-1.1"
         self.pluginName = "Gimp"
         self.pluginType = "App"
         self.appShortName = "Gimp"
