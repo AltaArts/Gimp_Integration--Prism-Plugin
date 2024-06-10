@@ -293,7 +293,7 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
         self.cb_tiff_compress.setToolTip(tip)
 
         tip = ("Save as a BigTIFF file.\n"
-               "This allows for file sizes greater than 4gb."
+               "This allows for file sizes greater than 4gb.\n"
                "Not all applications can read BigTIFFs.")
         self.l_tiff_useBig.setToolTip(tip)
         self.chb_tiff_useBig.setToolTip(tip)
@@ -448,6 +448,7 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
                 )
 
         self.updateUi()
+        self.updateUiOptions()
         self.alphaFillDisplay()
 
         self.stateManager.saveStatesToScene
