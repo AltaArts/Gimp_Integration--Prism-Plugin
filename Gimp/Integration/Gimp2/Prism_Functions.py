@@ -391,7 +391,7 @@ def saveXCF(imagePath, savePath):
             currentImage = getImageFromPath(imagePath)
         else:
             #   Loads the non-.xcf into a new temp image
-            currentImage = pdb.file_png_load(imagePath, imagePath)
+            currentImage = pdb.gimp_file_load(imagePath, imagePath)
 
         currentDrawable = pdb.gimp_image_get_active_layer(currentImage)
         #   Saves the image to .xcf using supplied Prism Path
@@ -433,7 +433,8 @@ def exportFile(data):
                         ".exr": exportEXR,
                         ".jpg": exportJPG,
                         ".psd": exportPSD,
-                        ".tif": exportTIFF
+                        ".tif": exportTIFF,
+                        ".pdf": exportPDF
                         }
         
         # Call the appropriate export function
@@ -446,11 +447,11 @@ def exportFile(data):
         if result:
             sendPayload = "Result=Success"
         else:
-            sendPayload = "Result=Failed"
+            sendPayload = "error - Failed"
 
     except:
         log.warning("ERROR: Failed to Export Image")
-        sendPayload = "Result=Failed"
+        sendPayload = "error - Failed"
 
     #   Refreshes UI
     pdb.gimp_progress_end()
@@ -506,7 +507,6 @@ def exportPNG(rSettings, currentImage, currentDrawable, filePath):
     pdb.gimp_image_delete(tempImage)
     #   Removes unsaved changes flag
     pdb.gimp_image_clean_all(currentImage)
-
 
     return result
 
@@ -824,6 +824,77 @@ def saveTIFF(image=None,
 
         return True
 
+    except Exception as e:
+        log.warning("ERROR:  ", e)
+        return False
+
+
+def exportPDF(rSettings, currentImage, currentDrawable, filePath):
+    bgLayer = False
+
+    omitHidden = rSettings["pdf_OmitHidden"]
+    convertToVector = rSettings["pdf_ConvertToVector"]
+    applyLayers = rSettings["pdf_ApplyLayers"]
+
+    colorMode = rSettings["colorMode"]
+    bitDepth = rSettings["bitDepth"]
+    exportScale = int(rSettings["exportScale"])
+    alphaFill = rSettings["alphaFill"]
+    exportGamma = rSettings["outputGamma"]
+    exportFormat = rSettings["outputType"]
+
+    #   Creates temp export image
+    tempImage, tempLayer = createTempImage(currentImage,
+                                        exportFormat,
+                                        exportGamma,
+                                        exportScale,
+                                        colorMode,
+                                        bitDepth,
+                                        alphaFill)
+
+    log.debug("Saving PDF")
+
+    #   Sends to save method
+    result = savePDF(tempImage,
+                      tempLayer,
+                      filePath,
+                      boolToBit(convertToVector),
+                      boolToBit(omitHidden),
+                      boolToBit(applyLayers)
+                      )
+
+    #   Removes temp image
+    pdb.gimp_image_delete(tempImage)
+    #   Removes unsaved changes flag
+    pdb.gimp_image_clean_all(currentImage)
+
+    return result
+
+
+def savePDF(image=None,
+            drawable=None,
+            filePath=None,
+            vectorize=1,
+            ignore_hidden=1,
+            apply_masks=0,
+            layers_as_pages=0,
+            reverse_order=0
+            ):
+    
+    try:
+        pdb.file_pdf_save2(image,
+                            drawable,
+                            filePath,
+                            filePath,
+                            vectorize,
+                            ignore_hidden,
+                            apply_masks,
+                            layers_as_pages,
+                            reverse_order)
+        
+        log.debug("Saved PDF")
+        return True
+        
     except Exception as e:
         log.warning("ERROR:  ", e)
         return False
