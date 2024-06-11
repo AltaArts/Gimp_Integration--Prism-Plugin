@@ -77,6 +77,7 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
     stateCategories = {"Render": [{"label": className, "stateType": className}]}
 
 
+
     @err_catcher(name=__name__)
     def setup(self, state, core, stateManager, node=None, stateData=None):
         self.state = state
@@ -87,6 +88,8 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
         self.allowCustomContext = False
         self.renderingStarted = False
         self.cleanOutputdir = True
+
+        self.core.registerCallback("onStateManagerClose", self.stateManager.saveStatesToScene, plugin=self)
 
         self.getGimpPluginConfig()
         self.setupUi(self)
@@ -110,7 +113,7 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
         self.tasknameRequired = True
 
         #   Implemented export formats
-        self.outputFormats = [".png", ".exr", ".jpg", ".tif", ".psd"]           #   TODO
+        self.outputFormats = [".png", ".exr", ".jpg", ".tif", ".pdf", ".psd"]
         self.cb_format.addItems(self.outputFormats)
 
         #   Export Gamma
@@ -158,6 +161,9 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
         tiffCompressOptions = ["None", "LZW (lossless)", "Pack Bits (lossless)", "Deflate (lossless)", "JPEG (lossy)"]
         self.cb_tiff_compress.addItems(tiffCompressOptions)
         self.cb_tiff_compress.setCurrentIndex(3)
+
+        self.chb_pdf_omitHidden.setChecked(True)
+        self.chb_pdf_convertToVector.setChecked(True)
 
         self.setToolTips()
         self.connectEvents()
@@ -302,6 +308,21 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
         self.l_tiff_alphaColor.setToolTip(tip)
         self.chb_tiff_alphaColor.setToolTip(tip)
 
+        tip = "Omits layers that are not enabled or with zero opacity."
+        self.chb_pdf_omitHidden.setToolTip(tip)
+
+        tip = "Convert bitmaps to vector graphics where possible."
+        self.chb_pdf_convertToVector.setToolTip(tip)
+
+        tip = "Apply layer masks before export."
+        self.chb_pdf_applyLayers.setToolTip(tip)
+
+        tip = ("Saves the .psd file to the SceneBrowser next to the original\n"
+               "and will use the same version number as the original .xcf file.\n"
+               "This will not save to the Media tab.")
+        self.chb_psd_saveAsScene.setToolTip(tip)
+
+
 
     @err_catcher(name=__name__)
     def loadData(self, stateData):
@@ -435,6 +456,18 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
 
         if "tiff_SaveTransPx" in stateData:
             self.chb_tiff_alphaColor.setChecked(stateData["tiff_SaveTransPx"])
+
+        if "pdf_OmitHidden" in stateData:
+            self.chb_pdf_omitHidden.setChecked(stateData["pdf_OmitHidden"])
+
+        if "pdf_ConvertToVector" in stateData:
+            self.chb_pdf_convertToVector.setChecked(stateData["pdf_ConvertToVector"])
+
+        if "pdf_ApplyLayers" in stateData:
+            self.chb_pdf_applyLayers.setChecked(stateData["pdf_ApplyLayers"])
+
+        if "psd_SaveAsScenefile" in stateData:
+            self.chb_psd_saveAsScene.setChecked(stateData["psd_SaveAsScenefile"])
 
         if "lastexportpath" in stateData:
             lePath = self.core.fixPath(stateData["lastexportpath"])
@@ -599,6 +632,7 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
         self.chb_jpg_optimize.toggled.connect(self.stateManager.saveStatesToScene)
         self.chb_jpg_progressive.toggled.connect(self.stateManager.saveStatesToScene)
         self.chb_jpg_baseline.toggled.connect(self.stateManager.saveStatesToScene)
+        self.chb_psd_saveAsScene.toggled.connect(self.stateManager.saveStatesToScene)
         self.b_pathLast.clicked.connect(self.showLastPathMenu)
 
 
@@ -616,6 +650,8 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
         self.gb_jpgOptions.hide()
         self.gb_pngOptions.hide()
         self.gb_tiffOptions.hide()
+        self.gb_pdfOptions.hide()
+        self.gb_psdOptions.hide()
 
         match format:
             case ".jpg":
@@ -642,6 +678,7 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
                 bitIdx = 1
 
             case ".psd":
+                self.gb_psdOptions.show()
                 imageColorMode = ["RGB", "RGBA", "GRAY", "GRAYA"]
                 colorModeIdx = 0
                 imageBitDepth = ["8", "16", "32"]
@@ -655,6 +692,12 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
                 imageBitDepth = ["8", "16"]
                 bitIdx = 1
 
+            case ".pdf":
+                self.gb_pdfOptions.show()
+                imageColorMode = ["RGB", "GRAY"]
+                colorModeIdx = 0
+                imageBitDepth = ["8"]
+                bitIdx = 1
 
         #   Clear then load options
         self.cb_colorMode.clear()
@@ -1013,6 +1056,37 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
         fileName = self.core.getCurrentFileName()
         context = self.getCurrentContext()
 
+        #   Get outout file format
+        outputType = self.cb_format.currentText()
+
+        #   If save as scenefile is checked
+        savePSDasScenefile = self.chb_psd_saveAsScene.isChecked()
+        if outputType == ".psd" and savePSDasScenefile:
+            curfile = self.core.getCurrentFileName()
+            filePath = curfile.replace("\\", "/")
+            if not filePath:
+                self.core.showFileNotInProjectWarning()
+                return False
+            
+            #   replaces original extension with .psd
+            baseName, _ = os.path.splitext(filePath)
+            newFilePath = baseName + ".psd"
+
+            if os.path.exists(newFilePath):
+                text = ("A .psd with the current version already exists.\n"
+                        "Do you want to overwrite it?")
+                title = "Overwrite .psd version"
+                result = self.core.popupQuestion(text=text, title=title)
+
+                if result == "Yes":
+                    pass
+                else:
+                    return [self.state.text(0) + ": error - .psd save cancelled."]
+                
+           #    Uses normal saveScene to save the .psd next to original
+            self.core.saveScene(versionUp=True, filepath=newFilePath)
+            return [self.state.text(0) + " - success"]
+
         if not self.renderingStarted:
             if self.tasknameRequired and not self.getTaskname():
                 return [
@@ -1059,7 +1133,6 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
             self.l_pathLast.setToolTip(outputName)
             self.stateManager.saveStatesToScene()
 
-            outputType = self.cb_format.currentText()
 
             #   Added additional settings
             rSettings = {
@@ -1099,16 +1172,21 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
                                     "jpg_Progressive": boolToBit(self.chb_jpg_progressive.isChecked()),
                                     "jpg_Baseline": boolToBit(self.chb_jpg_baseline.isChecked())
                                     })
-                    
-                case ".psd":
-                    pass
 
                 case ".tif":
                     rSettings.update({"tiff_Compression": self.cb_tiff_compress.currentText(),
                                     "tiff_useBigTiff": self.chb_tiff_useBig.isChecked(),
                                     "tiff_SaveTransPx": self.chb_tiff_alphaColor.isChecked()
                                     })
+                    
+                case ".pdf":
+                    rSettings.update({"pdf_OmitHidden": self.chb_pdf_omitHidden.isChecked(),
+                                    "pdf_ConvertToVector": self.chb_pdf_convertToVector.isChecked(),
+                                    "pdf_ApplyLayers": self.chb_pdf_applyLayers.isChecked()
+                                    })
 
+                case ".psd": 
+                    pass
 
             self.core.appPlugin.sm_render_preSubmit(self, rSettings)
 
@@ -1255,6 +1333,10 @@ class GimpExportClass(QWidget, Gimp_Export_ui.Ui_wg_Gimp_Export):
             "tiff_Compression": self.cb_tiff_compress.currentText(),
             "tiff_useBigTiff": self.chb_tiff_useBig.isChecked(),
             "tiff_SaveTransPx": self.chb_tiff_alphaColor.isChecked(),
+            "pdf_OmitHidden": self.chb_pdf_omitHidden.isChecked(),
+            "pdf_ConvertToVector": self.chb_pdf_convertToVector.isChecked(),
+            "pdf_ApplyLayers": self.chb_pdf_applyLayers.isChecked(),
+            "psd_SaveAsScenefile": self.chb_psd_saveAsScene.isChecked(),
             "lastexportpath": self.l_pathLast.text().replace("\\", "/"),
             "stateenabled": self.core.getCheckStateValue(self.state.checkState(0)),
         }
