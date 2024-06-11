@@ -16,7 +16,7 @@ class Ui_wg_Gimp_Export(object):
     def setupUi(self, wg_Gimp_Export):
         if not wg_Gimp_Export.objectName():
             wg_Gimp_Export.setObjectName(u"wg_Gimp_Export")
-        wg_Gimp_Export.resize(482, 950)
+        wg_Gimp_Export.resize(482, 1123)
         self.verticalLayout = QVBoxLayout(wg_Gimp_Export)
         self.verticalLayout.setObjectName(u"verticalLayout")
         self.verticalLayout.setContentsMargins(0, 0, 0, 0)
@@ -715,6 +715,82 @@ class Ui_wg_Gimp_Export(object):
 
         self.verticalLayout_2.addWidget(self.gb_tiffOptions)
 
+        self.gb_pdfOptions = QGroupBox(self.gb_export)
+        self.gb_pdfOptions.setObjectName(u"gb_pdfOptions")
+        self.gb_pdfOptions.setEnabled(True)
+        self.gb_jpg_options_7 = QVBoxLayout(self.gb_pdfOptions)
+        self.gb_jpg_options_7.setObjectName(u"gb_jpg_options_7")
+        self.horizontalLayout_15 = QHBoxLayout()
+        self.horizontalLayout_15.setSpacing(0)
+        self.horizontalLayout_15.setObjectName(u"horizontalLayout_15")
+        self.verticalLayout_9 = QVBoxLayout()
+        self.verticalLayout_9.setObjectName(u"verticalLayout_9")
+        self.verticalLayout_9.setContentsMargins(-1, -1, 40, -1)
+        self.chb_pdf_omitHidden = QCheckBox(self.gb_pdfOptions)
+        self.chb_pdf_omitHidden.setObjectName(u"chb_pdf_omitHidden")
+        self.chb_pdf_omitHidden.setLayoutDirection(Qt.RightToLeft)
+
+        self.verticalLayout_9.addWidget(self.chb_pdf_omitHidden)
+
+        self.chb_pdf_applyLayers = QCheckBox(self.gb_pdfOptions)
+        self.chb_pdf_applyLayers.setObjectName(u"chb_pdf_applyLayers")
+        self.chb_pdf_applyLayers.setLayoutDirection(Qt.RightToLeft)
+
+        self.verticalLayout_9.addWidget(self.chb_pdf_applyLayers)
+
+
+        self.horizontalLayout_15.addLayout(self.verticalLayout_9)
+
+        self.verticalLayout_10 = QVBoxLayout()
+        self.verticalLayout_10.setObjectName(u"verticalLayout_10")
+        self.verticalLayout_10.setContentsMargins(-1, -1, 40, -1)
+        self.chb_pdf_convertToVector = QCheckBox(self.gb_pdfOptions)
+        self.chb_pdf_convertToVector.setObjectName(u"chb_pdf_convertToVector")
+        self.chb_pdf_convertToVector.setLayoutDirection(Qt.RightToLeft)
+
+        self.verticalLayout_10.addWidget(self.chb_pdf_convertToVector)
+
+        self.verticalSpacer = QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding)
+
+        self.verticalLayout_10.addItem(self.verticalSpacer)
+
+
+        self.horizontalLayout_15.addLayout(self.verticalLayout_10)
+
+
+        self.gb_jpg_options_7.addLayout(self.horizontalLayout_15)
+
+
+        self.verticalLayout_2.addWidget(self.gb_pdfOptions)
+
+        self.gb_psdOptions = QGroupBox(self.gb_export)
+        self.gb_psdOptions.setObjectName(u"gb_psdOptions")
+        self.gb_psdOptions.setEnabled(True)
+        self.gb_psdOptions.setLayoutDirection(Qt.LeftToRight)
+        self.gb_jpg_options_8 = QVBoxLayout(self.gb_psdOptions)
+        self.gb_jpg_options_8.setObjectName(u"gb_jpg_options_8")
+        self.horizontalLayout_16 = QHBoxLayout()
+        self.horizontalLayout_16.setObjectName(u"horizontalLayout_16")
+        self.horizontalSpacer_15 = QSpacerItem(40, 20, QSizePolicy.Expanding, QSizePolicy.Minimum)
+
+        self.horizontalLayout_16.addItem(self.horizontalSpacer_15)
+
+        self.chb_psd_saveAsScene = QCheckBox(self.gb_psdOptions)
+        self.chb_psd_saveAsScene.setObjectName(u"chb_psd_saveAsScene")
+        self.chb_psd_saveAsScene.setLayoutDirection(Qt.RightToLeft)
+
+        self.horizontalLayout_16.addWidget(self.chb_psd_saveAsScene)
+
+        self.horizontalSpacer_21 = QSpacerItem(40, 20, QSizePolicy.Expanding, QSizePolicy.Minimum)
+
+        self.horizontalLayout_16.addItem(self.horizontalSpacer_21)
+
+
+        self.gb_jpg_options_8.addLayout(self.horizontalLayout_16)
+
+
+        self.verticalLayout_2.addWidget(self.gb_psdOptions)
+
         self.verticalSpacer_3 = QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding)
 
         self.verticalLayout_2.addItem(self.verticalSpacer_3)
@@ -826,6 +902,10 @@ class Ui_wg_Gimp_Export(object):
         self.l_tiff_alphaColor.setText(QCoreApplication.translate("wg_Gimp_Export", u"Save Tranparent Color", None))
         self.chb_tiff_useBig.setText("")
         self.chb_tiff_alphaColor.setText("")
+        self.chb_pdf_omitHidden.setText(QCoreApplication.translate("wg_Gimp_Export", u"Omit hidden layers", None))
+        self.chb_pdf_applyLayers.setText(QCoreApplication.translate("wg_Gimp_Export", u"Apply layers masks", None))
+        self.chb_pdf_convertToVector.setText(QCoreApplication.translate("wg_Gimp_Export", u"Bitmaps to Vector", None))
+        self.chb_psd_saveAsScene.setText(QCoreApplication.translate("wg_Gimp_Export", u"Save .psd as Scenefile        ", None))
         self.gb_previous.setTitle(QCoreApplication.translate("wg_Gimp_Export", u"Last export", None))
         self.l_pathLast.setText(QCoreApplication.translate("wg_Gimp_Export", u"None", None))
         self.b_pathLast.setText(QCoreApplication.translate("wg_Gimp_Export", u"...", None))
