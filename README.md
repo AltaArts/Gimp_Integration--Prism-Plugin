@@ -15,7 +15,7 @@ https://prism-pipeline.com/
 - Hint: if you click an Prism Menu item such as "State Manager" and nothing happens, you probably need to start the server in the Prism menu. If message display is active, there will be a reminder shown.
 - Hint: clicking a Prism action from the menu loads an instance of Prism, and thus there is a slight delay for the actions such as requesting the Project Browser or State Manager.
 - New unsaved .xcr scenefiles cannot be saved into project using "Create new version from Current".  Either use presets for new scenefile, or "Copy path for next version".
-- As of now: .png, .exr, .jpg, .tif, and .psd exports are supported.  More formats will be added.
+- As of now: .png, .exr, .jpg, .tif, .pdf, and .psd exports are supported.  More formats will be added.
 - Gimp saves .exr's in full-float 32bit zip compression only.  
 - To aid is use, tooltips are provided throughout.
 <br/><br/>
@@ -90,7 +90,18 @@ If the lowest layer of the scenefile image has an alpha channel, and the export 
 
 ![AlphaFill](https://github.com/AltaArts/Gimp_Integration--Prism-Plugin/assets/86539171/fe812ace-7ff5-4862-9915-b5a6ef12ed3e)
 
+
+A user may export to .psd using the StateManager.  By default the resulting .psd will be saved in the selected Identifier in Media tab.  There is also and option to export the .psd as a scenefile under the Scenefiles tab.
+
+![SM psd](https://github.com/AltaArts/Gimp_Integration--Prism-Plugin/assets/86539171/08b12333-d439-4690-b0cc-1cc29c9a311d)
+
+This will export the .psd next to the .xcf using the same version number and details.
+
+![PSD Version](https://github.com/AltaArts/Gimp_Integration--Prism-Plugin/assets/86539171/185bc704-922c-41df-81e0-315f7da7ee2a)
+
+
 <br/><br/>
+
 
 ## **Issues / Suggestions**
 
