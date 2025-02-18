@@ -10,6 +10,7 @@ https://prism-pipeline.com/
 
 ## **Notes**
 
+- Tested working up to Gimp 2.10.38 and Prism 2.0.15.
 - Gimp2 versions are supported.  Gimp3 (2.99) support will be added in the future.
 - Prism and Gimp communicate through a socket.  The port listed in the Gimp tab in Prism's DCC settings must be available, and any anti-virus must allow the port to be used.
 - Hint: if you click an Prism Menu item such as "State Manager" and nothing happens, you probably need to start the server in the Prism menu. If message display is active, there will be a reminder shown.
