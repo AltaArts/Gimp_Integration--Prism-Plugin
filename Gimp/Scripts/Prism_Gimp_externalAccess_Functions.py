@@ -62,17 +62,10 @@ class Prism_Gimp_externalAccess_Functions(object):
         self.core = core
         self.plugin = plugin
 
-        self.core.registerCallback("getPresetScenes",
-                                   self.getPresetScenes,
-                                   plugin=self.plugin)
-
-        self.core.registerCallback("userSettings_saveSettings",
-                                   self.userSettings_saveSettings,
-                                   plugin=self.plugin,)
-        
-        self.core.registerCallback("userSettings_loadSettings",
-                                   self.userSettings_loadSettings,
-                                   plugin=self.plugin,)
+        self.core.registerCallback("getPresetScenes", self.getPresetScenes, plugin=self.plugin)
+        self.core.registerCallback("userSettings_saveSettings", self.userSettings_saveSettings, plugin=self.plugin,)
+        self.core.registerCallback("userSettings_loadSettings", self.userSettings_loadSettings, plugin=self.plugin,)
+        self.core.registerCallback("postIntegrationAdded", self.postIntegrationAdded, plugin=self.plugin)
 
         ssheetPath = os.path.join(self.pluginDirectory, "UserInterfaces", "GimpStyleSheet")
         self.core.registerStyleSheet(ssheetPath)
@@ -80,6 +73,7 @@ class Prism_Gimp_externalAccess_Functions(object):
 
     @err_catcher(name=__name__)
     def userSettings_loadUI(self, origin, tab):
+        self.gimpSettings = origin
         origin.gb_settings = QGroupBox("Settings")
         lo_settings = QVBoxLayout()
 
@@ -148,19 +142,8 @@ class Prism_Gimp_externalAccess_Functions(object):
         container_settings_2 = QWidget()
         container_settings_2.setLayout(lo_settings_2)
 
-        #   Checks if Gimp has a valid intergration and
-        #   and enables the Gimp settings
-        gimpInstalled = False
-        integrations = self.core.integration.getIntegrations()
-        if "Gimp" in integrations:
-            try:
-                gimpPaths = integrations["Gimp"]  # Access the list of paths
-                gimpPath = gimpPaths[0]            # Extract the first path
-                if os.path.exists(gimpPath):
-                    gimpInstalled = True
-            except:
-                pass
-        origin.gb_settings.setEnabled(gimpInstalled)
+    #   Enables Gimp settings if Gimp has a valid integration
+        self.updateGimpSettingsState(origin)
 
         origin.gb_settings.setStyleSheet("QGroupBox { margin-left: 10px; margin-right: 10px; }")
 
@@ -232,7 +215,7 @@ class Prism_Gimp_externalAccess_Functions(object):
         settings["gimp"]["logLocation"] = logLocation
         gimpSettings["logLocation"] = logLocation
 
-        #    save to specific Gimp config file so Gimp intergrtion can find it
+        #    save to specific Gimp config file so Gimp integration can find it
         with open(CONFIG_FILE, 'w') as file:
             json.dump(gimpSettings, file, indent=4)
         
@@ -253,6 +236,35 @@ class Prism_Gimp_externalAccess_Functions(object):
 
             if "logLocation" in settings["gimp"]:
                 origin.e_logPath.setText(settings["gimp"]["logLocation"])
+
+
+    #   Enables Gimp settings if Gimp has a valid integration
+    @err_catcher(name=__name__)
+    def updateGimpSettingsState(self, origin):
+        gimpInstalled = False
+        integrations = self.core.integration.getIntegrations()
+
+        if "Gimp" in integrations:
+            try:
+                gimpPaths = integrations["Gimp"]
+                if gimpPaths and os.path.exists(gimpPaths[0]):
+                    gimpInstalled = True
+            except Exception:
+                pass
+
+        origin.gb_settings.setEnabled(gimpInstalled)
+
+
+    #   Callback after Integration is Added
+    @err_catcher(name=__name__)
+    def postIntegrationAdded(self, app, path):
+        if app == "Gimp":
+            # Settings UI may not be open
+            if not hasattr(self.gimpSettings, "gb_settings"):
+                return
+
+            #   Delay Refresh until after Prism Updates Integrations
+            QTimer.singleShot(500, lambda: self.updateGimpSettingsState(self.gimpSettings))
 
 
     @err_catcher(name=__name__)

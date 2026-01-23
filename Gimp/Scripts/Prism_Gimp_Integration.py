@@ -67,11 +67,13 @@ class Prism_Gimp_Integration(object):
 
         self.pluginRoot = os.path.dirname(os.path.dirname(__file__))
 
+        #   Create Example Integration Filepath
         if platform.system() == "Windows":
-            self.examplePath = (
-                os.path.dirname(self.getGimpPath())
-                or r"C:\Program Files\GIMP 2.10\bin"
-                )
+            preferredExe = self.getPreferredGimp()
+            if preferredExe:
+                self.examplePath = os.path.dirname(preferredExe)
+            else:
+                self.examplePath = r"C:\Program Files\GIMP 2\bin"
         elif platform.system() == "Linux":
             userName = (
                 os.environ["SUDO_USER"]
@@ -89,132 +91,218 @@ class Prism_Gimp_Integration(object):
                 "/Users/%s/Library/Preferences/Autodesk/Gimp/2019" % userName
                 )
 
+
+    #   Return Version String of Gimp EXE
     @err_catcher(name=__name__)
-    def getExecutable(self):
-        execPath = ""
-        if platform.system() == "Windows":
-            defaultpath = os.path.join(self.getGimpPath(), "Gimp-2.10.exe")
-            if os.path.exists(defaultpath):
-                execPath = defaultpath
+    def findGimpVersion(self, path:str) -> str | None:
+        #   Get Dir from Filepath
+        if os.path.isfile(path):
+            path = os.path.dirname(path)
 
-        return execPath
+        if not os.path.isdir(path):
+            return None
 
+        #   Extract Version Number
+        for f in os.listdir(path):
+            m = re.match(r"gimp-(\d+(?:\.\d+)*)\.exe", f.lower())
+            if m:
+                return m.group(1)
 
-    @err_catcher(name=__name__)
-    def getGimpPath(self):
-        try:
-            key = _winreg.OpenKey(
-                _winreg.HKEY_LOCAL_MACHINE,
-                "SOFTWARE\\Classes\\GIMP2.xcf\\shell\\open\\command",
-                0,
-                _winreg.KEY_READ | _winreg.KEY_WOW64_64KEY,
-                )
-            gimpPath = (
-                (_winreg.QueryValueEx(key, ""))[0].split(' "%1"')[0].replace('"', "")
-                )
-
-            if os.path.exists(gimpPath):
-                return gimpPath
-            else:
-                return ""
-
-        except:
-            return ""
-
-
-    @err_catcher(name=__name__)
-    def findGimpVersion(self, installPath):
-
-
-        self.core.popup(f"installPath:  {installPath}")                                      #    TESTING
-
-
-        # List all files in the GIMP bin directory
-        files = os.listdir(installPath)
-        
-        # match GIMP version number in filenames like "gimp-x.xx.exe"
-        pattern = r"gimp-(\d+\.\d+)\.exe"
-
-        # Iterate over the files and look for the version number
-        for file in files:
-            match = re.match(pattern, file)
-            if match:
-                verNumber = match.group(1)
-
-                return verNumber
-        
-        # If no version number is found, return None
         return None
     
 
+    #   Search Registry and Common Locations for Gimp
+    @err_catcher(name=__name__)
+    def findGimpInstalls(self) -> list:
+        if platform.system() != "Windows":
+            return []
+
+        installs = []
+        seen = set()
+
+        #   Helper
+        def add(exe, source):
+            if not exe or not os.path.exists(exe):
+                return
+
+            exe = os.path.normpath(exe)
+            exe_l = exe.lower()
+
+            if exe_l in seen:
+                return
+
+            version = self.findGimpVersion(exe)
+            if not version:
+                return
+
+            try:
+                ver_num = float(version)
+            except ValueError:
+                return
+
+            #   GIMP 2.x ONLY       TODO Add Gimp3 Support
+            if not (2.0 <= ver_num < 2.99):
+                return
+
+            seen.add(exe_l)
+            installs.append({
+                "exe": exe,
+                "version": version,
+                "source": source
+            })
+
+
+        #   App Paths
+        for root in (_winreg.HKEY_LOCAL_MACHINE, _winreg.HKEY_CURRENT_USER):
+            try:
+                base = _winreg.OpenKey(
+                    root,
+                    r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths"
+                )
+                i = 0
+                while True:
+                    sub = _winreg.EnumKey(base, i)
+                    i += 1
+
+                    if not sub.lower().startswith("gimp-") or not sub.lower().endswith(".exe"):
+                        continue
+
+                    try:
+                        k = _winreg.OpenKey(base, sub)
+                        exe = _winreg.QueryValueEx(k, "")[0]
+                        add(exe, "AppPaths")
+                    except OSError:
+                        pass
+            except OSError:
+                pass
+
+        #   HKCR Applications
+        try:
+            base = _winreg.OpenKey(_winreg.HKEY_CLASSES_ROOT, r"Applications")
+            i = 0
+            while True:
+                sub = _winreg.EnumKey(base, i)
+                i += 1
+
+                if not sub.lower().startswith("gimp-") or not sub.lower().endswith(".exe"):
+                    continue
+
+                try:
+                    k = _winreg.OpenKey(
+                        base,
+                        sub + r"\shell\open\command"
+                    )
+                    cmd = _winreg.QueryValueEx(k, "")[0]
+                    exe = cmd.split('"')[1]
+                    add(exe, "HKCR")
+                except OSError:
+                    pass
+        except OSError:
+            pass
+
+        #   Common Install Locations
+        roots = [
+            r"C:\Program Files",
+            r"C:\Program Files (x86)"
+        ]
+
+        for root in roots:
+            if not os.path.isdir(root):
+                continue
+
+            for name in os.listdir(root):
+                if not name.lower().startswith("gimp"):
+                    continue
+
+                exe = os.path.join(root, name, "bin")
+                if not os.path.isdir(exe):
+                    continue
+
+                for f in os.listdir(exe):
+                    if f.lower().startswith("gimp-") and f.lower().endswith(".exe"):
+                        add(os.path.join(exe, f), "Filesystem")
+
+        return installs
+
+
+    #   Returns the Highest Version
+    def getPreferredGimp(self):
+        installs = self.findGimpInstalls()
+        if not installs:
+            return ""
+
+        installs.sort(
+            key=lambda x: tuple(int(p) for p in x["version"].split(".")),
+            reverse=True
+        )
+        return installs[0]["exe"]
+
+
+    #   Executes the Integration
     @err_catcher(name=__name__)
     def addIntegration(self, installPath):
+        try:
+            if platform.system() != "Windows":
+                msgStr = ("Gimp may only be Installed on Windows at this time")
+                QMessageBox.warning(self.core.messageParent, "Prism Integration", msgStr)
+                return False
 
-        # try:
+            integrationBase = os.path.join(
+                os.path.dirname(os.path.dirname(__file__)), "Integration"
+                )
+            
+            #   Gets Gimp ver number based on .exe 
+            gimpVer = self.findGimpVersion(installPath)
+            gimpVerNum = float("{:.2f}".format(float(gimpVer)))
 
-        if platform.system() != "Windows":
-            msgStr = ("Gimp may only be Installed on Windows at this time")
+            if gimpVerNum >= 2.99:
+                # intergrationPath = os.path.join(integrationBase, "Gimp3")                         #   TODO add Gimp3 support
+                self.core.popup(f"Gimp{gimpVer} is not supported.  Please use Gimp 2.10.")
+                return False
+            elif 2 < gimpVerNum < 2.99:
+                intergrationPath = os.path.join(integrationBase, "Gimp2")
+            else:
+                self.core.popup(f"Gimp {gimpVer} is not supported.  Please use Gimp 2.99 and above")
+                return False
+
+            gimpPluginPath = os.path.expanduser(f"~\\AppData\\Roaming\\GIMP\\{gimpVer}\\plug-ins")
+            gimpPluginPath = gimpPluginPath.replace("\\", "/")
+
+            for item in os.listdir(intergrationPath):
+                srcItem = os.path.join(intergrationPath, item)
+                if os.path.isfile(srcItem):
+                    shutil.copy(srcItem, gimpPluginPath)
+                elif os.path.isdir(srcItem):
+                    destItem = os.path.join(gimpPluginPath, item)
+                    shutil.copytree(srcItem, destItem)
+                
+            #   Edits the plugin files to replace hardcoded root paths
+            result = self.replacePluginPaths(gimpPluginPath)
+
+            if not result:
+                self.core.popup("Failed to write paths to intergrtion.")
+                raise Exception
+            
+            return True
+
+        except Exception as e:
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+
+            msgStr = (
+                "Errors occurred during the installation of the Gimp integration.\nThe installation is possibly incomplete.\n\n%s\n%s\n%s"
+                % (str(e), exc_type, exc_tb.tb_lineno)
+            )
+            msgStr += "\n\nRunning this application as administrator could solve this problem eventually."
+
             QMessageBox.warning(self.core.messageParent, "Prism Integration", msgStr)
             return False
-
-        integrationBase = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)), "Integration"
-            )
-        
-        #   Gets Gimp ver number based on .exe 
-        gimpVer = self.findGimpVersion(installPath)
-
-        self.core.popup(f"gimpVer:  {gimpVer}")                                      #    TESTING
-
-        gimpVerNum = float("{:.2f}".format(float(gimpVer)))
-
-        if gimpVerNum >= 2.99:
-            # intergrationPath = os.path.join(integrationBase, "Gimp3")                         #   TODO add Gimp3 support
-            self.core.popup(f"Gimp{gimpVer} is not supported.  Please use Gimp 2.10.")
-            return False
-        elif 2 < gimpVerNum < 2.99:
-            intergrationPath = os.path.join(integrationBase, "Gimp2")
-        else:
-            self.core.popup(f"Gimp {gimpVer} is not supported.  Please use Gimp 2.99 and above")
-            return False
-
-        gimpPluginPath = os.path.expanduser(f"~\\AppData\\Roaming\\GIMP\\{gimpVer}\\plug-ins")
-        gimpPluginPath = gimpPluginPath.replace("\\", "/")
-
-        for item in os.listdir(intergrationPath):
-            srcItem = os.path.join(intergrationPath, item)
-            if os.path.isfile(srcItem):
-                shutil.copy(srcItem, gimpPluginPath)
-            elif os.path.isdir(srcItem):
-                destItem = os.path.join(gimpPluginPath, item)
-                shutil.copytree(srcItem, destItem)
-            
-        #   Edits the plugin files to replace hardcoded root paths
-        result = self.replacePluginPaths(gimpPluginPath)
-
-        if not result:
-            self.core.popup("Failed to write paths to intergrtion.")
-            raise Exception
-        
-        return True
-
-        # except Exception as e:
-        #     exc_type, exc_obj, exc_tb = sys.exc_info()
-
-        #     msgStr = (
-        #         "Errors occurred during the installation of the Gimp integration.\nThe installation is possibly incomplete.\n\n%s\n%s\n%s"
-        #         % (str(e), exc_type, exc_tb.tb_lineno)
-        #     )
-        #     msgStr += "\n\nRunning this application as administrator could solve this problem eventually."
-
-        #     QMessageBox.warning(self.core.messageParent, "Prism Integration", msgStr)
-        #     return False
         
 
+    #   Modifies the Integration Files to Include the System's Actual Paths
     @err_catcher(name=__name__)
     def replacePluginPaths(self, gimpPluginPath):
         try:
-            # Modify files in moved directories
+            #   Modify Files in Moved Directories
             for root, _, files in os.walk(gimpPluginPath):
                 for filename in files:
                     if filename.startswith("Prism"):
@@ -240,15 +328,14 @@ class Prism_Gimp_Integration(object):
 
             return True
 
+        #   Handle specific OSError, e.g., permission errors, etc.
         except OSError as e:
-            # Handle specific OSError, e.g., permission errors, etc.
-            # Log the error or display a warning message if needed.
-            print("Error:", e)
+            print("OS ERROR:", e)
             return False
         
+        # Handle other specific exceptions if needed
         except Exception as e:
-            # Handle other specific exceptions if needed
-            print("Unexpected error:", e)
+            print("ERROR:", e)
             return False
 
 

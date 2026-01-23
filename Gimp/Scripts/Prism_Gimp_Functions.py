@@ -274,11 +274,9 @@ class Prism_Gimp_Functions(object):
             return False
         
 
-    @err_catcher(name=__name__)                                #   ???
+    @err_catcher(name=__name__)                                #    NOT SURE WHAT THIS DOES
     def getAppVersion(self, origin):
-
-        self.core.popup("GETTING APP VERSION")                 #    TESTING
-        return "1.0"
+        return "2.10"
 
 
     @err_catcher(name=__name__)
