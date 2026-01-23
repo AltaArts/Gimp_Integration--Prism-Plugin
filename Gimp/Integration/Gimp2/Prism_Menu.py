@@ -63,7 +63,9 @@ else:
 PLUGINROOT = rPLUGINROOTREPLACE
 
 #   Sets Prism executable
-if os.path.exists(os.path.join(PRISMROOT, "Python311")):
+if os.path.exists(os.path.join(PRISMROOT, "Python313")):
+    PRISMEXE = os.path.join(PRISMROOT, "Python313", "Prism.exe")
+elif os.path.exists(os.path.join(PRISMROOT, "Python311")):
     PRISMEXE = os.path.join(PRISMROOT, "Python311", "Prism.exe")
 elif os.path.exists(os.path.join(PRISMROOT, "Python39")):
     PRISMEXE = os.path.join(PRISMROOT, "Python39", "Prism.exe")

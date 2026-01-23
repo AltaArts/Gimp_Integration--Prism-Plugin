@@ -508,6 +508,7 @@ def exportPNG(rSettings, currentImage, currentDrawable, filePath):
     #   Removes unsaved changes flag
     pdb.gimp_image_clean_all(currentImage)
 
+
     return result
 
 
@@ -581,7 +582,7 @@ def exportEXR(rSettings, currentImage, currentDrawable, filePath):
     return result
 
 
-def saveEXR(image=None,        #   Unfortunatly all the options Gimps API has
+def saveEXR(image=None,        #    Unfortunately all the options Gimps API has
             drawable=None,
             filePath=None,
             ):
@@ -827,7 +828,7 @@ def saveTIFF(image=None,
     except Exception as e:
         log.warning("ERROR:  ", e)
         return False
-
+    
 
 def exportPDF(rSettings, currentImage, currentDrawable, filePath):
     bgLayer = False
