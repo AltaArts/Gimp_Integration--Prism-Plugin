@@ -31,8 +31,12 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with Prism.  If not, see <https://www.gnu.org/licenses/>.
 ###########################################################################
+###########################################################################
 #
-#                       Gimp2 Plugin for Prism2
+#                    Gimp Integration for Prism2
+#
+#       https://github.com/AltaArts/Gimp_Integration--Prism-Plugin
+#
 #
 #                           Joshua Breckeen
 #                              Alta Arts
@@ -40,10 +44,9 @@
 #
 ###########################################################################
 
+
 from Prism_Gimp_Variables import Prism_Gimp_Variables
-from Prism_Gimp_externalAccess_Functions import (
-    Prism_Gimp_externalAccess_Functions,
-    )
+from Prism_Gimp_externalAccess_Functions import (Prism_Gimp_externalAccess_Functions)
 from Prism_Gimp_Integration import Prism_Gimp_Integration
 
 

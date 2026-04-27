@@ -1,0 +1,13 @@
+{
+    "hostStartTimeout": 10.0,
+    "log_fileName": "Prism_Gimp_Log.log",
+    "log_maxBytes": 512000,
+    "bridgePort_out": 50600,
+    "bridgePort_in": 50601,
+    "attribution": [
+        "Joshua Breckeen",
+        "Alta Arts",
+        "2026"
+    ],
+    "BRIDGE_PID": 5376
+}

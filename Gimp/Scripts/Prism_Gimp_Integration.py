@@ -31,8 +31,12 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with Prism.  If not, see <https://www.gnu.org/licenses/>.
 ###########################################################################
+###########################################################################
 #
-#                       Gimp2 Plugin for Prism2
+#                    Gimp Integration for Prism2
+#
+#       https://github.com/AltaArts/Gimp_Integration--Prism-Plugin
+#
 #
 #                           Joshua Breckeen
 #                              Alta Arts
@@ -44,8 +48,7 @@
 import os
 import sys
 import platform
-import shutil
-import re
+import glob
 
 from qtpy.QtCore import *
 from qtpy.QtGui import *
@@ -65,310 +68,260 @@ class Prism_Gimp_Integration(object):
         self.core = core
         self.plugin = plugin
 
-        self.pluginRoot = os.path.dirname(os.path.dirname(__file__))
-
-        #   Create Example Integration Filepath
+        #   Sets Example Path for display in the Installer UI
         if platform.system() == "Windows":
-            preferredExe = self.getPreferredGimp()
-            if preferredExe:
-                self.examplePath = os.path.dirname(preferredExe)
-            else:
-                self.examplePath = r"C:\Program Files\GIMP 2\bin"
+            self.examplePath = (self.getHighestGimpPluginsDir() or
+                os.path.join(os.path.expanduser("~"), "AppData/Roaming/GIMP/3.x/plug-ins"))
+
         elif platform.system() == "Linux":
-            userName = (
-                os.environ["SUDO_USER"]
-                if "SUDO_USER" in os.environ
-                else os.environ["USER"]
-                )
-            self.examplePath = os.path.join("/home", userName, "Gimp", "2019")
+            self.examplePath = os.path.expanduser("~/.config/GIMP/3.0/plug-ins")
         elif platform.system() == "Darwin":
-            userName = (
-                os.environ["SUDO_USER"]
-                if "SUDO_USER" in os.environ
-                else os.environ["USER"]
-                )
-            self.examplePath = (
-                "/Users/%s/Library/Preferences/Autodesk/Gimp/2019" % userName
-                )
+            self.examplePath = os.path.expanduser("~/Library/Application Support/GIMP/3.0/plug-ins")
+        else:
+            self.examplePath = ""
 
 
-    #   Return Version String of Gimp EXE
+    #   Returns Gimp EXE path from Registry
     @err_catcher(name=__name__)
-    def findGimpVersion(self, path:str) -> str | None:
-        #   Get Dir from Filepath
-        if os.path.isfile(path):
-            path = os.path.dirname(path)
-
-        if not os.path.isdir(path):
+    def findGimpExeFromReg(self):
+        if platform.system() != "Windows":
             return None
 
-        #   Extract Version Number
-        for f in os.listdir(path):
-            m = re.match(r"gimp-(\d+(?:\.\d+)*)\.exe", f.lower())
-            if m:
-                return m.group(1)
+        def keyVersionTuple(keyName):
+            name_lower = keyName.lower().strip()
+            if not name_lower.startswith("gimp"):
+                return (0,)
 
-        return None
-    
-
-    #   Search Registry and Common Locations for Gimp
-    @err_catcher(name=__name__)
-    def findGimpInstalls(self) -> list:
-        if platform.system() != "Windows":
-            return []
-
-        installs = []
-        seen = set()
-
-        #   Helper
-        def add(exe, source):
-            if not exe or not os.path.exists(exe):
-                return
-
-            exe = os.path.normpath(exe)
-            exe_l = exe.lower()
-
-            if exe_l in seen:
-                return
-
-            version = self.findGimpVersion(exe)
-            if not version:
-                return
+            versionPart = keyName[4:].strip()
+            if not versionPart:
+                return (0,)
 
             try:
-                ver_num = float(version)
-            except ValueError:
-                return
+                return tuple(int(x) for x in versionPart.split("."))
+            
+            except Exception:
+                return (0,)
+            
 
-            #   GIMP 2.x ONLY       TODO Add Gimp3 Support
-            if not (2.0 <= ver_num < 2.99):
-                return
-
-            seen.add(exe_l)
-            installs.append({
-                "exe": exe,
-                "version": version,
-                "source": source
-            })
-
-
-        #   App Paths
-        for root in (_winreg.HKEY_LOCAL_MACHINE, _winreg.HKEY_CURRENT_USER):
-            try:
-                base = _winreg.OpenKey(
-                    root,
-                    r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths"
-                )
-                i = 0
-                while True:
-                    sub = _winreg.EnumKey(base, i)
-                    i += 1
-
-                    if not sub.lower().startswith("gimp-") or not sub.lower().endswith(".exe"):
-                        continue
-
-                    try:
-                        k = _winreg.OpenKey(base, sub)
-                        exe = _winreg.QueryValueEx(k, "")[0]
-                        add(exe, "AppPaths")
-                    except OSError:
-                        pass
-            except OSError:
-                pass
-
-        #   HKCR Applications
+        gimpKeys = []
         try:
-            base = _winreg.OpenKey(_winreg.HKEY_CLASSES_ROOT, r"Applications")
-            i = 0
+            regKey = _winreg.OpenKey(_winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE")
+
+            idx = 0
             while True:
-                sub = _winreg.EnumKey(base, i)
-                i += 1
-
-                if not sub.lower().startswith("gimp-") or not sub.lower().endswith(".exe"):
-                    continue
-
                 try:
-                    k = _winreg.OpenKey(
-                        base,
-                        sub + r"\shell\open\command"
-                    )
-                    cmd = _winreg.QueryValueEx(k, "")[0]
-                    exe = cmd.split('"')[1]
-                    add(exe, "HKCR")
+                    subKeyName = _winreg.EnumKey(regKey, idx)
+                    idx += 1
                 except OSError:
-                    pass
-        except OSError:
-            pass
+                    break
 
-        #   Common Install Locations
-        roots = [
-            r"C:\Program Files",
-            r"C:\Program Files (x86)"
-        ]
+                if subKeyName.lower().startswith("gimp"):
+                    gimpKeys.append(subKeyName)
 
-        for root in roots:
-            if not os.path.isdir(root):
+        except Exception:
+            gimpKeys = []
+
+        for gimpKey in sorted(gimpKeys, key=keyVersionTuple, reverse=True):
+            appIconPath = r"SOFTWARE\%s\Capabilities" % gimpKey
+
+            try:
+                key = _winreg.OpenKey(_winreg.HKEY_LOCAL_MACHINE, appIconPath)
+                value, _ = _winreg.QueryValueEx(key, "ApplicationIcon")
+
+            except Exception:
                 continue
 
-            for name in os.listdir(root):
-                if not name.lower().startswith("gimp"):
-                    continue
+            rawValue = str(value).strip().strip('"')
+            exePath = rawValue.split(",", 1)[0].strip().strip('"')
 
-                exe = os.path.join(root, name, "bin")
-                if not os.path.isdir(exe):
-                    continue
+            if os.path.isfile(exePath):
+                return exePath
 
-                for f in os.listdir(exe):
-                    if f.lower().startswith("gimp-") and f.lower().endswith(".exe"):
-                        add(os.path.join(exe, f), "Filesystem")
+        #   Fallback: Scan Common Install Locations
+        for base in [r"C:\Program Files", r"C:\Program Files (x86)"]:
+            for entry in glob.glob(os.path.join(base, "GIMP*", "bin", "gimp*.exe")):
+                if os.path.isfile(entry):
+                    return entry
 
-        return installs
-
-
-    #   Returns the Highest Version
-    def getPreferredGimp(self):
-        installs = self.findGimpInstalls()
-        if not installs:
-            return ""
-
-        installs.sort(
-            key=lambda x: tuple(int(p) for p in x["version"].split(".")),
-            reverse=True
-        )
-        return installs[0]["exe"]
+        return None
 
 
-    #   Executes the Integration
+    #   Returns the discovered GIMP executable path
     @err_catcher(name=__name__)
+    def getExecutable(self):
+        exe = self.findGimpExeFromReg()
+        return exe if exe else ""
+
+
+    #   Returns the GIMP user plug-ins base dir (AppData/Roaming/GIMP)
+    @err_catcher(name=__name__)
+    def getGimpRoamingDir(self):
+        if platform.system() == "Windows":
+            return os.path.join(os.path.expanduser("~"), "AppData/Roaming/GIMP")
+        
+        elif platform.system() == "Linux":
+            return os.path.expanduser("~/.config/GIMP")
+        elif platform.system() == "Darwin":
+            return os.path.expanduser("~/Library/Application Support/GIMP")
+        return ""
+
+
+    #   Returns List of Discovered GIMP plug-ins dirs, Highest Ver First
+    @err_catcher(name=__name__)
+    def getGimpPluginsDirs(self):
+        pluginsDirs = []
+        roamingDir = self.getGimpRoamingDir()
+
+        if not os.path.isdir(roamingDir):
+            return pluginsDirs
+
+        def versionKey(entry):
+            parts = entry.split(".")
+            if not parts:
+                return None
+
+            try:
+                return tuple(int(x) for x in parts)
+            except ValueError:
+                return None
+
+        versionEntries = []
+        for entry in os.listdir(roamingDir):
+            versionTuple = versionKey(entry)
+            if versionTuple is not None:
+                versionEntries.append((versionTuple, entry))
+
+        for _, entry in sorted(versionEntries, key=lambda item: item[0], reverse=True):
+            pluginsDir = os.path.join(roamingDir, entry, "plug-ins")
+            if os.path.isdir(pluginsDir):
+                pluginsDirs.append(os.path.normpath(pluginsDir))
+
+        return pluginsDirs
+
+
+    #   Returns the Highest Ver GIMP plug-ins Dir
+    @err_catcher(name=__name__)
+    def getHighestGimpPluginsDir(self):
+        pluginsDirs = self.getGimpPluginsDirs() or []
+        return pluginsDirs[0] if pluginsDirs else ""
+
+
     def addIntegration(self, installPath):
         try:
-            if platform.system() != "Windows":
-                msgStr = ("Gimp may only be Installed on Windows at this time")
-                QMessageBox.warning(self.core.messageParent, "Prism Integration", msgStr)
-                return False
-
-            integrationBase = os.path.join(
-                os.path.dirname(os.path.dirname(__file__)), "Integration"
+            #   installPath must be the GIMP user plug-ins directory
+            #   e.g. C:\Users\<User>\AppData\Roaming\GIMP\3.2\plug-ins
+            if not os.path.isdir(installPath):
+                msgStr = (
+                    "Invalid GIMP plug-ins path: %s\n\n"
+                    "The path must be the GIMP user plug-ins directory, which usually looks like this:\n\n%s"
+                    % (installPath, self.examplePath)
                 )
-            
-            #   Gets Gimp ver number based on .exe 
-            gimpVer = self.findGimpVersion(installPath)
-            gimpVerNum = float("{:.2f}".format(float(gimpVer)))
-
-            if gimpVerNum >= 2.99:
-                # intergrationPath = os.path.join(integrationBase, "Gimp3")                         #   TODO add Gimp3 support
-                self.core.popup(f"Gimp{gimpVer} is not supported.  Please use Gimp 2.10.")
-                return False
-            elif 2 < gimpVerNum < 2.99:
-                intergrationPath = os.path.join(integrationBase, "Gimp2")
-            else:
-                self.core.popup(f"Gimp {gimpVer} is not supported.  Please use Gimp 2.99 and above")
+                self.core.popup(msgStr, title="Prism Integration")
                 return False
 
-            gimpPluginPath = os.path.expanduser(f"~\\AppData\\Roaming\\GIMP\\{gimpVer}\\plug-ins")
-            gimpPluginPath = gimpPluginPath.replace("\\", "/")
+            integrationBase = os.path.join(os.path.dirname(os.path.dirname(__file__)), "Integration")
+            integrationBase = os.path.realpath(integrationBase)
+            prismGimpDir = os.path.join(installPath, "Prism_Gimp")
 
-            for item in os.listdir(intergrationPath):
-                srcItem = os.path.join(intergrationPath, item)
-                if os.path.isfile(srcItem):
-                    shutil.copy(srcItem, gimpPluginPath)
-                elif os.path.isdir(srcItem):
-                    destItem = os.path.join(gimpPluginPath, item)
-                    shutil.copytree(srcItem, destItem)
-                
-            #   Edits the plugin files to replace hardcoded root paths
-            result = self.replacePluginPaths(gimpPluginPath)
+            cmds = []
+            addedFiles = []
+
+            #   Cmd to Remove Prism_Gimp Subdir if Already Exists
+            if os.path.exists(prismGimpDir):
+                cmd = {"type": "removeFolder", "args": [prismGimpDir]}
+                cmds.append(cmd)
+
+            #   Cmd to Create the Prism_Gimp Subdir
+            cmd = {"type": "createFolder", "args": [prismGimpDir]}
+            cmds.append(cmd)
+
+            #   Cmd to Copy each Integration File into Prism_Gimp Subdir
+            for filename in os.listdir(integrationBase):
+                srcFile = os.path.abspath(os.path.join(integrationBase, filename))
+                dstFile = os.path.abspath(os.path.join(prismGimpDir, filename))
+                if os.path.isfile(srcFile):
+                    cmd = {"type": "copyFile", "args": [srcFile, dstFile]}
+                    cmds.append(cmd)
+                    addedFiles.append(dstFile)
+
+            #   Run the Commands
+            result = self.core.runFileCommands(cmds)
 
             if not result:
-                self.core.popup("Failed to write paths to intergrtion.")
-                raise Exception
-            
-            return True
+                return False
+
+            #   Ensure Files are Executable on Linux/macOS
+            if platform.system() in ["Linux", "Darwin"]:
+                for f in addedFiles:
+                    os.chmod(f, 0o777)
+
+            #   Replace Path Placeholders in Copied Files
+            result = self.replacePaths(prismGimpDir, addedFiles)
+
+            if result is True:
+                return True
+            elif result is False:
+                return False
+            else:
+                raise Exception(result)
 
         except Exception as e:
             exc_type, exc_obj, exc_tb = sys.exc_info()
-
             msgStr = (
-                "Errors occurred during the installation of the Gimp integration.\nThe installation is possibly incomplete.\n\n%s\n%s\n%s"
+                "Errors occurred during the installation of the Gimp integration.\n"
+                "The installation is possibly incomplete.\n\n%s\n%s\n%s"
                 % (str(e), exc_type, exc_tb.tb_lineno)
             )
             msgStr += "\n\nRunning this application as administrator could solve this problem eventually."
 
             QMessageBox.warning(self.core.messageParent, "Prism Integration", msgStr)
             return False
-        
-
-    #   Modifies the Integration Files to Include the System's Actual Paths
-    @err_catcher(name=__name__)
-    def replacePluginPaths(self, gimpPluginPath):
-        try:
-            #   Modify Files in Moved Directories
-            for root, _, files in os.walk(gimpPluginPath):
-                for filename in files:
-                    if filename.startswith("Prism"):
-                        file_path = os.path.join(root, filename)
-                        with open(file_path, "r") as interFile:
-                            interFileStr = interFile.read()
-                        with open(file_path, "w") as interFile:
-                            #   Replaces paths as needed
-                            interFileStr = interFileStr.replace(
-                                "PRISMROOTREPLACE", 
-                                '"%s"' % self.core.prismRoot.replace("\\", "/")
-                                )
-                            interFileStr = interFileStr.replace(
-                                "PLUGINROOTREPLACE", 
-                                '"%s"' % self.pluginRoot.replace("\\", "/")
-                                )
-                            interFile.write(interFileStr)
-
-            if platform.system() in ["Linux", "Darwin"]:
-                for root, dirs, _ in os.walk(gimpPluginPath):
-                    for item in dirs:
-                        os.chmod(os.path.join(root, item), 0o777)
-
-            return True
-
-        #   Handle specific OSError, e.g., permission errors, etc.
-        except OSError as e:
-            print("OS ERROR:", e)
-            return False
-        
-        # Handle other specific exceptions if needed
-        except Exception as e:
-            print("ERROR:", e)
-            return False
 
 
-    @err_catcher(name=__name__)
+    #   Replaces Path Placeholders in the Copied Integration Files
+    def replacePaths(self, prismGimpDir, addedFiles):
+        prismRoot = os.path.abspath(self.core.prismRoot).replace("\\", "/")
+        pluginRoot = os.path.abspath(os.path.dirname(os.path.dirname(__file__))).replace("\\", "/")
+
+        cmds = []
+
+        for filePath in addedFiles:
+            with open(filePath, "r", encoding="utf-8") as fh:
+                fileStr = fh.read()
+
+            fileStr = fileStr.replace("@PRISMROOTREPLACE@", prismRoot)
+            fileStr = fileStr.replace("@GIMPPLUINREPLACE@", pluginRoot)
+
+            cmd = {"type": "writeToFile", "args": [filePath, fileStr]}
+            cmds.append(cmd)
+
+        return self.core.runFileCommands(cmds)
+
+
     def removeIntegration(self, installPath):
         try:
-            if platform.system() != "Windows":
-                msgStr = ("Gimp may only be Installed on Windows at this time")
+            prismGimpDir = os.path.join(installPath, "Prism_Gimp")
+            cmds = []
 
-                QMessageBox.warning(self.core.messageParent, "Prism Integration", msgStr)
+            #   Cmd to Remove the Prism_Gimp Subdir
+            if os.path.exists(prismGimpDir):
+                cmd = {"type": "removeFolder", "args": [prismGimpDir]}
+                cmds.append(cmd)
+
+            if not cmds:
+                return True
+
+            result = self.core.runFileCommands(cmds)
+
+            if result is True:
+                return True
+            elif result is False:
                 return False
-
-            gimpVer = self.findGimpVersion(installPath)
-
-            gimpPluginPath = os.path.expanduser(f"~\\AppData\\Roaming\\GIMP\\{gimpVer}\\plug-ins")
-            gimpPluginPath = gimpPluginPath.replace("\\", "/")
-
-
-            for root, dirs, files in os.walk(gimpPluginPath):
-                for filename in files:
-                    removeItem = os.path.join(root, filename)
-                    os.remove(removeItem)
-                    
-            for dirpath, dirnames, _ in os.walk(gimpPluginPath, topdown=False):
-                for dirname in dirnames:
-                    removeDir = os.path.join(dirpath, dirname)
-                    shutil.rmtree(removeDir)
-
-            return True
+            else:
+                raise Exception(result)
 
         except Exception as e:
             exc_type, exc_obj, exc_tb = sys.exc_info()
-
             msgStr = (
                 "Errors occurred during the removal of the Gimp integration.\n\n%s\n%s\n%s"
                 % (str(e), exc_type, exc_tb.tb_lineno)
@@ -379,21 +332,42 @@ class Prism_Gimp_Integration(object):
             return False
 
 
-    @err_catcher(name=__name__)
     def updateInstallerUI(self, userFolders, pItem):
         try:
-            pluginItem = QTreeWidgetItem([self.plugin.pluginName])
-            pItem.addChild(pluginItem)
+            gimpItem = QTreeWidgetItem(["Gimp"])
+            gimpItem.setCheckState(0, Qt.Checked)
+            pItem.addChild(gimpItem)
 
-            pluginPath = self.examplePath
+            pluginsDirs = self.getGimpPluginsDirs() or []
 
-            if pluginPath != None and os.path.exists(pluginPath):
-                pluginItem.setCheckState(0, Qt.Checked)
-                pluginItem.setText(1, pluginPath)
-                pluginItem.setToolTip(0, pluginPath)
-            else:
-                pluginItem.setCheckState(0, Qt.Unchecked)
-                pluginItem.setText(1, "< doubleclick to browse path >")
+            browseStartPath = self.getHighestGimpPluginsDir() or self.getGimpRoamingDir() or self.examplePath
+
+            gimpCustomItem = QTreeWidgetItem(["Custom"])
+            gimpCustomItem.setToolTip(0, 'e.g. "%s"' % self.examplePath)
+            gimpCustomItem.setToolTip(1, browseStartPath)
+            gimpCustomItem.setText(1, "< doubleclick to browse path >")
+            gimpCustomItem.setCheckState(0, Qt.Unchecked)
+            gimpCustomItem.setFlags(gimpCustomItem.flags() & ~Qt.ItemIsAutoTristate)
+            gimpItem.addChild(gimpCustomItem)
+            gimpItem.setExpanded(True)
+
+            activeVersion = False
+            for pluginsDir in pluginsDirs:
+                #   Use the GIMP version dir name as the label (e.g. "3.2")
+                versionLabel = os.path.basename(os.path.dirname(pluginsDir))
+                gimpVItem = QTreeWidgetItem([versionLabel])
+                gimpItem.addChild(gimpVItem)
+
+                gimpVItem.setCheckState(0, Qt.Checked)
+                gimpVItem.setFlags(gimpVItem.flags() & ~Qt.ItemIsAutoTristate)
+                gimpVItem.setText(1, pluginsDir)
+                gimpVItem.setToolTip(0, pluginsDir)
+                activeVersion = True
+
+            if not activeVersion:
+                gimpItem.setCheckState(0, Qt.Unchecked)
+                gimpCustomItem.setFlags(~Qt.ItemIsEnabled)
+
         except Exception as e:
             exc_type, exc_obj, exc_tb = sys.exc_info()
             msg = QMessageBox.warning(
@@ -405,31 +379,28 @@ class Prism_Gimp_Integration(object):
             return False
 
 
-    @err_catcher(name=__name__)
-    def installerExecute(self, pluginItem, result):
+    def installerExecute(self, gimpItem, result):
         try:
-            pluginPaths = []
+            pluginsDirs = []
             installLocs = []
 
-            if pluginItem.checkState(0) != Qt.Checked:
+            if gimpItem.checkState(0) != Qt.Checked:
                 return installLocs
 
-            for i in range(pluginItem.childCount()):
-                item = pluginItem.child(i)
+            for i in range(gimpItem.childCount()):
+                item = gimpItem.child(i)
                 if item.checkState(0) == Qt.Checked and os.path.exists(item.text(1)):
-                    pluginPaths.append(item.text(1))
+                    pluginsDirs.append(item.text(1))
 
-            for i in pluginPaths:
-                result[
-                    "Gimp integration"
-                ] = self.core.integration.addIntegration(
-                    self.plugin.pluginName, path=i, quiet=True
+            for pluginsDir in pluginsDirs:
+                result["Gimp integration"] = self.core.integration.addIntegration(
+                    self.plugin.pluginName, path=pluginsDir, quiet=True
                 )
                 if result["Gimp integration"]:
-                    installLocs.append(i)
+                    installLocs.append(pluginsDir)
 
             return installLocs
-        
+
         except Exception as e:
             exc_type, exc_obj, exc_tb = sys.exc_info()
             msg = QMessageBox.warning(
