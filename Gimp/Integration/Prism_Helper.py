@@ -49,7 +49,6 @@
 #                                                                         #
 
 
-
 import os
 import sys
 import json
@@ -69,6 +68,35 @@ HOST_SCRIPT_NAME = "Prism_Host.py"
 
 ###################################
 ##            SETTINGS           ##
+
+def getPrismPythonRoot() -> str | None:
+    '''Searches for the Prism Python root directory and returns its path.'''
+
+    pythonDirs = []
+
+    try:
+        for entry_name in os.listdir(PRISM_ROOT):
+            entry_path = os.path.join(PRISM_ROOT, entry_name)
+
+            if not os.path.isdir(entry_path):
+                continue
+
+            if not entry_name.startswith("Python3"):
+                continue
+
+            ver_suffix = entry_name.removeprefix("Python")
+            ver_key = tuple(int(part) for part in ver_suffix.split(".") if part.isdigit())
+            pythonDirs.append((ver_key, entry_path))
+
+    except Exception:
+        return None
+
+    if not pythonDirs:
+        return None
+
+    pythonDirs.sort(reverse=True)
+    return pythonDirs[0][1]
+
 
 def getSettingsPath() -> str:
     '''Returns the file path to the settings file.'''
@@ -141,7 +169,6 @@ def loadSettings() -> dict:
     return settings
 
 
-
 def readSettingsData() -> dict:
     '''Reads the settings data from the settings file.'''
 
@@ -185,7 +212,6 @@ def updateSettingState(**updates) -> None:
             sData[key] = value
 
     writeSettingsData(sData)
-
 
 
 ###################################
@@ -235,7 +261,6 @@ def rotateLog(settings:dict, logLock:threading.Lock) -> None:
             pass
 
 
-
 def formatLogLine(message:str, source_label:str, **fields) -> str:
     '''Formats a log line with the given message, source label, and additional fields.'''
     
@@ -247,7 +272,6 @@ def formatLogLine(message:str, source_label:str, **fields) -> str:
         line = f"{line} | {details}"
 
     return f"{line}\n"
-
 
 
 ###################################
@@ -344,6 +368,9 @@ def terminateProcess(process_id:int) -> None:
         pass
 
 
+###################################
+##        COMMUNICATIONS         ##
+
 def canConnectToPrism(port_out:int, timeout:float=0.25) -> bool:
     '''Checks if a connection can be established to the Prism host.'''
 
@@ -396,35 +423,6 @@ def removeHostPidState(process_id=None, addToLog=None) -> None:
             addToLog("Failed to remove host pid state", error=str(exc))
 
 
-def getPrismPythonRoot() -> str | None:
-    '''Searches for the Prism Python root directory and returns its path.'''
-
-    pythonDirs = []
-
-    try:
-        for entry_name in os.listdir(PRISM_ROOT):
-            entry_path = os.path.join(PRISM_ROOT, entry_name)
-
-            if not os.path.isdir(entry_path):
-                continue
-
-            if not entry_name.startswith("Python3"):
-                continue
-
-            ver_suffix = entry_name.removeprefix("Python")
-            ver_key = tuple(int(part) for part in ver_suffix.split(".") if part.isdigit())
-            pythonDirs.append((ver_key, entry_path))
-
-    except Exception:
-        return None
-
-    if not pythonDirs:
-        return None
-
-    pythonDirs.sort(reverse=True)
-    return pythonDirs[0][1]
-
-
 def getHostPythonCommands() -> list:
     '''Determines the list of Python commands to attempt when launching the Prism host.'''
     
@@ -464,6 +462,73 @@ def getHostPythonCommands() -> list:
     return unique_commands
 
 
+###################################
+##        IMAGE HANDLING         ##
+
+def isImageDirty(image:object) -> bool | None:
+    '''Returns the dirty state of a Gimp image object.'''
+    
+    if image is None:
+        return None
+
+    for getter_name in ["is_dirty", "get_dirty"]:
+        getter = getattr(image, getter_name, None)
+        if callable(getter):
+            try:
+                return bool(getter())
+            except Exception:
+                continue
+
+    dirty_value = getattr(image, "dirty", None)
+    if isinstance(dirty_value, bool):
+        return dirty_value
+
+    return None
+
+
+def getImageId(image:object) -> int | None:
+    '''Returns a per-process ID for a Gimp image object.'''
+
+    if image is None:
+        return None
+
+    image_id_getter = getattr(image, "get_id", None)
+    if callable(image_id_getter):
+        try:
+            image_id = int(image_id_getter())
+            if image_id > 0:
+                return image_id
+        except Exception:
+            pass
+
+    return id(image)
+
+
+def getImageSize(image) -> tuple[int, int]:
+    '''Returns image width and height, trying multiple getter names.'''
+
+    w, h = 0, 0
+    for attr in ["get_width", "width"]:
+        getter = getattr(image, attr, None)
+        if callable(getter):
+            try:
+                w = int(getter())
+                break
+            except Exception:
+                pass
+    for attr in ["get_height", "height"]:
+        getter = getattr(image, attr, None)
+        if callable(getter):
+            try:
+                h = int(getter())
+                break
+            except Exception:
+                pass
+    return w, h
+
+
+###################################
+##         DATA HANDLING         ##
 
 def normalizeGimpItems(rawItems:object) -> list:
     '''Normalizes the output of Gimp getters to a flat list of items.'''
@@ -586,3 +651,226 @@ def flattenValues(value:object) -> list:
         return result
 
     return [unpacked]
+
+
+def setConfigValue(config:object, key:object, value:object) -> None:
+    '''Sets a config property while ignoring unsupported keys/values.'''
+
+    if value is None:
+        return
+
+    try:
+        config.set_property(key, value)
+    except Exception:
+        pass
+
+
+def callWithSignatures(func:object, signatures:list) -> tuple[object, str | None]:
+    '''Tries a callable against multiple argument signatures and returns the first success.'''
+
+    errors = []
+
+    for args in signatures:
+        try:
+            return func(*args), None
+        except Exception as exc:
+            errors.append(f"args={args}: {exc}")
+
+    return None, "; ".join(errors)
+
+
+
+    ###################################################
+    ##              GIMP RESULT PARSERS             ##
+    ###################################################
+
+def summarizeRequest(request:object) -> dict:
+    '''Summarizes a request payload for concise logging.'''
+
+    if not isinstance(request, dict):
+        return {"request_type": type(request).__name__}
+
+    return {
+        "action": request.get("action") or request.get("command"),
+        "keys": sorted(request.keys()),
+    }
+
+
+def extractLayerFromResult(rawResult:object) -> object | None:
+    '''Extracts the first layer-like object from GI/PDB result values.'''
+
+    for value in flattenValues(rawResult):
+        if value is None:
+            continue
+
+        has_name = callable(getattr(value, "get_name", None))
+        has_alpha = callable(getattr(value, "has_alpha", None))
+        has_mode = callable(getattr(value, "get_mode", None))
+        if has_name and (has_alpha or has_mode):
+            return value
+
+    return None
+
+
+def extractImageFromResult(rawResult:object) -> object | None:
+    '''Extracts the first image-like object from GI/PDB result values.'''
+
+    for value in flattenValues(rawResult):
+        if value is None:
+            continue
+
+        has_width = callable(getattr(value, "get_width", None))
+        has_height = callable(getattr(value, "get_height", None))
+        has_layers = callable(getattr(value, "get_layers", None))
+        if (has_width and has_height) or has_layers:
+            return value
+
+    return None
+
+
+def extractDisplayFromResult(rawResult:object) -> object | None:
+    '''Extracts the first display-like object from GI/PDB result values.'''
+
+    for value in flattenValues(rawResult):
+        if value is None:
+            continue
+
+        has_get_image = callable(getattr(value, "get_image", None))
+        has_get_id = callable(getattr(value, "get_id", None))
+        if has_get_image and has_get_id:
+            return value
+
+    return None
+
+
+def parseThumbnailResult(rawResult:object, width:int=0, height:int=0) -> dict | None:
+    '''Tries parseThumbnailPayload first, then parsePixbufPayload as fallback.'''
+    
+    parsed = parseThumbnailPayload(rawResult, width, height)
+    if not parsed:
+        parsed = parsePixbufPayload(rawResult)
+    return parsed
+
+
+def parseThumbnailPayload(rawResult:object, fallback_width:int=0, fallback_height:int=0) -> dict | None:
+    '''Parses thumbnail API/PDB payload into width/height/bpp/pixel-bytes.'''
+
+    values = flattenValues(rawResult)
+
+    ints = []
+    pixel_bytes = b""
+
+    for value in values:
+        if value is None:
+            continue
+
+        if isinstance(value, bool):
+            continue
+
+        if isinstance(value, int):
+            ints.append(value)
+            continue
+
+        converted = toBytes(value)
+        if converted and not pixel_bytes:
+            pixel_bytes = converted
+
+    if not pixel_bytes:
+        return None
+
+    width = int(fallback_width or 0)
+    height = int(fallback_height or 0)
+    bpp = 0
+
+    if len(ints) >= 3:
+        width = max(width, int(ints[0]))
+        height = max(height, int(ints[1]))
+        bpp = int(ints[2])
+
+    if bpp not in (3, 4):
+        if width > 0 and height > 0:
+            pixel_count = width * height
+            if pixel_count > 0:
+                derived_bpp = len(pixel_bytes) // pixel_count
+                if derived_bpp in (3, 4):
+                    bpp = derived_bpp
+
+    if width <= 0 or height <= 0:
+        if bpp in (3, 4) and fallback_width and fallback_height:
+            expected = int(fallback_width) * int(fallback_height) * bpp
+            if expected == len(pixel_bytes):
+                width = int(fallback_width)
+                height = int(fallback_height)
+
+    if width <= 0 or height <= 0 or bpp not in (3, 4):
+        return None
+
+    expected_size = width * height * bpp
+    if expected_size <= 0 or len(pixel_bytes) < expected_size:
+        return None
+
+    return {
+        "width": width,
+        "height": height,
+        "bpp": bpp,
+        "pixels": pixel_bytes[:expected_size],
+    }
+
+
+def parsePixbufPayload(rawResult:object) -> dict | None:
+    '''Parses pixbuf-like payload into width/height/bpp/pixel-bytes.'''
+
+    value = unpackValue(rawResult)
+
+    if isinstance(value, (list, tuple)):
+        for item in value:
+            parsed = parsePixbufPayload(item)
+            if parsed:
+                return parsed
+        return None
+
+    if value is None:
+        return None
+
+    width_getter = getattr(value, "get_width", None)
+    height_getter = getattr(value, "get_height", None)
+    channels_getter = getattr(value, "get_n_channels", None)
+    rowstride_getter = getattr(value, "get_rowstride", None)
+    pixels_getter = getattr(value, "get_pixels", None)
+
+    if not (callable(width_getter) and callable(height_getter) and callable(channels_getter) and callable(pixels_getter)):
+        return None
+
+    try:
+        width = int(width_getter())
+        height = int(height_getter())
+        bpp = int(channels_getter())
+        rowstride = int(rowstride_getter()) if callable(rowstride_getter) else width * bpp
+        raw_pixels = toBytes(pixels_getter())
+    except Exception:
+        return None
+
+    if width <= 0 or height <= 0 or bpp not in (3, 4) or rowstride <= 0:
+        return None
+
+    tight_stride = width * bpp
+    expected_row_data = rowstride * height
+    if len(raw_pixels) < expected_row_data:
+        return None
+
+    if rowstride == tight_stride:
+        pixels = raw_pixels[: tight_stride * height]
+    else:
+        rows = []
+        for row_index in range(height):
+            start = row_index * rowstride
+            end = start + tight_stride
+            rows.append(raw_pixels[start:end])
+        pixels = b"".join(rows)
+
+    return {
+        "width": width,
+        "height": height,
+        "bpp": bpp,
+        "pixels": pixels,
+    }

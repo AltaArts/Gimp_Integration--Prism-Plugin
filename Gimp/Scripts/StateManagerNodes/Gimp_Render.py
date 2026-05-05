@@ -65,11 +65,9 @@ def boolToBit(bool):
 
 
 class Gimp_RenderClass(object):
-
     className = "Gimp_Render"
     listType = "Export"
     stateCategories = {"Render": [{"label": className, "stateType": className}]}
-
 
 
     @err_catcher(name=__name__)
@@ -112,11 +110,9 @@ class Gimp_RenderClass(object):
         if len(self.product_paths) < 2:
             self.w_outPath.setVisible(False)
 
-        #   Changed to 2d
         self.mediaType = "2drenders"
         self.tasknameRequired = True
 
-        #   Implemented export formats
         self.outputFormats = [".png", ".exr", ".jpg", ".tif", ".pdf", ".psd"]
         self.cb_format.clear()
         self.cb_format.addItems(self.outputFormats)
@@ -126,13 +122,12 @@ class Gimp_RenderClass(object):
         self.cb_outGamma.clear()
         self.cb_outGamma.addItems(self.outputGamma)
 
-        #   Scale options for export
+        #   Scale Options
         scaleOptions = ["10", "25", "50", "100", "150", "200", "300"]
         self.cb_scale.clear()
         self.cb_scale.addItems(scaleOptions)
         self.cb_scale.setCurrentIndex(3)
 
-        #   Alpha fill export override was removed; keep control hidden.
         self.gb_alphaFill.hide()
 
         pngCompressItems = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]

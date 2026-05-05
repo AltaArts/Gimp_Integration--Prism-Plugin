@@ -59,8 +59,8 @@ class Prism_Gimp_Variables(object):
         self.hasFrameRange = False
         self.sceneFormats = [".xcf", "psd"]
         self.appSpecificFormats = self.sceneFormats
-        self.importFormats = [".png", ".exr", ".jpg", "bmp"]                                        #   TODO - ADD FORMATS
-        self.outputFormats = [".png", ".exr", ".jpg", "bmp"]                                        #   TODO - ADD FORMATS
+        self.importFormats = [".png", ".exr", ".jpg", "bmp"]
+        self.outputFormats = [".png", ".exr", ".jpg", ".tif", ".pdf", ".psd"]
         self.appColor = [200, 180, 0]
         self.canDeleteRenderPasses = False
         self.colorButtonWithStyleSheet = True

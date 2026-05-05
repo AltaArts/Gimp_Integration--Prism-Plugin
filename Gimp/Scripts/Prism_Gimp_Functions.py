@@ -86,13 +86,17 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-
 class Prism_Gimp_Functions(object):
     def __init__(self, core:"PrismCore", plugin):
         self.core = core
         self.plugin = plugin
-        self.Gimp = None
         self.noImagePopupTime = 0.0
+        self.pendingBridgeImageId = None
+        self.saveCommentBridgeImageId = None
+        self.pendingThumbnailBridgeImageId = None
+        self.stateManagerBridgeImageId = None
+        self.lastResolvedImageKey = None
+        self.suppressStateSaveUntil = 0.0
 
         try:
             self.loadSettings()
@@ -100,14 +104,12 @@ class Prism_Gimp_Functions(object):
             pass
 
         ##  CALLBACKS
-        # self.core.registerCallback("postInitialize", self.setupPrismMenu, plugin=self.plugin)
+        self.core.registerCallback("onProjectBrowserStartup", self.onProjectBrowserStartup, plugin=self.plugin, priority=20)
+        self.core.registerCallback("onUserSettingsOpen", self.onUserSettingsOpen, plugin=self.plugin, priority=20)
+        self.core.registerCallback("onUserSettingsSave", self.onUserSettingsSave, plugin=self.plugin, priority=20)
         self.core.registerCallback("onStateManagerOpen", self.onStateManagerOpen, plugin=self.plugin, priority=20)
-        # self.core.registerCallback("onStateManagerShow", self.onStateManagerShow, plugin=self.plugin, priority=20)
-        # self.core.registerCallback("onProjectBrowserStartup", self.onProjectBrowserStartup, plugin=self.plugin)
-        # self.core.registerCallback("onUserSettingsOpen", self.onUserSettingsOpen, plugin=self.plugin)
-        # self.core.registerCallback("onUserSettingsSave", self.onUserSettingsSave, plugin=self.plugin,)
-        # self.core.registerCallback("prePublish", self.prePublish, plugin=self.plugin)
-        # self.core.registerCallback("postPublish", self.postPublish, plugin=self.plugin)
+        self.core.registerCallback("onStateManagerShow", self.onStateManagerShow, plugin=self.plugin, priority=20)
+        self.core.registerCallback("onStateManagerClose", self.onStateManagerClose, plugin=self.plugin, priority=20)
 
 
     @err_catcher(name=__name__)
@@ -161,6 +163,8 @@ class Prism_Gimp_Functions(object):
         logger.debug("Loaded Gimp Settings")
 
 
+    #   Return Settings File Path
+    @err_catcher(name=__name__)
     def getSharedSettingsPath(self) -> str:
         overridePath = os.environ.get("PRISM_GIMP_SETTINGS_PATH")
         if overridePath:
@@ -169,6 +173,8 @@ class Prism_Gimp_Functions(object):
         return os.path.join(PLUGINROOT, SETTINGS_FILE_NAME)
 
 
+    #   Read Settings Json File
+    @err_catcher(name=__name__)
     def loadSharedSettings(self) -> dict:
         settingsPath = self.getSharedSettingsPath()
 
@@ -203,14 +209,147 @@ class Prism_Gimp_Functions(object):
     ##             Helpers               ##   
     #######################################
 
+    #   Return Current Image Context from Active Gimp Image
+    @err_catcher(name=__name__)
+    def resolveCurrentImageContext(self) -> dict:
+        #   Send Request to Gimp Bridge
+        response = self.sendCmdToGimp(
+            action="get-current-file-name",
+            payload={},
+            timeout=2.0,
+        )
 
+        #   Return Empty Dict if No Response or Error from Bridge
+        if not response or not response.get("ok"):
+            return {
+                "key": "none",
+                "path": "",
+                "name": "",
+                "imageId": None,
+            }
+
+        data = response.get("data") or {}
+        path = str(data.get("path") or "").strip()
+        name = str(data.get("name") or "").strip()
+
+        #   Build Context Key from Available Data
+        raw_image_id = data.get("imageId")
+        try:
+            image_id = int(raw_image_id) if raw_image_id is not None else None
+        except Exception:
+            image_id = None
+
+        #   Get Key from: Image Id, or Path, or Name, or None
+        if path:
+            key = f"path:{path.lower()}"
+        elif image_id is not None:
+            key = f"id:{image_id}"
+        elif name:
+            key = f"name:{name}"
+        else:
+            key = "none"
+
+        context = {
+            "key": key,
+            "path": path,
+            "name": name,
+            "imageId": image_id,
+        }
+
+        #   Log when the Active Image Context Changed Between Requests
+        if key != self.lastResolvedImageKey:
+            self.lastResolvedImageKey = key
+            logger.debug(
+                "Active image context changed",
+                extra={
+                    "image_id": image_id,
+                    "path": path,
+                    "name": name,
+                },
+            )
+
+        return context
+
+
+    #   Build Payload from Current Active Image Id
+    @err_catcher(name=__name__)
+    def getCurrentImagePayload(self) -> dict:
+        context = self.resolveCurrentImageContext()
+        image_id = context.get("imageId")
+
+        if image_id is None:
+            return {}
+
+        return {"image_id": image_id}
+
+
+    #   If State Manager has an Active Image Id or Fall Back to Current Active Image
+    @err_catcher(name=__name__)
+    def getStateManagerImagePayload(self) -> dict:
+        if self.stateManagerBridgeImageId is not None:
+            return {"image_id": self.stateManagerBridgeImageId}
+
+        return self.getCurrentImagePayload()
+    
+
+    #   Store Requested Image Id for Next Bridge Action
+    @err_catcher(name=__name__)
+    def setPendingBridgeImageFromRequest(self, requestData):
+        image_id = None
+
+        if isinstance(requestData, dict):
+            raw_image_id = requestData.get("image_id")
+            if raw_image_id is not None:
+                try:
+                    image_id = int(raw_image_id)
+
+                except Exception:
+                    image_id = None
+
+        self.pendingBridgeImageId = image_id
+
+
+    #   Merge Extra Payload with Active Bridge Image Id
+    @err_catcher(name=__name__)
+    def getBridgeImagePayload(self, extraPayload:dict=None) -> dict:
+        payload = dict(extraPayload or {})
+
+        image_id = None
+
+        if self.pendingBridgeImageId is not None:
+            image_id = self.pendingBridgeImageId
+
+        elif self.pendingThumbnailBridgeImageId is not None:
+            image_id = self.pendingThumbnailBridgeImageId
+
+        elif self.saveCommentBridgeImageId is not None:
+            image_id = self.saveCommentBridgeImageId
+
+        if image_id is not None:
+            payload["image_id"] = image_id
+
+        return payload
+
+
+    #   Extract Error Message from a Bridge Response
+    def _responseError(self, response) -> str:
+        if isinstance(response, dict):
+            return response.get("error") or "Unknown bridge error"
+
+        return "Unknown bridge error"
+
+
+    #   Return True if Error Means No Active Image
+    @err_catcher(name=__name__)
     def isNoActiveImageError(self, errorMsg:str) -> bool:
         normalized = str(errorMsg or "").strip().lower()
         return "no active image" in normalized
 
 
+    #   Show Popup When No Active Image Exists
+    @err_catcher(name=__name__)
     def popupNoActiveImage(self) -> None:
-        #   Throttle to avoid duplicate popups from tightly grouped bridge calls.
+        #   Limit Duplicate Popups from Repeated Bridge Calls.
         now = time.monotonic()
         if (now - self.noImagePopupTime) < 1.0:
             return
@@ -225,27 +364,44 @@ class Prism_Gimp_Functions(object):
             )
         except Exception:
             pass
-    
+
+
+    #   Pause State Saves for a Short Time
+    @err_catcher(name=__name__)
+    def suppressStateSaves(self, seconds:float=8.0) -> None:
+        self.suppressStateSaveUntil = max(self.suppressStateSaveUntil, time.monotonic() + max(0.0, seconds))
+
 
     #   Marks the Gimp Scenefile Dirty to Prompt Save on Exit
     @err_catcher(name=__name__)
     def markSceneDirty(self, origin=None, force=False):
+        payload = {
+            "force": bool(force),
+            **self.getStateManagerImagePayload(),
+        }
+
+        logger.debug(
+            "Mark scene dirty request",
+            extra={
+                "image_id": payload.get("image_id"),
+                "force": bool(force),
+            },
+        )
+
         response = self.sendCmdToGimp(
             action="mark-scene-dirty",
-            payload={"force": bool(force)},
+            payload=payload,
             timeout=5.0,
         )
 
         if not response or not response.get("ok"):
-            errorMsg = "Unknown bridge error"
-            if isinstance(response, dict):
-                errorMsg = response.get("error") or errorMsg
-            logger.warning(f"ERROR: Failed to mark scene dirty via bridge: {errorMsg}")
+            logger.warning(f"ERROR: Failed to mark scene dirty via bridge: {self._responseError(response)}")
             return False
 
         return True
 
 
+    #   Query Current Image Specs from Gimp Bridge
     @err_catcher(name=__name__)
     def getImageSpecs(self) -> dict:
         response = None
@@ -278,16 +434,12 @@ class Prism_Gimp_Functions(object):
 
     @err_catcher(name=__name__)
     def onProjectBrowserStartup(self, origin:"ProjectBrowser"):
-        origin.setWindowIcon(QIcon(self.prismAppIcon))
-        ss = self.core.getActiveStyleSheet()
-        origin.setStyleSheet(ss["css"])
+        origin.setWindowIcon(QIcon(self.appIcon))
 
 
     @err_catcher(name=__name__)
     def onUserSettingsOpen(self, origin:"UserSettings"):
-        origin.setWindowIcon(QIcon(self.prismAppIcon))
-        ss = self.core.getActiveStyleSheet()
-        origin.setStyleSheet(ss["css"])
+        origin.setWindowIcon(QIcon(self.appIcon))
 
 
     @err_catcher(name=__name__)
@@ -297,9 +449,7 @@ class Prism_Gimp_Functions(object):
 
     @err_catcher(name=__name__)
     def onStateManagerOpen(self, origin:"StateManager"):
-        origin.setWindowIcon(QIcon(self.prismAppIcon))
-        ss = self.core.getActiveStyleSheet()
-        origin.setStyleSheet(ss["css"])
+        origin.setWindowIcon(QIcon(self.appIcon))
 
 		#   Resizes the StateManager Window
         if hasattr(origin, 'resize'):
@@ -332,78 +482,9 @@ class Prism_Gimp_Functions(object):
         origin.b_preview.setMaximumWidth(35 * self.core.uiScaleFactor)
 
         #	Remove Native Buttons
-        # origin.b_createImport.deleteLater()
         origin.b_shotCam.deleteLater()
         origin.b_createExport.deleteLater()
         origin.b_createPlayblast.deleteLater()
-
-        #	Create New Scene Button
-        # origin.b_createShot = QPushButton(origin.w_CreateImports)
-        # origin.b_createShot.setObjectName("b_createShot")
-        # origin.b_createShot.setText("New Scene")
-        # origin.horizontalLayout_3.insertWidget(0, origin.b_createShot)
-        # origin.b_createShot.clicked.connect(lambda: self.addShot(origin, "scene"))
-
-        #   Add Shot Button
-        # origin.b_addShot = QPushButton(origin.w_CreateImports)
-        # origin.b_addShot.setObjectName("b_addShot")
-        # origin.b_addShot.setText("Add Shot")
-        # origin.horizontalLayout_3.insertWidget(1, origin.b_addShot)
-        # origin.b_addShot.clicked.connect(lambda: self.addShot(origin, "shot"))
-
-        #   Add Survey Button
-        # origin.b_addSurvey = QPushButton(origin.w_CreateImports)
-        # origin.b_addSurvey.setObjectName("b_addSurvey")
-        # origin.b_addSurvey.setText("Survey Shot")
-        # origin.horizontalLayout_3.insertWidget(2, origin.b_addSurvey)
-        # origin.b_addSurvey.clicked.connect(lambda: self.addShot(origin, "survey"))
-
-        #   Add Mesh Button
-        # origin.b_addMesh = QPushButton(origin.w_CreateImports)
-        # origin.b_addMesh.setObjectName("b_addMesh")
-        # origin.b_addMesh.setText("Mesh")
-        # origin.horizontalLayout_3.insertWidget(3, origin.b_addMesh)
-        # origin.b_addMesh.clicked.connect(lambda: origin.createState("ImportMesh"))
-
-        # Export Scene Button
-        # origin.b_exportScene = QPushButton(origin.w_CreateExports)
-        # origin.b_exportScene.setObjectName("b_exportScene")
-        # origin.b_exportScene.setText("Export Scene")
-        # origin.b_exportScene.setMaximumSize(QSize(150, 16777215))
-        # sizePolicy = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-        # origin.b_exportScene.setSizePolicy(sizePolicy)
-        # origin.horizontalLayout_4.insertWidget(0, origin.b_exportScene)
-        # origin.b_exportScene.clicked.connect(lambda: origin.createState("SceneExport"))
-
-        # tip = ("Create New Gimp Scene.\n\n"
-        #        "This will start an entirely new scene and import the images(s)\n"
-        #        "This is the same as the 'New' button in the Gimp UI.\n\n"
-        #        "Please note this will overwrite any shots in the existing scene.")
-        # origin.b_createShot.setToolTip(tip)
-
-        # tip = ("This will add an additional Shot and Camera to the existing Scene.\n\n"
-        #        "This is the same as the 'Add Shot' button in Gimp.")
-        # origin.b_addShot.setToolTip(tip)
-
-        # tip = ("This will add a Survey Shot and Camera to the existing Scene.\n\n"
-        #        "This is the same as the 'Add Survey Shot' button in Gimp.")
-        # origin.b_addSurvey.setToolTip(tip)
-
-        # tip = "Import a 3D Mesh object into the Scene."
-        # origin.b_addMesh.setToolTip(tip)
-
-        # tip = "Export the Gimp Scene to the desired format."
-        # origin.b_exportScene.setToolTip(tip)
-
-        # tip = ("Create the Desired Render State:\n\n"
-        #        "ImageRender - Same as Gimp 'Save Sequence'\n"
-        #        "STMap Render - Same as Gimp 'Write Distortion Maps")
-        # origin.b_createRender.setToolTip(tip)
-
-        # tip = ("Creates a Playblast State.\n\n"
-        #        "This uses the Gimp 'Preview Movie' from\n"
-        #        "the Perspective View.")
-        # origin.b_createPlayblast.setToolTip(tip)
 
         #   Remove Unused States Except for gimpStates
         for state in list(origin.stateTypes.keys()):
@@ -415,19 +496,33 @@ class Prism_Gimp_Functions(object):
 
 
     @err_catcher(name=__name__)
+    def onStateManagerClose(self, origin:"StateManager"):
+        self.stateManagerBridgeImageId = None
+
+
+    @err_catcher(name=__name__)
     def onStateManagerShow(self, origin:"StateManager"):
         #   Display Import List (Prism closes the list by default)
         origin.gb_import.setChecked(True)
 
+        if self.stateManagerBridgeImageId is None:
+            context = self.resolveCurrentImageContext()
+            self.stateManagerBridgeImageId = context.get("imageId")
 
-    @err_catcher(name=__name__)
-    def prePublish(self, origin:"StateManager"):
-        origin.showMinimized()
+        logger.debug(
+            "SM show bound image context",
+            extra={"image_id": self.stateManagerBridgeImageId},
+        )
 
 
-    @err_catcher(name=__name__)
-    def postPublish(self, origin:"StateManager", pubType, result={}):
-        origin.showNormal()
+    # @err_catcher(name=__name__)
+    # def prePublish(self, origin:"StateManager"):
+    #     origin.showMinimized()
+
+
+    # @err_catcher(name=__name__)
+    # def postPublish(self, origin:"StateManager", pubType, result={}):
+    #     origin.showNormal()
 
 
 
@@ -436,20 +531,100 @@ class Prism_Gimp_Functions(object):
     ###################################################
 
     @err_catcher(name=__name__)
-    def saveVersion(self):
-        self.core.saveScene()
+    def saveVersion(self, requestData=None):
+        self.saveCommentBridgeImageId = None
+        self.pendingThumbnailBridgeImageId = None
+
+        #   Store Requested Image Id for Next Bridge Action
+        self.setPendingBridgeImageFromRequest(requestData)
+
+        #   If No Image Context, Show Popup and Clear Pending Ids
+        context = self.resolveCurrentImageContext()
+        if context.get("imageId") is None:
+            self.popupNoActiveImage()
+            self.pendingBridgeImageId = None
+            return False
+
+        try:
+            self.core.saveScene()
+        finally:
+            self.pendingBridgeImageId = None
+
 
     @err_catcher(name=__name__)
-    def saveComment(self):
-        self.core.saveWithComment()
+    def saveComment(self, requestData=None):
+        #   Store Requested Image Id for Next Bridge Action
+        self.setPendingBridgeImageFromRequest(requestData)
+        self.saveCommentBridgeImageId = self.pendingBridgeImageId
+
+        #   If No Image Context, Show Popup and Clear Pending Ids
+        context = self.resolveCurrentImageContext()
+        if context.get("imageId") is None:
+            self.popupNoActiveImage()
+            self.pendingBridgeImageId = None
+            self.saveCommentBridgeImageId = None
+            return False
+
+        try:
+            self.core.saveWithComment()
+        finally:
+            self.pendingBridgeImageId = None
+
 
     @err_catcher(name=__name__)
     def open_ProjectBrowser(self):
         self.core.projectBrowser()
 
+
     @err_catcher(name=__name__)
-    def open_StateManager(self):
-        self.core.stateManager()
+    def open_StateManager(self, requestData=None):
+        #   Store Requested Image Id for Next Bridge Action
+        self.setPendingBridgeImageFromRequest(requestData)
+        try:
+            #   Open State Manager with Pending Image Id
+            payload = {}
+            if self.pendingBridgeImageId is not None:
+                payload["image_id"] = self.pendingBridgeImageId
+
+            #   Send Request to Gimp Bridge
+            response = self.sendCmdToGimp(
+                action="get-current-file-name",
+                payload=payload,
+                timeout=2.0,
+            )
+
+            #   If No Response or Error from Bridge, Show Popup and Clear Pending Ids
+            scenePath = ""
+            if response and response.get("ok"):
+                data = response.get("data") or {}
+                scenePath = str(data.get("path") or "")
+
+            #   If Scene Path Not in Pipeline, Show Warning and Clear Pending Ids
+            if not self.core.fileInPipeline(scenePath, validateFilename=False):
+                self.core.showFileNotInProjectWarning()
+                self.stateManagerBridgeImageId = None
+                return
+
+            #   Open State Manager Window
+            self.stateManagerBridgeImageId = self.pendingBridgeImageId
+            if self.stateManagerBridgeImageId is None:
+                context = self.resolveCurrentImageContext()
+                self.stateManagerBridgeImageId = context.get("imageId")
+
+            logger.debug(
+                "SM open bound image context",
+                extra={
+                    "request_image_id": self.pendingBridgeImageId,
+                    "bound_image_id": self.stateManagerBridgeImageId,
+                    "scene_path": scenePath,
+                },
+            )
+
+            #   Force StateManager Refresh so Prism Reloads Image States
+            self.core.stateManager(reload_module=True)
+        finally:
+            self.pendingBridgeImageId = None
+
 
     @err_catcher(name=__name__)
     def open_PrismSettings(self):
@@ -463,6 +638,7 @@ class Prism_Gimp_Functions(object):
 
 
     #   Sends a Blocking Request to the In-Gimp Bridge Service
+    @err_catcher(name=__name__)
     def sendCmdToGimp(self, action:str, payload:dict=None, timeout:float=10.0) -> dict | None:
         bridgePort = int(self.gimpSettings.get("bridgePort_in", 50601))
         packet = {
@@ -471,6 +647,7 @@ class Prism_Gimp_Functions(object):
         }
 
         try:
+            #   Connect to Bridge and Send Request
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client:
                 client.settimeout(timeout)
                 client.connect(("127.0.0.1", bridgePort))
@@ -479,9 +656,10 @@ class Prism_Gimp_Functions(object):
 
                 while True:
                     try:
+                        #   Use Socket Timeout to Break When No More Data is Being Sent by Bridge
                         chunk = client.recv(65536)
                     except socket.timeout:
-                        #   If some data already arrived, use it. Otherwise treat as no response.
+                        #   If Some Data Already Arrived, or Treat as No Response
                         if chunks:
                             break
                         return None
@@ -491,6 +669,7 @@ class Prism_Gimp_Functions(object):
 
                     chunks.append(chunk)
 
+                #   Combine Received Chunks and Parse as JSON
                 rawResponse = b"".join(chunks)
 
             if not rawResponse:
@@ -512,27 +691,31 @@ class Prism_Gimp_Functions(object):
     #   Captures Thumbnail from Gimp
     @err_catcher(name=__name__)
     def captureViewportThumbnail(self) -> QPixmap | None:
+        #   If Pending Thumbnail Image Id Exists, Use for this Request and Clear After
+        consumeDelayedThumbnailImage = (
+            self.pendingBridgeImageId is None
+            and self.pendingThumbnailBridgeImageId is not None
+        )
+
         try:
+            #   Get Thumbnail Size from Settings or Use Defaults
             preview_width = int(getattr(self.core, "scenePreviewWidth", 512) or 512)
             preview_height = int(getattr(self.core, "scenePreviewHeight", 256) or 256)
 
+            #   Send Request to Gimp Bridge
             response = self.sendCmdToGimp(
                 action="get-thumbnail",
-                payload={
+                payload=self.getBridgeImagePayload({
                     "width": max(1, preview_width),
                     "height": max(1, preview_height),
-                },
+                }),
                 timeout=10.0,
             )
 
             if not response or not response.get("ok"):
-                errorMsg = "Unknown bridge error"
-                if isinstance(response, dict):
-                    errorMsg = response.get("error") or errorMsg
+                logger.warning(f"ERROR: Unable to capture thumbnail via bridge: {self._responseError(response)}")
 
-                logger.warning(f"ERROR: Unable to capture thumbnail via bridge: {errorMsg}")
-
-                #   Fallback for builds without thumbnail bridge APIs: load the current saved scene file.
+                #   If No Thumbnail from Bridge, Attempt to Load Current Scene File as Fallback Thumbnail
                 current_path = self.getCurrentFileName(origin=None, path=True)
                 if current_path and os.path.isfile(current_path):
                     fallback_pixmap = QPixmap(current_path)
@@ -548,28 +731,34 @@ class Prism_Gimp_Functions(object):
             bpp = int(data.get("bpp") or 0)
             pixels_b64 = data.get("pixels") or ""
 
+            #   Validate Thumbnail Data from Bridge
             if width <= 0 or height <= 0 or bpp not in (3, 4) or not pixels_b64:
                 logger.warning("ERROR: Thumbnail generation failed: Invalid bridge thumbnail payload")
                 return None
 
             try:
+                #   Decode Base64 Pixel Data from Bridge
                 pixel_bytes = base64.b64decode(pixels_b64)
 
             except Exception as exc:
                 logger.warning(f"ERROR: Thumbnail generation failed: Base64 decode failed: {exc}")
                 return None
 
+            #   Check that Decoded Pixel Data Size Matches Expected Size from Thumbnail Specs
             expected_size = width * height * bpp
             if expected_size <= 0 or len(pixel_bytes) < expected_size:
                 logger.warning("ERROR: Thumbnail generation failed: Pixel buffer smaller than expected")
                 return None
 
+            #   Create QImage from Raw Pixel Data and Convert to QPixmap
             bytesPerLine = width * bpp
             image_format = QImage.Format_RGBA8888 if bpp == 4 else QImage.Format_RGB888
 
             image = QImage(pixel_bytes[:expected_size], width, height, bytesPerLine, image_format).copy()
+
+            #   If RGBA, Composite Thumbnail onto Checkerboard Background
             if bpp == 4:
-                pixmap = self.compositeThumbnailOnChecker(image)
+                pixmap = self.compThumbnailOnChecker(image)
             else:
                 pixmap = QPixmap.fromImage(image)
 
@@ -582,16 +771,25 @@ class Prism_Gimp_Functions(object):
         except Exception as exc:
             logger.warning(f"ERROR: Unable to capture thumbnail: {exc}")
             return None
+        
+        finally:
+            if consumeDelayedThumbnailImage:
+                #   Use delayed Save Comment Image Binding after First Thumbnail Request.
+                self.pendingThumbnailBridgeImageId = None
+                self.saveCommentBridgeImageId = None
 
 
-    #   Composites an RGBA thumbnail onto Generated Checkerboard Background.
-    def compositeThumbnailOnChecker(self, source_image:QImage) -> QPixmap:
+    #   Composites an RGBA Thumbnail onto Generated Checkerboard Background.
+    @err_catcher(name=__name__)
+    def compThumbnailOnChecker(self, source_image:QImage) -> QPixmap:
         width = source_image.width()
         height = source_image.height()
 
+        #   Create Thumbnail-Sized BG
         canvas = QImage(width, height, QImage.Format_RGB32)
         painter = QPainter(canvas)
 
+        #   Fill BG with Checkerboard Pattern
         for y in range(0, height, THUMB_TILE_SIZE):
             row_index = y // THUMB_TILE_SIZE
             for x in range(0, width, THUMB_TILE_SIZE):
@@ -599,6 +797,7 @@ class Prism_Gimp_Functions(object):
                 color = THUMB_COLOR_LIGHT if (row_index + col_index) % 2 == 0 else THUMB_COLOR_DARK
                 painter.fillRect(x, y, THUMB_TILE_SIZE, THUMB_TILE_SIZE, color)
 
+        #   Composite Thumbnail onto BG and Convert to QPixmap
         painter.drawImage(0, 0, source_image)
         painter.end()
 
@@ -610,15 +809,12 @@ class Prism_Gimp_Functions(object):
     ##                  GIMP Stuff                   ##
     ###################################################
 
-
-
     @err_catcher(name=__name__)
     def getSceneExtension(self, origin):
         return self.sceneFormats[0]
 
 
-
-    #   Returns Gimp Version
+    #   Query Gimp Application Version from Bridge
     @err_catcher(name=__name__)
     def getAppVersion(self, origin:"PrismCore") -> str:
         response = self.sendCmdToGimp(
@@ -640,12 +836,13 @@ class Prism_Gimp_Functions(object):
         return str(version)
 
 
-    #   Returns Current Gimp File Name/Path (retries multiple times for potential startup timing issues)
+    #   Return Current Scene File Path or File Name
     @err_catcher(name=__name__)
     def getCurrentFileName(self, origin=None, path=True, attempts:int=10, delay:float=0.2) -> str:
         response = None
         filePath = None
 
+        #   Retry Loop to Handle While Gimp is Still Initializing
         for attempt in range(attempts):
             response = self.sendCmdToGimp(
                 action="get-current-file-name",
@@ -656,9 +853,7 @@ class Prism_Gimp_Functions(object):
             if response and response.get("ok"):
                 data = response.get("data") or {}
                 filePath = data.get("path")
-
-                if filePath:
-                    break
+                break
 
             if attempt < attempts - 1:
                 time.sleep(delay)
@@ -676,6 +871,7 @@ class Prism_Gimp_Functions(object):
         return os.path.basename(filePath)
 
 
+    #   Open a Scene File in Gimp Through Bridge
     @err_catcher(name=__name__)
     def openScene(self, origin, filepath, force=False):
         if not filepath:
@@ -701,11 +897,7 @@ class Prism_Gimp_Functions(object):
             )
 
             if not response or not response.get("ok"):
-                errorMsg = "Unknown bridge error"
-                if isinstance(response, dict):
-                    errorMsg = response.get("error") or errorMsg
-
-                logger.warning(f"ERROR: Unable to open Scenefile via bridge: {filepath} ({errorMsg})")
+                logger.warning(f"ERROR: Unable to open Scenefile via bridge: {filepath} ({self._responseError(response)})")
                 return False
 
             logger.debug(f"Opened Scene: {filepath}")
@@ -719,6 +911,9 @@ class Prism_Gimp_Functions(object):
     #   Saves .XCF to New Passed Filepath
     @err_catcher(name=__name__)
     def saveScene(self, origin=None, filepath=None, details={}):
+        #   To Keep Image Bound for Post-Save Thumbnail Capture in Save Comment Flow
+        delayedComment_ImageId = self.saveCommentBridgeImageId
+
         try:
             if filepath:
                 if not filepath.lower().endswith(".xcf"):
@@ -731,21 +926,29 @@ class Prism_Gimp_Functions(object):
                     logger.warning(f"ERROR: Save folder does not exist: {parent_dir}")
                     return False
 
+            payload = {
+                "path": filepath,
+                "details": details or {},
+            }
+
+            #   If Delayed Comment Image Id Exists and No Pending Bridge Image Id, Use Delayed Comment Image Id for this Save Request
+            if delayedComment_ImageId is not None and self.pendingBridgeImageId is None:
+                payload["image_id"] = delayedComment_ImageId
+                #   Keep image binding for post-save thumbnail capture in async Save Comment flow.
+                self.pendingThumbnailBridgeImageId = delayedComment_ImageId
+
+            #   Send Request to Gimp Bridge
             response = self.sendCmdToGimp(
                 action="save-scene",
-                payload={
-                    "path": filepath,
-                    "details": details or {},
-                },
+                payload=self.getBridgeImagePayload(payload),
                 timeout=30.0,
             )
 
+            #   Clear Delayed Comment Image Id After Save Request is Sent to Bridge
             if not response or not response.get("ok"):
-                errorMsg = "Unknown bridge error"
-                if isinstance(response, dict):
-                    errorMsg = response.get("error") or errorMsg
-
+                errorMsg = self._responseError(response)
                 if self.isNoActiveImageError(errorMsg):
+                    self.suppressStateSaves()
                     self.popupNoActiveImage()
                     return False
 
@@ -763,7 +966,6 @@ class Prism_Gimp_Functions(object):
     ##########################################
     ##                RENDER                ##
     ##########################################
-
 
     @err_catcher(name=__name__)
     def sm_render_startup(self, origin):
@@ -787,23 +989,31 @@ class Prism_Gimp_Functions(object):
 
     @err_catcher(name=__name__)
     def sm_render_startLocalRender(self, origin, outputName, settings):
+        payload = {
+            "path": outputName,
+            "settings": settings or {},
+            **self.getStateManagerImagePayload(),
+        }
+
+        logger.debug(
+            "SM render export request",
+            extra={
+                "image_id": payload.get("image_id"),
+                "path": outputName,
+            },
+        )
+
+        #   Send Request to Gimp Bridge
         response = self.sendCmdToGimp(
             action="export-image",
-            payload={
-                "path": outputName,
-                "settings": settings or {},
-            },
+            payload=payload,
             timeout=120.0,
         )
 
         if response and response.get("ok"):
             return "Result=Success"
 
-        errorMsg = "Unknown bridge error"
-        if isinstance(response, dict):
-            errorMsg = response.get("error") or errorMsg
-
-        return f"Export failed: {errorMsg}"
+        return f"Export failed: {self._responseError(response)}"
 
 
 
@@ -815,24 +1025,46 @@ class Prism_Gimp_Functions(object):
     ##   Store State Data within the .XCF Scenefile  ##
 
 
+    #   Save State Manager Data into Scene Metadata
     @err_catcher(name=__name__)
     def sm_saveStates(self, origin, buf):
+        #   If State Saves are Temporarily Suppressed, Skip Saving and Return Early
+        if time.monotonic() < self.suppressStateSaveUntil:
+            logger.debug("Skipping State save because save flow was aborted after no-image error")
+            return
+
         if isinstance(buf, str):
             stateData = buf
         else:
             stateData = json.dumps(buf)
 
+        #   If No Active Image Context, Show Popup and Skip Saving
+        context = self.resolveCurrentImageContext()
+        if context.get("imageId") is None:
+            logger.debug("Skipping State save because no active image exists")
+            return
+
+        logger.debug(
+            "SM saveStates request",
+            extra={
+                "image_id": context.get("imageId"),
+                "state_bytes": len(stateData.encode("utf-8", errors="replace")),
+            },
+        )
+
+        #   Send Request to Gimp Bridge
         response = self.sendCmdToGimp(
             action="save-states",
-            payload={"stateData": stateData},
+            payload={
+                "stateData": stateData,
+                **self.getStateManagerImagePayload(),
+            },
             timeout=10.0,
         )
 
+        #   If No Response or Error from Bridge, Show Popup and Skip Saving
         if not response or not response.get("ok"):
-            errorMsg = "Unknown bridge error"
-            if isinstance(response, dict):
-                errorMsg = response.get("error") or errorMsg
-
+            errorMsg = self._responseError(response)
             if self.isNoActiveImageError(errorMsg):
                 logger.debug("Skipping State save because no active image exists")
                 return
@@ -840,8 +1072,10 @@ class Prism_Gimp_Functions(object):
             logger.warning(f"ERROR: Failed to save states via bridge: {errorMsg}")
 
 
+    #   Read State Manager Data from Scene Metadata
     @err_catcher(name=__name__)
     def sm_readStates(self, origin):
+        #   Default Empty State
         emptyState = json.dumps({
             "states": [
                 {"statename": "publish", "comment": "", "description": ""}
@@ -849,17 +1083,35 @@ class Prism_Gimp_Functions(object):
         })
 
         try:
+            #   If No Active Image Context, Show Popup and Return Empty State
+            context = self.resolveCurrentImageContext()
+            logger.debug(
+                "SM readStates request",
+                extra={
+                    "image_id": context.get("imageId"),
+                },
+            )
+
+            #   Send Request to Gimp Bridge
             response = self.sendCmdToGimp(
                 action="get-states",
-                payload={},
+                payload=self.getStateManagerImagePayload(),
                 timeout=5.0,
             )
 
             if not response or not response.get("ok"):
                 return emptyState
 
+            #   Extract State Data from Bridge Response
             data = response.get("data") or {}
             stateData = data.get("stateData") or ""
+            logger.debug(
+                "SM readStates response",
+                extra={
+                    "image_id": data.get("imageId"),
+                    "command_image_id": data.get("commandImageId"),
+                },
+            )
 
             if not stateData:
                 return emptyState
@@ -899,6 +1151,7 @@ class Prism_Gimp_Functions(object):
             return emptyState
 
 
+    #   Reset Scene States to Default Publish State
     @err_catcher(name=__name__)
     def sm_deleteStates(self, origin):
         self.sm_saveStates(origin, {

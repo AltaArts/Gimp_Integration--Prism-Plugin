@@ -87,6 +87,7 @@ class Prism_Gimp_Integration(object):
         if platform.system() != "Windows":
             return None
 
+        #   Helper to Extract Version Tuple from Registry Key Name for Sorting ("GIMP 3.2" -> (3, 2))
         def keyVersionTuple(keyName):
             name_lower = keyName.lower().strip()
             if not name_lower.startswith("gimp"):
@@ -101,10 +102,11 @@ class Prism_Gimp_Integration(object):
             
             except Exception:
                 return (0,)
-            
+
 
         gimpKeys = []
         try:
+            #   Scan Registry for GIMP Installations
             regKey = _winreg.OpenKey(_winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE")
 
             idx = 0
@@ -121,6 +123,7 @@ class Prism_Gimp_Integration(object):
         except Exception:
             gimpKeys = []
 
+        #   Check for 'ApplicationIcon' Value and Return the First Valid EXE Path Found, Sorted by Highest Version First
         for gimpKey in sorted(gimpKeys, key=keyVersionTuple, reverse=True):
             appIconPath = r"SOFTWARE\%s\Capabilities" % gimpKey
 
@@ -146,14 +149,14 @@ class Prism_Gimp_Integration(object):
         return None
 
 
-    #   Returns the discovered GIMP executable path
+    #   Returns the Discovered GIMP EXE Path
     @err_catcher(name=__name__)
     def getExecutable(self):
         exe = self.findGimpExeFromReg()
         return exe if exe else ""
 
 
-    #   Returns the GIMP user plug-ins base dir (AppData/Roaming/GIMP)
+    #   Returns the GIMP User 'plug-ins' dir (AppData/Roaming/GIMP)
     @err_catcher(name=__name__)
     def getGimpRoamingDir(self):
         if platform.system() == "Windows":
@@ -166,7 +169,7 @@ class Prism_Gimp_Integration(object):
         return ""
 
 
-    #   Returns List of Discovered GIMP plug-ins dirs, Highest Ver First
+    #   Returns List of Discovered GIMP 'plug-ins' dirs, Highest Ver First
     @err_catcher(name=__name__)
     def getGimpPluginsDirs(self):
         pluginsDirs = []
@@ -258,10 +261,8 @@ class Prism_Gimp_Integration(object):
             #   Replace Path Placeholders in Copied Files
             result = self.replacePaths(prismGimpDir, addedFiles)
 
-            if result is True:
-                return True
-            elif result is False:
-                return False
+            if type(result):
+                return result
             else:
                 raise Exception(result)
 

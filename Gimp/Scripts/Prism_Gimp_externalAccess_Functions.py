@@ -47,6 +47,7 @@
 
 import os
 import logging
+from typing import TYPE_CHECKING
 
 from qtpy.QtCore import *
 from qtpy.QtGui import *
@@ -123,7 +124,6 @@ class Prism_Gimp_externalAccess_Functions(object):
              "to Gimp.")
         l_port_in.setToolTip(tip)
         origin.sp_port_in.setToolTip(tip)
-
 
 
     @err_catcher(name=__name__)

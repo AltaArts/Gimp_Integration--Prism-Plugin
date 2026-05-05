@@ -78,6 +78,7 @@ class RotatingLogStream:
     def __init__(self, runtime:"PrismHostRuntime"):
         self.runtime = runtime
 
+    #   Write Text Data into Rotating Host Log
     def write(self, data):
         if not data:
             return 0
@@ -89,9 +90,9 @@ class RotatingLogStream:
         self.runtime.appendLogText(text)
         return len(text)
 
+    #   Flush Stream Interface for Compatibility
     def flush(self):
         return None
-
 
 
 
@@ -114,7 +115,6 @@ class PrismHostRuntime:
         self.prismRoot = self.args.prism_root or self.getPrismRoot()
         self.hostWindow = None
         self.prismCoreModule = None
-        self.qt = {}
 
         self.serverSocket = None
         self.serverThread = None
@@ -144,34 +144,44 @@ class PrismHostRuntime:
         if configured_root and not configured_root.startswith("@"):
             return configured_root
 
-        return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
+        else:
+            self.appendLogText("ERROR: Unable to Get Prism Root Path")
+            return None
 
 
+    #   Return Host Log File Path
     def getLogPath(self):
         return os.environ.get("PRISM_GIMP_LOG_PATH", Helper.getLogPath())
 
 
+    #   Return Host Backup Log File Path
     def getBackupLogPath(self):
         return os.environ.get("PRISM_GIMP_LOG_BACKUP_PATH", Helper.getBackupLogPath())
 
 
+    #   Return Max Log Size with Environment Override
     def getLogMaxBytes(self):
         try:
             return int(os.environ.get("PRISM_GIMP_log_maxBytes", self.log_maxBytes))
+        
         except Exception:
             return self.log_maxBytes
 
 
+    #   Return Outbound Bridge Port with Override
     def getBridgePort_out(self):
         try:
             return int(os.environ.get("PRISM_GIMP_BRIDGE_PORT_OUT", self.bridgePort_out))
+        
         except Exception:
             return self.bridgePort_out
 
 
+    #   Return Inbound Bridge Port with Override
     def getBridgePort_in(self):
         try:
             return int(os.environ.get("PRISM_GIMP_BRIDGE_PORT_IN", self.bridgePort_in))
+        
         except Exception:
             return self.bridgePort_in
 
@@ -207,7 +217,7 @@ class PrismHostRuntime:
                 pass
 
 
-    #   Appends Text to the Log File, Rotating it First if Needed
+    #   Appends Text to the Log File, Rotating if Needed
     def appendLogText(self, text):
         encoded_text = text.encode("utf-8", errors="replace")
         self.rotateLogIfNeeded(len(encoded_text))
@@ -217,6 +227,7 @@ class PrismHostRuntime:
                 handle.write(text)
 
 
+    #   Append Formatted Message to Host Log
     def addToLog(self, message, **fields):
         self.appendLogText(Helper.formatLogLine(message, self.logComponent, **fields))
 
@@ -225,6 +236,7 @@ class PrismHostRuntime:
     def configureLogging(self):
         sys.stdout = RotatingLogStream(self)
         sys.stderr = RotatingLogStream(self)
+
         self.addToLog(
             "Configured rotating log streams",
             log_path=self.getLogPath(),
@@ -271,7 +283,7 @@ class PrismHostRuntime:
         self.addToLog("Stopped host command server")
 
 
-    #   Server Loop which Accepts Command Requests from Gimp
+    #   Server Loop which Receives Command Requests from Gimp
     def runCommandServer(self):
         while not self.shutdownEvent.is_set():
             try:
@@ -285,6 +297,7 @@ class PrismHostRuntime:
                 client.settimeout(1)
 
                 try:
+                    #   Receive Raw Data from Socket and Parse as JSON Command Request
                     rawData = client.recv(65536)
                     if not rawData:
                         continue
@@ -301,6 +314,7 @@ class PrismHostRuntime:
                     }
 
                 try:
+                    #   Send JSON Response Back to Gimp Bridge
                     client.sendall(json.dumps(response).encode("utf-8"))
                     if not response.get("ok"):
                         self.addToLog("Sent failed host command response", ok=False, action=request.get("action") if isinstance(request, dict) else None)
@@ -309,13 +323,16 @@ class PrismHostRuntime:
                     self.addToLog("Failed to send host command response")
 
 
-    #   Handles a Parsed Command Request from Gimp
+    #   Handles Parsed Command Request from Gimp
     def handleIncomingRequest(self, request:dict):
         action = request.get("action") or request.get("command")
+        payload = request.get("data") if isinstance(request.get("data"), dict) else {}
 
+        #   Simple Ping Request to Check if Host is Alive and Respond with Connection Info
         if action == "ping":
             return {"ok": True, "data": {"host": "prism-gimp-host", "port": self.getBridgePort_out()}}
 
+        #   Request for Host Status, Respond with Connection Info and PIDs
         if action == "get-host-status":
             return {
                 "ok": True,
@@ -327,14 +344,16 @@ class PrismHostRuntime:
                 },
             }
 
+        #   Request to Shutdown the Host Process, which will be Sent by the Bridge when Gimp is Closing
         if action == "shutdown-host":
             self.addToLog("Received host shutdown request")
-            self.qt["QApplication"].quit()
+            self.QT_QApplication.quit()
             return {"ok": True}
 
+        #   For Other Commands, Emit as Qt Signal to be Handled on the Main Event Loop Thread by the Prism Host
         if self.hostWindow is None:
             with self.pendingActionsLock:
-                self.pendingActions.append(action)
+                self.pendingActions.append((action, payload))
 
             return {
                 "ok": True,
@@ -344,7 +363,7 @@ class PrismHostRuntime:
             }
 
         #   Emit as Qt signal So it Runs on the Main Event Loop Thread.
-        self.hostWindow.commandDispatcher.commandRequested.emit(action)
+        self.hostWindow.commandDispatcher.commandRequested.emit(action, payload)
 
         return {
             "ok": True,
@@ -403,21 +422,20 @@ class PrismHostRuntime:
         from qtpy.QtWidgets import QApplication, QMainWindow, QPushButton, QVBoxLayout, QWidget
 
         class HostCommandDispatcher(QObject):
-            commandRequested = Signal(str)
+            commandRequested = Signal(str, object)
 
         self.prismCoreModule = PrismCore
-        self.qt = {
-            "Qt": Qt,
-            "QObject": QObject,
-            "QTimer": QTimer,
-            "Signal": Signal,
-            "QApplication": QApplication,
-            "QMainWindow": QMainWindow,
-            "QPushButton": QPushButton,
-            "QVBoxLayout": QVBoxLayout,
-            "QWidget": QWidget,
-            "HostCommandDispatcher": HostCommandDispatcher,
-        }
+        self.QT_Qt = Qt
+        self.QT_QObject = QObject
+        self.QT_QTimer = QTimer
+        self.QT_Signal = Signal
+        self.QT_QApplication = QApplication
+        self.QT_QMainWindow = QMainWindow
+        self.QT_QPushButton = QPushButton
+        self.QT_QVBoxLayout = QVBoxLayout
+        self.QT_QWidget = QWidget
+        self.QT_HostCommandDispatcher = HostCommandDispatcher
+        
         self.addToLog("Imported Prism host runtime modules")
 
 
@@ -428,8 +446,8 @@ class PrismHostRuntime:
         self.setupEnvironment()
         self.importRuntimeModules()
 
-        existing_instance = self.qt["QApplication"].instance()
-        app = existing_instance or self.qt["QApplication"](sys.argv)
+        existing_instance = self.QT_QApplication.instance()
+        app = existing_instance or self.QT_QApplication(sys.argv)
         app.setQuitOnLastWindowClosed(False)
 
         self.writeHostPidFile()
@@ -441,8 +459,13 @@ class PrismHostRuntime:
                 queued_actions = list(self.pendingActions)
                 self.pendingActions.clear()
 
-            for action in queued_actions:
-                self.hostWindow.commandDispatcher.commandRequested.emit(action)
+            for queued_action in queued_actions:
+                if isinstance(queued_action, tuple) and len(queued_action) == 2:
+                    action, payload = queued_action
+                else:
+                    action, payload = queued_action, {}
+
+                self.hostWindow.commandDispatcher.commandRequested.emit(action, payload)
 
             result = app.exec_()
 
@@ -464,14 +487,13 @@ class PrismToolsWindow:
     def __init__(self, runtime:"PrismHostRuntime", parent_pid=None):
         self.runtime = runtime
         self.parent_pid = parent_pid
-        self.qt = runtime.qt
         self.core = None
         self.gimpFuncts = None
 
         self.buttons = {}
         self.monitorTimer = None
-        self.window = self.qt["QMainWindow"]()
-        self.commandDispatcher = self.qt["HostCommandDispatcher"]()
+        self.window = runtime.QT_QMainWindow()
+        self.commandDispatcher = runtime.QT_HostCommandDispatcher()
 
         self.runtime.addToLog("Creating PrismToolsWindow", parent_pid=parent_pid)
         self.core = self.runtime.prismCoreModule.create(app="Gimp", prismArgs=["noProjectBrowser", "splash"])
@@ -485,7 +507,7 @@ class PrismToolsWindow:
         #   Route Incoming Socket Commands to executeAction on the Qt UI thread.
         self.commandDispatcher.commandRequested.connect(
             self.executeAction,
-            self.qt["Qt"].QueuedConnection,
+            runtime.QT_Qt.QueuedConnection,
         )
 
         self.setupUi()
@@ -500,18 +522,18 @@ class PrismToolsWindow:
     #   Sets up the Qt UI of the Host Window (hidden normally)
     def setupUi(self):
         window = self.window
-        qt = self.qt
+        rt = self.runtime
 
         window.setObjectName("MainWindow")
-        window.setAttribute(qt["Qt"].WA_StyledBackground, True)
-        window.setAttribute(qt["Qt"].WA_DeleteOnClose, False)
+        window.setAttribute(rt.QT_Qt.WA_StyledBackground, True)
+        window.setAttribute(rt.QT_Qt.WA_DeleteOnClose, False)
         window.setWindowTitle("Prism Tools")
         window.setGeometry(100, 100, 260, 300)
-        window.setWindowFlags(window.windowFlags() | qt["Qt"].WindowStaysOnTopHint)
+        window.setWindowFlags(window.windowFlags() | rt.QT_Qt.WindowStaysOnTopHint)
 
-        central_widget = qt["QWidget"](window)
+        central_widget = rt.QT_QWidget(window)
         window.setCentralWidget(central_widget)
-        layout = qt["QVBoxLayout"](central_widget)
+        layout = rt.QT_QVBoxLayout(central_widget)
 
         button_map = [
             ("saveVersion", "Save Version"),
@@ -522,7 +544,7 @@ class PrismToolsWindow:
         ]
 
         for method_name, label in button_map:
-            button = qt["QPushButton"](label)
+            button = rt.QT_QPushButton(label)
             button.setObjectName("b_%s" % method_name)
             button.setFixedHeight(40)
             button.clicked.connect(getattr(self, method_name))
@@ -536,7 +558,7 @@ class PrismToolsWindow:
             self.addToLog("Skipping Qt parent monitor because no parent pid was provided")
             return
 
-        self.monitorTimer = self.qt["QTimer"](self.window)
+        self.monitorTimer = self.runtime.QT_QTimer(self.window)
         self.monitorTimer.timeout.connect(self.checkParentProcess)
         self.monitorTimer.start(1000)
         self.addToLog("Started Gimp parent monitor timer", parent_pid=self.parent_pid, interval_ms=1000)
@@ -547,30 +569,30 @@ class PrismToolsWindow:
         parent_alive = Helper.isProcessRunning(self.parent_pid)
         if not parent_alive:
             self.addToLog("Gimp process missing during monitor check", parent_pid=self.parent_pid)
-            self.qt["QApplication"].quit()
+            self.runtime.QT_QApplication.quit()
 
 
     ###########################################
     ##    Handles Gimp Prism Menu Commands   ##  
 
-    def saveVersion(self):
-        self.gimpFuncts.saveVersion()
+    def saveVersion(self, payload=None):
+        self.gimpFuncts.saveVersion(requestData=payload or {})
 
-    def saveComment(self):
-        self.gimpFuncts.saveComment()
+    def saveComment(self, payload=None):
+        self.gimpFuncts.saveComment(requestData=payload or {})
 
-    def open_ProjectBrowser(self):
+    def open_ProjectBrowser(self, payload=None):
         self.gimpFuncts.open_ProjectBrowser()
 
-    def open_StateManager(self):
-        self.gimpFuncts.open_StateManager()
+    def open_StateManager(self, payload=None):
+        self.gimpFuncts.open_StateManager(requestData=payload or {})
 
-    def open_PrismSettings(self):
+    def open_PrismSettings(self, payload=None):
         self.gimpFuncts.open_PrismSettings()
 
 
     #   Executes a Supported Host Action by Name
-    def executeAction(self, actionName:str):
+    def executeAction(self, actionName:str, payload=None):
         actionMap = {
             "saveVersion": self.saveVersion,
             "saveComment": self.saveComment,
@@ -585,7 +607,7 @@ class PrismToolsWindow:
             if not actionCallable:
                 raise RuntimeError("Unknown host action: %s" % actionName)
 
-            actionCallable()
+            actionCallable(payload)
 
         except Exception as exc:
             self.addToLog("Host action execution failed", action=actionName, error=str(exc))

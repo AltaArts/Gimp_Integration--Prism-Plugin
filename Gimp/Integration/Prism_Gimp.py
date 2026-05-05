@@ -50,7 +50,7 @@
 #   GIMP Bridge plugin for Prism integration.
 #
 #   Runs as a GIMP 3 persistent procedure. Responsibilities:
-#     - Registers Prism menu procedures visible inside GIMP
+#     - Registers Prism menu procedures in Gimp
 #     - Hosts a socket server (PrismGimpBridgeService) that receives
 #       commands from the external Prism host process
 #     - Dispatches GIMP API calls on the main thread: open/save scene,
@@ -58,7 +58,6 @@
 #     - Launches and monitors Prism_Host.py (the external Qt/PrismCore
 #       process) on demand
 #
-
 
 
 import json
@@ -70,7 +69,6 @@ import time
 import subprocess
 import traceback
 import base64
-from typing import Any
 
 
 import gi
@@ -109,9 +107,11 @@ COLORMODEDATA = {
 class PrismGimpBridgeServiceRuntime:
     def __init__(self):
         self.loadSettings()
-        self.bridgeHost = "127.0.0.1"
         self.logLock = threading.Lock()
         self.logComponent = "BRIDGE"
+        self.imageHintLock = threading.Lock()
+        self.imageHintId = None
+        self.imageHintTime = 0.0
         Helper.rotateLog(self.settings, self.logLock)
 
 
@@ -121,21 +121,11 @@ class PrismGimpBridgeServiceRuntime:
         self.log_maxBytes = self.settings["log_maxBytes"]
 
 
-    #   Summarizes a Bridge Request for Logging
-    def summarizeRequest(self, request) -> dict:
-        if not isinstance(request, dict):
-            return {"request_type": type(request).__name__}
-
-        return {
-            "action": request.get("action") or request.get("command"),
-            "keys": sorted(request.keys()),
-        }
-
-
     #   Gets Bridge Incoming Port, Allowing Environment Override
     def getBridgePort_in(self) -> int:
         try:
             return int(os.environ.get("PRISM_GIMP_BRIDGE_PORT_IN", self.bridgePort_in))
+        
         except Exception:
             return self.bridgePort_in
 
@@ -160,8 +150,28 @@ class PrismGimpBridgeServiceRuntime:
                             procedure=procedureName,
                         )
                     )
+
         except Exception:
             pass
+
+
+    #   Stores Image ID Hint for the Active Image
+    def setImageHint(self, imageId:int | None) -> None:
+        with self.imageHintLock:
+            self.imageHintId = imageId
+            self.imageHintTime = time.time()
+
+
+    #   Returns Recent Hinted Image ID, or None if Stale/Missing
+    def getImageHint(self, maxAgeSeconds:float=8.0) -> int | None:
+        with self.imageHintLock:
+            if self.imageHintId is None:
+                return None
+
+            if (time.time() - self.imageHintTime) > maxAgeSeconds:
+                return None
+
+            return self.imageHintId
 
 
 
@@ -189,6 +199,7 @@ class PrismGimpBridgeService:
         self.started = False
 
         self.sceneDirtyFallbackByImageId = {}
+        self.lastActiveImageLogKey = None
 
         self.runtime.writeSessionHeader(self.procedure.get_name())
         self.addToLog("Initialized Prism Bridge service", host=self.host, port=self.port, procedure=self.procedure.get_name())
@@ -271,11 +282,15 @@ class PrismGimpBridgeService:
 
     #   Runs the Bridge Service Main Loop
     def run(self):
+        #   Start the Server Thread
         self.start()
+        #   Enable the Persistent Host Procedure to Keep the Plugin Alive
         self.procedure.persistent_ready()
         self.plugIn.persistent_enable()
 
+        #   Run the Server Loop to Process Requests Received from the Host
         self.mainLoop.run()
+
         self.addToLog("Bridge main loop exited")
 
 
@@ -283,9 +298,12 @@ class PrismGimpBridgeService:
     def runServer(self):
         while not self.shutdownEvent.is_set():
             try:
+                #   Accept Connection with Timeout to allow Shutdown Check
                 client, _address = self.serverSocket.accept()
+
             except socket.timeout:
                 continue
+
             except OSError:
                 self.addToLog("Bridge server socket closed or errored during accept")
                 break
@@ -294,6 +312,7 @@ class PrismGimpBridgeService:
                 client.settimeout(1)
 
                 try:
+                    #   Receive Command from Host and Parse as JSON
                     rawData = client.recv(65536)
                     if not rawData:
                         continue
@@ -310,6 +329,7 @@ class PrismGimpBridgeService:
                     }
 
                 try:
+                    #   Send Response as JSON Back to Host
                     client.sendall(json.dumps(response).encode("utf-8"))
                     if not response.get("ok"):
                         request_action = None
@@ -336,20 +356,24 @@ class PrismGimpBridgeService:
         completed = threading.Event()
         responseHolder = {}
 
+        #   Helper to Send the Request to the Main Thread
         def executeRequest():
             try:
                 responseHolder["response"] = self.handleRequest(request)
+
             except Exception as exc:
                 responseHolder["response"] = {
                     "ok": False,
                     "error": str(exc),
                     "traceback": traceback.format_exc(),
                 }
+
             finally:
                 completed.set()
 
             return False
 
+        #   Schedule the Request to be Executed on the Main Gimp Thread and Wait for Completion
         GLib.idle_add(executeRequest)
         completed.wait()
 
@@ -357,20 +381,19 @@ class PrismGimpBridgeService:
         if not response.get("ok"):
             self.addToLog(
                 "Bridge request failed",
-                **self.runtime.summarizeRequest(request),
+                **Helper.summarizeRequest(request),
                 error=response.get("error"),
             )
 
         return responseHolder["response"]
 
 
-    #   Handles a Single Parsed Bridge Request
+    #   Handles a Received Bridge Request
     def handleRequest(self, request):
         action = request.get("action") or request.get("command")
         requestData = request.get("data") if isinstance(request.get("data"), dict) else {}
 
         match action:
-
             case "ping":
                 return {
                     "ok": True,
@@ -399,7 +422,7 @@ class PrismGimpBridgeService:
                 return {"ok": True}
 
             case "get-current-file-name":
-                return self.getCurrentFile()
+                return self.getCurrentFile(requestData)
 
             case "get-app-version":
                 return self.getAppVersion()
@@ -413,6 +436,9 @@ class PrismGimpBridgeService:
             case "get-thumbnail":
                 return self.getThumbnail(requestData)
 
+            case "mark-scene-dirty":
+                return self.markSceneDirty(requestData)
+            
             case "get-image-specs":
                 return self.getImageSpecs()
 
@@ -422,11 +448,8 @@ class PrismGimpBridgeService:
             case "save-states":
                 return self.saveStates(requestData)
 
-            case "mark-scene-dirty":
-                return self.markSceneDirty(requestData)
-
             case "get-states":
-                return self.getStates()
+                return self.getStates(requestData)
 
             case _:
                 self.addToLog("Received unknown Bridge action", action=action)
@@ -445,7 +468,7 @@ class PrismGimpBridgeService:
     def getAppVersion(self):
         version_value = None
 
-        #   Direct API first.
+        #   Direct API first
         version_getter = getattr(Gimp, "version", None)
         if callable(version_getter):
             try:
@@ -453,7 +476,7 @@ class PrismGimpBridgeService:
             except Exception:
                 version_value = None
 
-        #   PDB fallback when direct API is unavailable.
+        #   PDB fallback
         if version_value is None:
             get_pdb = getattr(Gimp, "get_pdb", None)
             if callable(get_pdb):
@@ -484,10 +507,11 @@ class PrismGimpBridgeService:
         return {"ok": True, "data": {"version": str(version_value)}}
 
 
-    #   Converts a filesystem path to Gio.File
+    #   Converts a File Path to Gio.File
     def getGioFile(self, filePath:str) -> object | None:
         try:
             return Gio.File.new_for_path(filePath)
+        
         except Exception:
             return None
 
@@ -516,41 +540,20 @@ class PrismGimpBridgeService:
             return None
 
 
-    #   Sets a PDB Config Property
-    def setConfigValue(self, config:object, key:Any, value:Any) -> None:
-        if value is None:
-            return
-
-        try:
-            config.set_property(key, value)
-        except Exception:
-            pass
-
-
-    #   Tries a Callable with Several Arg Signatures
-    def callWithSignatures(self, func, signatures):
-        errors = []
-
-        for args in signatures:
-            try:
-                return func(*args), None
-            except Exception as exc:
-                errors.append(f"args={args}: {exc}")
-
-        return None, "; ".join(errors)
-
-
     #   Runs a PDB Procedure with Config Key/Value Pairs
     def runPdbProcedure(self, procedureName, values):
+        #   Get the Procedure by Name
         procedure = self.getPdbProcedure(procedureName)
         if not procedure:
             return None, f"Procedure not found: {procedureName}"
 
         try:
+            #   Create Proc Config and Set Values
             config = procedure.create_config()
             for key, value in (values or {}).items():
-                self.setConfigValue(config, key, value)
+                Helper.setConfigValue(config, key, value)
 
+            #   Run the Procedure and Flatten Results
             result = procedure.run(config)
             values_flat = Helper.flattenValues(result)
 
@@ -569,6 +572,7 @@ class PrismGimpBridgeService:
                     result_message = value.strip()
                     break
 
+            #   Emit Result as Gimp Warnings and Log
             if result_message:
                 self.emitGimpWarning(
                     f"PDB message from {procedureName}: {result_message}",
@@ -581,42 +585,9 @@ class PrismGimpBridgeService:
                 return result, f"{procedureName} failed: {details}"
 
             return result, None
+        
         except Exception as exc:
             return None, str(exc)
-
-
-    ###################################################
-    ##              GIMP RESULT PARSERS             ##
-    ###################################################
-
-    #   Extracts First Layer Object from GI/PDB Values
-    def extractLayerFromResult(self, rawResult:Any) -> object | None:
-        for value in Helper.flattenValues(rawResult):
-            if value is None:
-                continue
-
-            has_name = callable(getattr(value, "get_name", None))
-            has_alpha = callable(getattr(value, "has_alpha", None))
-            has_mode = callable(getattr(value, "get_mode", None))
-            if has_name and (has_alpha or has_mode):
-                return value
-
-        return None
-    
-
-    #   Extracts First Image-like Object from GI/PDB Values
-    def extractImageFromResult(self, raw_result):
-        for value in Helper.flattenValues(raw_result):
-            if value is None:
-                continue
-
-            has_width = callable(getattr(value, "get_width", None))
-            has_height = callable(getattr(value, "get_height", None))
-            has_layers = callable(getattr(value, "get_layers", None))
-            if (has_width and has_height) or has_layers:
-                return value
-
-        return None
 
 
     ##########################################
@@ -624,17 +595,22 @@ class PrismGimpBridgeService:
     ##########################################
 
     #   Returns Active/Open Gimp Document Path/Name for Host Queries
-    def getCurrentFile(self):
-        image, _image_source = self.getCurrentImage()
+    def getCurrentFile(self, rData=None):
+        #   Resolve the Active Image
+        image = self.getActiveImage(rData)
+
+        #   Return Empty Data if No Image
         if image is None:
             return {
                 "ok": True,
                 "data": {
+                    "imageId": None,
                     "path": None,
                     "name": None,
                 },
             }
 
+        #   Attempt to Get File Path and Name
         file_path = self.getImageFilePath(image)
         file_name = None
 
@@ -650,9 +626,23 @@ class PrismGimpBridgeService:
         if file_path and not file_name:
             file_name = os.path.basename(file_path)
 
+        #   Get the Image ID for Logging and Context Change Detection
+        image_id = self.getImageId(image)
+
+        context_key = f"{image_id}|{file_path or ''}|{file_name or ''}"
+        if context_key != self.lastActiveImageLogKey:
+            self.lastActiveImageLogKey = context_key
+            self.addToLog(
+                "Detected active image context",
+                image_id=image_id,
+                path=file_path,
+                name=file_name,
+            )
+
         return {
             "ok": True,
             "data": {
+                "imageId": image_id,
                 "path": file_path,
                 "name": file_name,
             },
@@ -660,16 +650,19 @@ class PrismGimpBridgeService:
 
 
     #   Opens an XCF Scene File in Gimp
-    def openScene(self, request_data):
-        file_path = request_data.get("path") if isinstance(request_data, dict) else None
+    def openScene(self, rData):
+        #   Resolve the File Path from the Request Data
+        file_path = rData.get("path") if isinstance(rData, dict) else None
 
         if not file_path:
             return {"ok": False, "error": "Missing file path"}
 
+        #   Normalize the File Path and Convert to Gio.File
         file_path = os.path.normpath(str(file_path))
         gio_file = self.getGioFile(file_path)
         run_mode = getattr(Gimp.RunMode, "NONINTERACTIVE", None)
 
+        #   Get the PDB Procedure for File Loading
         procedure_name = "gimp-file-load"
         procedure = self.getPdbProcedure(procedure_name)
 
@@ -677,15 +670,17 @@ class PrismGimpBridgeService:
             return {"ok": False, "error": f"Required procedure not found: {procedure_name}"}
 
         try:
+            #   Create Proc Config Values and Run
             config = procedure.create_config()
-            self.setConfigValue(config, "run-mode", run_mode)
-            self.setConfigValue(config, "file", gio_file)
+            Helper.setConfigValue(config, "run-mode", run_mode)
+            Helper.setConfigValue(config, "file", gio_file)
             procedure.run(config)
 
-            #   A newly opened scene should be treated as clean until edited.
+            #   Reset Scene Dirty
             self.sceneDirtyFallbackByImageId.clear()
 
             self.addToLog("Opened scene in Gimp", path=file_path, procedure=procedure_name)
+
             return {"ok": True, "data": {"opened": True, "path": file_path, "procedure": procedure_name}}
 
         except Exception as exc:
@@ -694,12 +689,27 @@ class PrismGimpBridgeService:
 
 
     #   Saves the Current Gimp Image to an XCF Scene File
-    def saveScene(self, request_data):
-        image, _ = self.getCurrentImage()
+    def saveScene(self, rData):
+        #   Resolve the Active Image to Save
+        image = self.getActiveImage(rData)
         if image is None:
             return {"ok": False, "error": "No active image to save"}
 
-        file_path = request_data.get("path") if isinstance(request_data, dict) else None
+        #   Attempt to Get the Image Name for Logging
+        image_name = None
+        name_getter = getattr(image, "get_name", None)
+        if callable(name_getter):
+            try:
+                name_value = name_getter()
+                if name_value:
+                    image_name = str(name_value)
+            except Exception:
+                pass
+
+        #   Get the Image ID for Logging and Context Change Detection
+        image_id = self.getImageId(image)
+
+        file_path = rData.get("path") if isinstance(rData, dict) else None
         if file_path:
             file_path = os.path.normpath(str(file_path))
         else:
@@ -708,6 +718,7 @@ class PrismGimpBridgeService:
         if not file_path:
             return {"ok": False, "error": "Missing file path"}
 
+        #   Resolve the Active Drawable from Gimp
         active_drawable = None
         drawable_getter = getattr(image, "get_active_drawable", None)
         if callable(drawable_getter):
@@ -716,9 +727,11 @@ class PrismGimpBridgeService:
             except Exception:
                 active_drawable = None
 
+        #   Normalize the File Path and Convert to Gio.File
         gio_file = self.getGioFile(file_path)
         run_mode = getattr(Gimp.RunMode, "NONINTERACTIVE", None)
 
+        #   Get the PDB Procedure for File Saving
         procedure_name = "gimp-file-save"
         procedure = self.getPdbProcedure(procedure_name)
 
@@ -726,23 +739,38 @@ class PrismGimpBridgeService:
             return {"ok": False, "error": f"Required procedure not found: {procedure_name}"}
 
         try:
+            #   Create Proc Config Values and Run
             config = procedure.create_config()
-            self.setConfigValue(config, "run-mode", run_mode)
-            self.setConfigValue(config, "image", image)
-            self.setConfigValue(config, "drawable", active_drawable)
-            self.setConfigValue(config, "file", gio_file)
+            Helper.setConfigValue(config, "run-mode", run_mode)
+            Helper.setConfigValue(config, "image", image)
+            Helper.setConfigValue(config, "drawable", active_drawable)
+            Helper.setConfigValue(config, "file", gio_file)
             procedure.run(config)
 
-            #   Saving clears dirty state; clear fallback marker for this image.
-            image_id = self.getImageId(image)
+            #   Clear Scene Dirty
             if image_id in self.sceneDirtyFallbackByImageId:
                 del self.sceneDirtyFallbackByImageId[image_id]
 
-            self.addToLog("Saved scene in Gimp", path=file_path, procedure=procedure_name)
+            self.addToLog(
+                "Saved scene in Gimp",
+                path=file_path,
+                procedure=procedure_name,
+                image_id=image_id,
+                image_name=image_name,
+                command_image_id=(rData.get("image_id") if isinstance(rData, dict) else None),
+            )
             return {"ok": True, "data": {"saved": True, "path": file_path, "procedure": procedure_name}}
 
         except Exception as exc:
-            self.addToLog("Failed to save scene in Gimp", path=file_path, error=str(exc), procedure=procedure_name)
+            self.addToLog(
+                "Failed to save scene in Gimp",
+                path=file_path,
+                error=str(exc),
+                procedure=procedure_name,
+                image_id=image_id,
+                image_name=image_name,
+                command_image_id=(rData.get("image_id") if isinstance(rData, dict) else None),
+            )
             return {"ok": False, "error": str(exc), "data": {"path": file_path, "procedure": procedure_name}}
 
 
@@ -750,8 +778,34 @@ class PrismGimpBridgeService:
     ##               GIMP IMAGE             ##
     ##########################################
 
-    #   Returns the Currently Active Image
-    def getCurrentImage(self) -> tuple[object, str]:
+    #   Returns the Active Image (Currently Viewed in Gimp)
+    def getActiveImage(self, rData:dict | None=None) -> object | None:
+        if isinstance(rData, dict):
+            #   Resolve by Image ID Passed in the Request Data (if any)
+            raw_image_id = rData.get("image_id")
+            if raw_image_id is not None:
+                try:
+                    request_image_id = int(raw_image_id)
+
+                except Exception:
+                    request_image_id = None
+
+                #   Get the Image Object by ID
+                if request_image_id is not None:
+                    request_image = self.getImageById(request_image_id)
+                    if request_image is not None:
+                        return request_image
+
+        #   Check for a Hinted Image ID Set by Recent Operations (if any)
+        hinted_image_id = self.runtime.getImageHint()
+
+        #   Get the Image Object by the Hinted ID
+        if hinted_image_id is not None:
+            hinted_image = self.getImageById(hinted_image_id)
+            if hinted_image is not None:
+                return hinted_image
+
+        #   Attempt to Get the Active Image from Gimp API
         for getter_name in ["get_images", "list_images", "image_list"]:
             getter = getattr(Gimp, getter_name, None)
             if not callable(getter):
@@ -763,93 +817,86 @@ class PrismGimpBridgeService:
                 images = []
 
             if images:
-                return images[0], f"gimp.{getter_name}"
-
-        for display_getter_name in ["get_displays", "list_displays", "display_list"]:
-            display_getter = getattr(Gimp, display_getter_name, None)
-            if not callable(display_getter):
-                continue
-
-            try:
-                displays = Helper.normalizeGimpItems(display_getter())
-            except Exception:
-                displays = []
-
-            for display in displays:
-                image_getter = getattr(display, "get_image", None)
-                if not callable(image_getter):
-                    continue
-
-                try:
-                    display_image = image_getter()
-                except Exception:
-                    display_image = None
-
-                if display_image:
-                    return display_image, "gimp.display"
-
-        return None, "none"
-
-
-    #   Returns a Per-process ID for a Gimp Image Object
-    def getImageId(self, image:object) -> int | None:
-        if image is None:
-            return None
-
-        image_id_getter = getattr(image, "get_id", None)
-        if callable(image_id_getter):
-            try:
-                image_id = int(image_id_getter())
-                if image_id > 0:
-                    return image_id
-            except Exception:
-                pass
-
-        return id(image)
-
-
-    #   Returns Gimp Image Dirty State
-    def isImageDirty(self, image:object) -> bool | None:
-        if image is None:
-            return None
-
-        for getter_name in ["is_dirty", "get_dirty"]:
-            getter = getattr(image, getter_name, None)
-            if callable(getter):
-                try:
-                    return bool(getter())
-                except Exception:
-                    continue
-
-        dirty_value = getattr(image, "dirty", None)
-        if isinstance(dirty_value, bool):
-            return dirty_value
+                return images[0]
 
         return None
 
 
-    #   Marks the Current Scene Dirty Once and Skips Work if Already Dirty
-    def markSceneDirty(self, request_data=None):
-        image, _ = self.getCurrentImage()
+    #   Resolves an Image Object by Image ID
+    def getImageById(self, imageId:int) -> object | None:
+        if not imageId:
+            return None
+
+        #   Attempt Direct API if Available
+        image_type = getattr(Gimp, "Image", None)
+        get_by_id = getattr(image_type, "get_by_id", None) if image_type else None
+        if callable(get_by_id):
+            try:
+                image = get_by_id(int(imageId))
+                if image:
+                    return image
+            except Exception:
+                pass
+
+        #   Fallback to Iterating All Images and Matching IDs
+        for getter_name in ["get_images", "list_images", "image_list"]:
+            getter = getattr(Gimp, getter_name, None)
+            if not callable(getter):
+                continue
+
+            try:
+                images = Helper.normalizeGimpItems(getter())
+            except Exception:
+                images = []
+
+            for image in images:
+                get_id = getattr(image, "get_id", None)
+                if not callable(get_id):
+                    continue
+
+                try:
+                    if int(get_id()) == int(imageId):
+                        return image
+                except Exception:
+                    continue
+
+        return None
+
+
+    #   Returns a Per-process ID for a Gimp Image Object
+    def getImageId(self, image:object) -> int | None:
+        return Helper.getImageId(image)
+
+
+    #   Returns Gimp Image Dirty State
+    def isImageDirty(self, image:object) -> bool | None:
+        return Helper.isImageDirty(image)
+
+
+    #   Marks the Current Image Dirty Once and Skips if Already Dirty
+    def markSceneDirty(self, rData=None):
+        image = self.getActiveImage(rData)
         if image is None:
             return {"ok": False, "error": "No active image to mark dirty"}
 
-        force_mark = bool((request_data or {}).get("force")) if isinstance(request_data, dict) else False
         image_id = self.getImageId(image)
+        command_image_id = rData.get("image_id") if isinstance(rData, dict) else None
+        force_mark = bool((rData or {}).get("force")) if isinstance(rData, dict) else False
 
         if not force_mark:
             dirty_state = self.isImageDirty(image)
-            if dirty_state is True:
-                return {"ok": True, "data": {"dirtyMarked": False, "alreadyDirty": True, "reason": "image-api"}}
-
-            if dirty_state is None and self.sceneDirtyFallbackByImageId.get(image_id):
-                return {"ok": True, "data": {"dirtyMarked": False, "alreadyDirty": True, "reason": "fallback-cache"}}
+            already_dirty = (dirty_state is True) or (dirty_state is None and self.sceneDirtyFallbackByImageId.get(image_id))
+            if already_dirty:
+                reason = "image-api" if dirty_state is True else "fallback-cache"
+                self.addToLog("Skipping dirty mark; image already dirty", image_id=image_id, command_image_id=command_image_id, reason=reason)
+                return {"ok": True, "data": {"dirtyMarked": False, "alreadyDirty": True, "reason": reason}}
 
         result = self._markSceneDirtyInternal(image)
         if result.get("ok"):
             if image_id is not None:
                 self.sceneDirtyFallbackByImageId[image_id] = True
             result["data"] = {"dirtyMarked": True, "alreadyDirty": False}
+            self.addToLog("Marked scene dirty", image_id=image_id, command_image_id=command_image_id)
 
         return result
 
@@ -881,7 +928,7 @@ class PrismGimpBridgeService:
                     (image, width, height, "RGBA", "__PrismDirty__", 0.0, "NORMAL"),
                 ])
 
-                layer, _ = self.callWithSignatures(layer_new, signature_options)
+                layer, _ = Helper.callWithSignatures(layer_new, signature_options)
 
             if layer is None:
                 pdb_values = {
@@ -901,28 +948,27 @@ class PrismGimpBridgeService:
                 if error:
                     return {"ok": False, "error": f"Failed to create temp layer: {error}"}
 
-                layer = self.extractLayerFromResult(result)
+                layer = Helper.extractLayerFromResult(result)
                 if layer is None:
                     return {"ok": False, "error": "Failed to parse temp layer from PDB result"}
 
                 created_with_pdb = True
 
-            undo_group_start = getattr(image, "undo_group_start", None)
             undo_group_end = getattr(image, "undo_group_end", None)
             undo_started = False
-
-            if callable(undo_group_start) and callable(undo_group_end):
-                try:
-                    undo_group_start()
+            try:
+                undo_start = getattr(image, "undo_group_start", None)
+                if callable(undo_start):
+                    undo_start()
                     undo_started = True
-                except Exception:
-                    undo_started = False
+            except Exception:
+                pass
 
             try:
                 insert_layer = getattr(image, "insert_layer", None) or getattr(image, "add_layer", None)
 
                 if callable(insert_layer):
-                    _, insert_error = self.callWithSignatures(insert_layer, [
+                    _, insert_error = Helper.callWithSignatures(insert_layer, [
                         (layer, None, 0),
                         (layer, 0),
                         (layer,),
@@ -943,7 +989,7 @@ class PrismGimpBridgeService:
 
                 remove_layer = getattr(image, "remove_layer", None)
                 if callable(remove_layer):
-                    _, remove_error = self.callWithSignatures(remove_layer, [
+                    _, remove_error = Helper.callWithSignatures(remove_layer, [
                         (layer,),
                     ])
                     if remove_error:
@@ -957,8 +1003,9 @@ class PrismGimpBridgeService:
                         return {"ok": False, "error": f"Failed to remove temp layer: {error}"}
 
                 inserted = False
+
             finally:
-                if undo_started:
+                if undo_started and callable(undo_group_end):
                     try:
                         undo_group_end()
                     except Exception:
@@ -1027,7 +1074,7 @@ class PrismGimpBridgeService:
 
     #   Returns Active Image Specs Needed by the Gimp_Export State UI
     def getImageSpecs(self):
-        image, _ = self.getCurrentImage()
+        image = self.getActiveImage()
         if image is None:
             return {"ok": True, "data": {"imageSpecs": {}}}
 
@@ -1090,13 +1137,18 @@ class PrismGimpBridgeService:
     ###################################
 
     #   Captures a Thumbnail from the Active Gimp Image and Returns Raw Pixel Data
-    def getThumbnail(self, request_data):
-        image, _ = self.getCurrentImage()
+    def getThumbnail(self, rData):
+        #   Resolve the Active Image from Gimp
+        image = self.getActiveImage(rData)
         if image is None:
             return {"ok": False, "error": "No active image for thumbnail capture"}
 
-        width = request_data.get("width") if isinstance(request_data, dict) else None
-        height = request_data.get("height") if isinstance(request_data, dict) else None
+        #   Get the Command Image ID for Logging Context (if any)
+        command_image_id = rData.get("image_id") if isinstance(rData, dict) else None
+
+        #   Resolve the Desired Thumbnail Size from the Request Data (with Defaults and Clamping)
+        width = rData.get("width") if isinstance(rData, dict) else None
+        height = rData.get("height") if isinstance(rData, dict) else None
 
         try:
             width = int(width) if width is not None else 512
@@ -1108,213 +1160,106 @@ class PrismGimpBridgeService:
         except Exception:
             height = 512
 
-        width = max(1, min(width, 4096))
-        height = max(1, min(height, 4096))
+        width = max(1, min(width, 2048))
+        height = max(1, min(height, 2048))
 
-        method_attempt_errors = []
+        fallback_reasons = []
 
-        method_candidates = [
-            ("get_thumbnail_data", [(width, height), (width, height, 4), (width, height, 3)]),
-            ("get_thumbnail", [(width, height), (width, height, 0), (width, height, 1), (width, height, 2)]),
-        ]
+        #   Attempt to Get Thumbnail Data from the Image Object Directly
+        method_name = "get_thumbnail_data"
+        method = getattr(image, method_name, None)
+        if callable(method):
+            raw_result, call_error = Helper.callWithSignatures(method, [(width, height), (width, height, 4), (width, height, 3)])
 
-        for method_name, signatures in method_candidates:
-            method = getattr(image, method_name, None)
-            if not callable(method):
-                continue
-
-            raw_result, call_error = self.callWithSignatures(method, signatures)
-            if raw_result is None:
-                if call_error:
-                    method_attempt_errors.append(f"{method_name}: {call_error}")
-                continue
-
-            parsed = self.parseThumbnailPayload(raw_result, width, height)
-            if not parsed:
-                parsed = self.parsePixbufPayload(raw_result)
-
-            if parsed:
-                self.addToLog("Captured thumbnail via image method", method=method_name, width=parsed["width"], height=parsed["height"], bpp=parsed["bpp"])
-                return {
-                    "ok": True,
-                    "data": {
-                        "width": parsed["width"],
-                        "height": parsed["height"],
-                        "bpp": parsed["bpp"],
-                        "pixels": base64.b64encode(parsed["pixels"]).decode("ascii"),
-                    },
-                }
-
-            method_attempt_errors.append(f"{method_name}: returned unrecognized payload")
-
-        procedure_candidates = [
-            "gimp-image-thumbnail",
-            "gimp-image-get-thumbnail",
-            "gimp-image-get-thumbnail-data",
-        ]
-
-        for procedure_name in procedure_candidates:
-            procedure = self.getPdbProcedure(procedure_name)
-            if not procedure:
-                continue
-
-            try:
-                config = procedure.create_config()
-                self.setConfigValue(config, "image", image)
-                self.setConfigValue(config, "width", width)
-                self.setConfigValue(config, "height", height)
-                self.setConfigValue(config, "max-width", width)
-                self.setConfigValue(config, "max-height", height)
-                self.setConfigValue(config, "max_width", width)
-                self.setConfigValue(config, "max_height", height)
-
-                raw_result = procedure.run(config)
-                parsed = self.parseThumbnailPayload(raw_result, width, height)
-                if not parsed:
-                    parsed = self.parsePixbufPayload(raw_result)
-
-                if not parsed:
-                    method_attempt_errors.append(f"{procedure_name}: returned unrecognized payload")
-                    continue
-
-                self.addToLog("Captured thumbnail via PDB", procedure=procedure_name, width=parsed["width"], height=parsed["height"], bpp=parsed["bpp"])
-                return {
-                    "ok": True,
-                    "data": {
-                        "width": parsed["width"],
-                        "height": parsed["height"],
-                        "bpp": parsed["bpp"],
-                        "pixels": base64.b64encode(parsed["pixels"]).decode("ascii"),
-                    },
-                }
-
-            except Exception as exc:
-                method_attempt_errors.append(f"{procedure_name}: {exc}")
-
-        # Return a detailed error so host can decide on fallback behavior.
-        details = "; ".join(method_attempt_errors) if method_attempt_errors else "No compatible thumbnail APIs found"
-        return {"ok": False, "error": f"Thumbnail APIs unavailable: {details}"}
-
-
-    #   Parses Thumbnail API/PDB Return Payload into Width/Height/BPP/Bytes
-    def parseThumbnailPayload(self, raw_result:object, fallback_width:int=0, fallback_height:int=0) -> dict | None:
-        values = Helper.flattenValues(raw_result)
-
-        ints = []
-        pixel_bytes = b""
-
-        for value in values:
-            if value is None:
-                continue
-
-            if isinstance(value, bool):
-                continue
-
-            if isinstance(value, int):
-                ints.append(value)
-                continue
-
-            converted = Helper.toBytes(value)
-            if converted and not pixel_bytes:
-                pixel_bytes = converted
-
-        if not pixel_bytes:
-            return None
-
-        width = int(fallback_width or 0)
-        height = int(fallback_height or 0)
-        bpp = 0
-
-        if len(ints) >= 3:
-            width = max(width, int(ints[0]))
-            height = max(height, int(ints[1]))
-            bpp = int(ints[2])
-
-        if bpp not in (3, 4):
-            if width > 0 and height > 0:
-                pixel_count = width * height
-                if pixel_count > 0:
-                    derived_bpp = len(pixel_bytes) // pixel_count
-                    if derived_bpp in (3, 4):
-                        bpp = derived_bpp
-
-        if width <= 0 or height <= 0:
-            if bpp in (3, 4) and fallback_width and fallback_height:
-                expected = int(fallback_width) * int(fallback_height) * bpp
-                if expected == len(pixel_bytes):
-                    width = int(fallback_width)
-                    height = int(fallback_height)
-
-        if width <= 0 or height <= 0 or bpp not in (3, 4):
-            return None
-
-        expected_size = width * height * bpp
-        if expected_size <= 0 or len(pixel_bytes) < expected_size:
-            return None
-
-        return {
-            "width": width,
-            "height": height,
-            "bpp": bpp,
-            "pixels": pixel_bytes[:expected_size],
-        }
-
-
-    #   Parses Pixbuf Thumbnail to Width/Height/BPP/Bytes
-    def parsePixbufPayload(self, raw_result:object) -> dict | None:
-        value = Helper.unpackValue(raw_result)
-
-        if isinstance(value, (list, tuple)):
-            for item in value:
-                parsed = self.parsePixbufPayload(item)
+            #   Parse and Return if Valid
+            if raw_result is not None:
+                parsed = Helper.parseThumbnailResult(raw_result, width, height)
                 if parsed:
-                    return parsed
-            return None
+                    self.addToLog(
+                        "Captured thumbnail",
+                        method=method_name,
+                        width=parsed["width"],
+                        height=parsed["height"],
+                        bpp=parsed["bpp"],
+                        command_image_id=command_image_id,
+                    )
+                    return {
+                        "ok": True,
+                        "data": {
+                            "width": parsed["width"],
+                            "height": parsed["height"],
+                            "bpp": parsed["bpp"],
+                            "pixels": base64.b64encode(parsed["pixels"]).decode("ascii"),
+                        },
+                    }
+                fallback_reasons.append(f"{method_name}: returned unrecognized payload")
 
-        if value is None:
-            return None
+            else:
+                #   If Call Failed, Capture the Error for Logging
+                details = str(call_error) if call_error else "No return value"
+                fallback_reasons.append(f"{method_name}: {details}")
 
-        width_getter = getattr(value, "get_width", None)
-        height_getter = getattr(value, "get_height", None)
-        channels_getter = getattr(value, "get_n_channels", None)
-        rowstride_getter = getattr(value, "get_rowstride", None)
-        pixels_getter = getattr(value, "get_pixels", None)
-
-        if not (callable(width_getter) and callable(height_getter) and callable(channels_getter) and callable(pixels_getter)):
-            return None
-
-        try:
-            width = int(width_getter())
-            height = int(height_getter())
-            bpp = int(channels_getter())
-            rowstride = int(rowstride_getter()) if callable(rowstride_getter) else width * bpp
-            raw_pixels = Helper.toBytes(pixels_getter())
-        except Exception:
-            return None
-
-        if width <= 0 or height <= 0 or bpp not in (3, 4) or rowstride <= 0:
-            return None
-
-        tight_stride = width * bpp
-        expected_row_data = rowstride * height
-        if len(raw_pixels) < expected_row_data:
-            return None
-
-        if rowstride == tight_stride:
-            pixels = raw_pixels[: tight_stride * height]
         else:
-            rows = []
-            for row_index in range(height):
-                start = row_index * rowstride
-                end = start + tight_stride
-                rows.append(raw_pixels[start:end])
-            pixels = b"".join(rows)
+            #   If Method Not Available, Capture for Logging
+            fallback_reasons.append(f"{method_name}: unavailable")
+
+        #   If Direct Method Failed, Use the Older get_thumbnail Method
+        method_name = "get_thumbnail"
+        method = getattr(image, method_name, None)
+        if callable(method):
+            #   Try Multiple Signatures for Compatibility with Different Gimp Versions
+            raw_result, call_error = Helper.callWithSignatures(method, [(width, height), (width, height, 0), (width, height, 1), (width, height, 2)])
+            if raw_result is not None:
+                #   Parse and Return if Valid
+                parsed = Helper.parseThumbnailResult(raw_result, width, height)
+                if parsed:
+                    self.addToLog(
+                        "Captured thumbnail",
+                        method=method_name,
+                        width=parsed["width"],
+                        height=parsed["height"],
+                        bpp=parsed["bpp"],
+                        command_image_id=command_image_id,
+                    )
+                    return {
+                        "ok": True,
+                        "data": {
+                            "width": parsed["width"],
+                            "height": parsed["height"],
+                            "bpp": parsed["bpp"],
+                            "pixels": base64.b64encode(parsed["pixels"]).decode("ascii"),
+                        },
+                    }
+                fallback_reasons.append(f"{method_name}: returned unrecognized payload")
+
+            else:
+                #   If Call Failed, Capture the Error for Logging
+                details = str(call_error) if call_error else "No return value"
+                fallback_reasons.append(f"{method_name}: {details}")
+
+        else:
+            #   If Method Not Available, Capture for Logging
+            fallback_reasons.append(f"{method_name}: unavailable")
+
+        fallback_reason = "; ".join(fallback_reasons)
+
+        self.addToLog(
+            "Using black thumbnail fallback",
+            reason=fallback_reason,
+            width=width,
+            height=height,
+            bpp=4,
+            command_image_id=command_image_id,
+        )
 
         return {
-            "width": width,
-            "height": height,
-            "bpp": bpp,
-            "pixels": pixels,
+            "ok": True,
+            "data": {
+                "width": width,
+                "height": height,
+                "bpp": 4,
+                "pixels": base64.b64encode(bytes(width * height * 4)).decode("ascii"),
+            },
         }
 
 
@@ -1337,7 +1282,7 @@ class PrismGimpBridgeService:
         if error:
             return None, error
 
-        duplicated = self.extractImageFromResult(result)
+        duplicated = Helper.extractImageFromResult(result)
         if duplicated is None:
             return None, "Could not parse duplicated image result"
 
@@ -1390,11 +1335,11 @@ class PrismGimpBridgeService:
 
     #   Returns Whether Active Drawable Has Alpha
     def imageHasAlpha(self, image):
-        #   Prefer active drawable first.
+        #   Prefer Active Drawable First
         if self.drawableHasAlpha(self.getActiveDrawable(image)):
             return True
 
-        #   Fall back to scanning all layers/drawables in the image.
+        #   Fall back to Scanning all Layers/Drawables
         for layers_getter_name in ["get_layers", "list_layers", "layers"]:
             layers_getter = getattr(image, layers_getter_name, None)
             if not callable(layers_getter):
@@ -1442,30 +1387,14 @@ class PrismGimpBridgeService:
         return base_type_str
 
 
-    #   Returns Image Width and Height, Trying Multiple Getter Names
+    #   Returns Image Width and Height
     def getImageSize(self, image) -> tuple[int, int]:
-        w, h = 0, 0
-        for attr in ["get_width", "width"]:
-            getter = getattr(image, attr, None)
-            if callable(getter):
-                try:
-                    w = int(getter())
-                    break
-                except Exception:
-                    pass
-        for attr in ["get_height", "height"]:
-            getter = getattr(image, attr, None)
-            if callable(getter):
-                try:
-                    h = int(getter())
-                    break
-                except Exception:
-                    pass
-        return w, h
+        return Helper.getImageSize(image)
 
 
     #   Converts Image Base Type to Match Requested Export Color Mode
     def convertImageColorMode(self, image, output_color_mode):
+        #  Determine the Target Base Type from the Requested Color Mode
         requested_mode = str(output_color_mode or "").upper()
         if requested_mode in ("GRAY", "GRAYA"):
             target_base = "GRAY"
@@ -1474,13 +1403,16 @@ class PrismGimpBridgeService:
         else:
             return True, None
 
+        #   Get the Current Base Type of the Image and Check if Conversion is Needed
         current_base = self.getImageBaseType(image)
         if current_base == target_base:
             return True, None
 
+        #   Attempt to Use Direct Image Method for Base Type Conversion if Available
         enum_container = getattr(Gimp, "ImageBaseType", None)
         target_enum = getattr(enum_container, target_base, None) if enum_container else None
 
+        #   Try Multiple Method Signatures for Compatibility with Different Gimp Versions
         method_errors = []
         for method_name in ["convert_type", "convert_base_type", "convert"]:
             method = getattr(image, method_name, None)
@@ -1499,11 +1431,13 @@ class PrismGimpBridgeService:
                 except Exception as exc:
                     method_errors.append(f"{method_name}{args}: {exc}")
 
+        #   If Direct Methods Failed, Fall Back to PDB Procedures for Base Type Conversion
         if target_base == "GRAY":
             proc_names = ["gimp-image-convert-grayscale", "gimp-image-convert-base-type"]
         else:
             proc_names = ["gimp-image-convert-rgb", "gimp-image-convert-base-type"]
 
+        #   Try Multiple Procedures for Compatibility with Different Gimp Versions
         proc_errors = []
         for proc_name in proc_names:
             values = {"image": image}
@@ -1531,6 +1465,7 @@ class PrismGimpBridgeService:
 
     #   Scales Image Dimensions by Percentage
     def scaleImagePercent(self, image, scale_percent):
+        #   If Scale is 100%, No Scaling Needed
         if scale_percent == 100:
             return True, None
 
@@ -1539,9 +1474,12 @@ class PrismGimpBridgeService:
         if width <= 0 or height <= 0:
             return False, "Could not resolve image dimensions for scaling"
 
+        #   Calculate the New Dimensions Based on the Scale Percentage
         new_width = max(1, int(round(width * (scale_percent / 100.0))))
         new_height = max(1, int(round(height * (scale_percent / 100.0))))
         scale_method = getattr(image, "scale", None)
+
+        #   Try Multiple Method Signatures for Compatibility with Different Gimp Versions
         if callable(scale_method):
             for args in [(new_width, new_height), (new_width, new_height, 0)]:
                 try:
@@ -1550,6 +1488,7 @@ class PrismGimpBridgeService:
                 except Exception:
                     continue
 
+        #   If Direct Methods Failed, Fall Back to PDB Procedures for Image Scaling
         proc_names = ["gimp-image-scale", "gimp-image-scale-full"]
         for proc_name in proc_names:
             _result, error = self.runPdbProcedure(proc_name, {
@@ -1573,20 +1512,27 @@ class PrismGimpBridgeService:
     ###############################
 
     #   Exports the Active Image to a Target Path Using Gimp File-save
-    def exportImage(self, request_data):
-        image, _ = self.getCurrentImage()
+    def exportImage(self, rData):
+        #   Resolve the Active Image from Gimp
+        image = self.getActiveImage(rData)
         if image is None:
             return {"ok": False, "error": "No active image to export"}
 
-        file_path = request_data.get("path") if isinstance(request_data, dict) else None
+        #   Get the Image ID for Logging and Context Change Detection
+        image_id = self.getImageId(image)
+        command_image_id = rData.get("image_id") if isinstance(rData, dict) else None
+
+        #   Resolve the Export File Path from the Request Data
+        file_path = rData.get("path") if isinstance(rData, dict) else None
         if not file_path:
             return {"ok": False, "error": "Missing export file path"}
 
         file_path = os.path.normpath(str(file_path))
-        settings = request_data.get("settings") if isinstance(request_data, dict) else {}
+        settings = rData.get("settings") if isinstance(rData, dict) else {}
         if not isinstance(settings, dict):
             settings = {}
 
+        #   Get the Export Scale and Color Mode
         try:
             scale_percent = int(settings.get("exportScale") or 100)
         except Exception:
@@ -1597,9 +1543,11 @@ class PrismGimpBridgeService:
         output_color_mode = str(settings.get("colorMode") or "").upper()
         supports_color_mode = output_color_mode in ("RGB", "RGBA", "GRAY", "GRAYA")
 
+        #   Create Temp Duplicated Image if Scaling or Color Mode Conversion is Needed
         export_image = image
         used_temp_image = False
 
+        #   Scale Temp Image if Needed
         if scale_percent != 100 or supports_color_mode:
             temp_image, duplicate_error = self.duplicateImage(image)
             if temp_image is not None:
@@ -1628,6 +1576,8 @@ class PrismGimpBridgeService:
                     "error": f"Export scale failed: {scale_error}",
                     "data": {"scale": scale_percent},
                 }
+        
+        #   Convert Color Mode if Needed
         if supports_color_mode and used_temp_image:
             ok, color_error = self.convertImageColorMode(export_image, output_color_mode)
             if not ok:
@@ -1642,10 +1592,12 @@ class PrismGimpBridgeService:
                     "data": {"color_mode": output_color_mode},
                 }
 
+        #   Convert the File Path to a GIO File Object
         gio_file = self.getGioFile(file_path)
         run_mode = getattr(Gimp.RunMode, "NONINTERACTIVE", None)
         active_drawable = self.getActiveDrawable(export_image)
 
+        #   Call the Gimp File-save Procedure to Export the Image
         procedure_name = "gimp-file-save"
         result, save_error = self.runPdbProcedure(
             procedure_name,
@@ -1663,6 +1615,8 @@ class PrismGimpBridgeService:
                     "Exported image from Gimp",
                     path=file_path,
                     procedure=procedure_name,
+                    image_id=image_id,
+                    command_image_id=command_image_id,
                     scale=scale_percent,
                     color_mode=output_color_mode if supports_color_mode else None,
                 )
@@ -1673,6 +1627,8 @@ class PrismGimpBridgeService:
                 path=file_path,
                 procedure=procedure_name,
                 error=str(save_error),
+                image_id=image_id,
+                command_image_id=command_image_id,
             )
             return {
                 "ok": False,
@@ -1696,40 +1652,76 @@ class PrismGimpBridgeService:
     #################################################
 
     #   Saves Prism StateManager State JSON as a Parasite on the Active Image
-    def saveStates(self, request_data):
-        image, _ = self.getCurrentImage()
+    def saveStates(self, rData):
+        #   Resolve the Active Image from Gimp
+        image = self.getActiveImage(rData)
         if image is None:
             return {"ok": False, "error": "No active image to save states on"}
 
-        state_data = request_data.get("stateData") if isinstance(request_data, dict) else None
+        #   Get the Image ID for Logging and Context Change Detection
+        image_id = self.getImageId(image)
+        command_image_id = rData.get("image_id") if isinstance(rData, dict) else None
+
+        #   Resolve the State Data from the Request
+        state_data = rData.get("stateData") if isinstance(rData, dict) else None
         if state_data is None:
             return {"ok": False, "error": "Missing stateData in request"}
 
         try:
+            #   Convert the State Data to Bytes if it's a String
             data_bytes = state_data.encode("utf-8") if isinstance(state_data, str) else bytes(state_data)
 
+            state_count = None
+            try:
+                #   Attempt to Parse the State Data as JSON to Count the Number of States for Logging
+                parsed_state = json.loads(state_data) if isinstance(state_data, str) else None
+                if isinstance(parsed_state, dict) and isinstance(parsed_state.get("states"), list):
+                    state_count = len(parsed_state.get("states"))
+
+            except Exception:
+                state_count = None
+
+            #   Create a New Parasite with the State Data
             parasite = Gimp.Parasite.new("PrismStates", 1, data_bytes)
 
+            #   Attach the Parasite to the Image
             attach = getattr(image, "attach_parasite", None) or getattr(image, "parasite_attach", None)
             if not callable(attach):
                 return {"ok": False, "error": "No parasite attach method available on image"}
 
             attach(parasite)
-            self.addToLog("Saved Prism states to Gimp scenefile")
+            self.addToLog(
+                "Saved Prism states to Gimp scenefile",
+                image_id=image_id,
+                command_image_id=command_image_id,
+                state_bytes=len(data_bytes),
+                state_count=state_count,
+            )
             return {"ok": True}
 
         except Exception as exc:
-            self.addToLog("Failed to save Prism states Gimp scenefile", error=str(exc))
+            self.addToLog(
+                "Failed to save Prism states Gimp scenefile",
+                error=str(exc),
+                image_id=image_id,
+                command_image_id=command_image_id,
+            )
             return {"ok": False, "error": str(exc)}
 
 
     #   Reads Prism StateManager State JSON from a Parasite on the Active Image
-    def getStates(self):
-        image, _ = self.getCurrentImage()
+    def getStates(self, rData=None):
+        #   Resolve the Active Image from Gimp
+        image = self.getActiveImage(rData)
+        command_image_id = rData.get("image_id") if isinstance(rData, dict) else None
         if image is None:
             return {"ok": True, "data": {"stateData": ""}}
 
+        #   Get the Image ID for Logging and Context Change Detection
+        image_id = self.getImageId(image)
+
         try:
+            #   Attempt to Find the Parasite Containing the Prism State Data
             find = getattr(image, "get_parasite", None) or getattr(image, "parasite_find", None)
             if not callable(find):
                 return {"ok": True, "data": {"stateData": ""}}
@@ -1738,6 +1730,7 @@ class PrismGimpBridgeService:
             if not parasite:
                 return {"ok": True, "data": {"stateData": ""}}
 
+            #   Get the Raw State Data from the Parasite
             get_data = getattr(parasite, "get_data", None)
             if callable(get_data):
                 raw = get_data()
@@ -1747,6 +1740,7 @@ class PrismGimpBridgeService:
             if raw is None:
                 return {"ok": True, "data": {"stateData": ""}}
 
+            #   Convert the Raw State Data to a String if it's in Bytes
             raw_bytes = b""
             if isinstance(raw, tuple):
                 for item in raw:
@@ -1756,6 +1750,7 @@ class PrismGimpBridgeService:
             else:
                 raw_bytes = Helper.toBytes(raw)
 
+            #   Decode the Raw Bytes as UTF-8
             if raw_bytes:
                 state_data = raw_bytes.decode("utf-8", errors="replace")
             elif isinstance(raw, str):
@@ -1763,10 +1758,40 @@ class PrismGimpBridgeService:
             else:
                 state_data = ""
 
-            return {"ok": True, "data": {"stateData": state_data}}
+            state_count = None
+            try:
+                #    Parse the State Data as JSON to Count the Number of States for Logging
+                parsed_state = json.loads(state_data) if isinstance(state_data, str) and state_data else None
+                if isinstance(parsed_state, dict) and isinstance(parsed_state.get("states"), list):
+                    state_count = len(parsed_state.get("states"))
+
+            except Exception:
+                state_count = None
+
+            self.addToLog(
+                "Read Prism states from Gimp scenefile",
+                image_id=image_id,
+                command_image_id=command_image_id,
+                state_bytes=(len(state_data.encode("utf-8", errors="replace")) if isinstance(state_data, str) else 0),
+                state_count=state_count,
+            )
+
+            return {
+                "ok": True,
+                "data": {
+                    "stateData": state_data,
+                    "imageId": image_id,
+                    "commandImageId": command_image_id,
+                },
+            }
 
         except Exception as exc:
-            self.addToLog("Failed to read Prism states parasite", error=str(exc))
+            self.addToLog(
+                "Failed to read Prism states parasite",
+                error=str(exc),
+                image_id=image_id,
+                command_image_id=command_image_id,
+            )
             return {"ok": False, "error": str(exc)}
 
 
@@ -1830,7 +1855,6 @@ class PrismGimpBridgeRuntime:
         self.bridgePort_out = self.settings["bridgePort_out"]
         self.bridgePort_in = self.settings["bridgePort_in"]
         self.hostStartTimeout = self.settings["hostStartTimeout"]
-        self.log_fileName = self.settings["log_fileName"]
         self.log_maxBytes = self.settings["log_maxBytes"]
         self.attribution = self.settings["attribution"]
 
@@ -1846,9 +1870,11 @@ class PrismGimpBridgeRuntime:
 
     #   Launches the Prism Host Process if Not Already Running, or Force it
     def launchPrismHost(self, force:bool=False) -> None:
+        #   If Not Forcing Launch and Host is Responsive, No Action Needed
         if not force and self.isPrismHostResponsive():
             return
 
+        #   If Not Forcing Launch but Host Socket is Unresponsive, Attempt Recovery Before Launching
         if not force and Helper.canConnectToPrism(self.bridgePort_out):
             self.addToLog("Detected unresponsive Prism Host socket, attempting recovery")
             self.recoverUnresponsiveHost()
@@ -1856,6 +1882,7 @@ class PrismGimpBridgeRuntime:
         hostScript = Helper.getHostScriptPath()
         deadline = time.time() + self.hostStartTimeout
 
+        #   Try to Launch Host with Each Python Until Responsive or Deadline Exceeded
         for python_command in Helper.getHostPythonCommands():
             if not force and self.isPrismHostResponsive():
                 return
@@ -1866,6 +1893,7 @@ class PrismGimpBridgeRuntime:
             attempt_deadline = min(deadline, time.time() + 3.0)
             launch_time = time.time()
 
+            #   Wait for the Process to Start and Host to Become Responsive, or Process to Exit, or Deadline to Pass
             while time.time() < attempt_deadline:
                 if not force and self.isPrismHostResponsive():
                     return
@@ -1881,6 +1909,7 @@ class PrismGimpBridgeRuntime:
 
                 time.sleep(0.1)
 
+            # If Not Forcing Launch, Wait for Host to Become Responsive if Process is Still Running
             if not force and process.poll() is None:
                 self.addToLog("Host process still initializing, waiting for command server", process_id=process.pid)
 
@@ -1911,8 +1940,10 @@ class PrismGimpBridgeRuntime:
         if not os.path.isfile(host_script_path):
             raise RuntimeError(f"Prism Host script not found: {host_script_path}")
 
+        #   Get the Parent PID for Host Monitoring
         parent_pid = self.getHostParentPid()
 
+        #   Construct the Command Line Args and Enviro Vars for the Host Process
         launch_args = list(python_command) + [
             host_script_path,
             "--parent-pid",
@@ -1921,6 +1952,7 @@ class PrismGimpBridgeRuntime:
             PRISM_ROOT,
         ]
 
+        #   Set Up Environment Variables for the Host Process, Including Log Paths and Settings
         launch_env = os.environ.copy()
         launch_env["PRISM_GIMP_LOG_PATH"] = Helper.getLogPath()
         launch_env["PRISM_GIMP_LOG_BACKUP_PATH"] = Helper.getBackupLogPath()
@@ -1931,6 +1963,7 @@ class PrismGimpBridgeRuntime:
             "env": launch_env,
         }
 
+        #   On Windows, Use Creation Flags to Detach the Process and Suppress Console Window
         if os.name == "nt":
             creationflags = 0
             creationflags |= getattr(subprocess, "DETACHED_PROCESS", 0)
@@ -1961,15 +1994,18 @@ class PrismGimpBridgeRuntime:
         except Exception:
             pass
 
-        #   Fallback: disable parent monitor instead of using transient menu callback pids.
+        #   Fallback: Disable Parent Monitor
         return 0
 
 
     #   Resets the Prism Host by Terminating the Process and Restarting it
     def resetPrismHost(self) -> None:
         self.addToLog("Reset Prism requested")
+
+        #   Attempt to Read the Host PID from State
         host_pid = Helper.readHostPid()
 
+        #   Terminate the Process and Wait for it to Exit Before Launching a New Instance
         if host_pid:
             self.addToLog("Stopping Prism Host", process_id=host_pid)
             Helper.terminateProcess(host_pid)
@@ -2067,19 +2103,42 @@ class PrismGimpBridgeRuntime:
 
     #   Gimp Procedure Callback to Run a Prism Command
     def runPrismCommand(self, procedure, run_mode, image, drawables, config, data=None):
+        #   Look up the Command Data for this Procedure
         procedure_data = self.PROCEDURES.get(procedure.get_name())
 
         if not procedure_data:
             return procedure.new_return_values(Gimp.PDBStatusType.CALLING_ERROR, None)
 
         try:
+            #   Get the Image ID and Pass it as a Hint to the Host
+            hinted_image_id = None
+            if image is not None:
+                get_id = getattr(image, "get_id", None)
+                if callable(get_id):
+                    try:
+                        hinted_image_id = int(get_id())
+                    except Exception:
+                        hinted_image_id = None
+
+            #   Set the Image ID Hint in the Bridge Runtime for the Host to Use in Context-Aware Commands
+            BRIDGE_RUNTIME.setImageHint(hinted_image_id)
+
+            #   Handle Reset Directly in the Bridge Runtime Instead of Sending to Host
             if procedure_data["command"] == "resetPrism":
                 self.addToLog("Running Prism command", command=procedure_data["command"])
                 self.resetPrismHost()
 
             else:
-                self.addToLog("Running Prism command", command=procedure_data["command"])
-                command_ok = self.sendToPrism(procedure_data["command"])
+                command_payload = {}
+                if hinted_image_id is not None:
+                    command_payload["image_id"] = hinted_image_id
+
+                self.addToLog(
+                    "Running Prism command",
+                    command=procedure_data["command"],
+                    image_hint_id=hinted_image_id,
+                )
+                command_ok = self.sendToPrism(procedure_data["command"], payload=command_payload)
 
                 if not command_ok:
                     raise RuntimeError("Prism host command failed: %s" % procedure_data["command"])
@@ -2101,6 +2160,7 @@ class PrismGimpBridgeRuntime:
 
             self.bridgeService.run()
             return procedure.new_return_values(Gimp.PDBStatusType.SUCCESS, None)
+        
         except Exception as e:
             print(f"[Prism] Failed to start Gimp bridge: {e}")
             self.addToLog("Failed to start Gimp bridge", error=str(e))
@@ -2114,6 +2174,7 @@ class PrismGimpBridgeRuntime:
 
     #    Creates Gimp Procedures for the Bridge and Command Menu Items
     def createProcedure(self, plugin, name):
+        #   Create the Persistent Bridge Procedure that Auto-Starts the Prism Host and Bridge Service When Gimp Loads
         if name == "extension-prism-gimp-bridge":
             procedure = Gimp.Procedure.new(
                 plugin,
@@ -2134,6 +2195,7 @@ class PrismGimpBridgeRuntime:
         if not procedure_data:
             return None
 
+        #   Create a Procedure for the Prism Menu Item
         procedure = Gimp.ImageProcedure.new(
             plugin,
             name,
