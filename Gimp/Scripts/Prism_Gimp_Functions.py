@@ -103,7 +103,7 @@ class Prism_Gimp_Functions(object):
         except Exception:
             pass
 
-        ##  CALLBACKS
+        #  CALLBACKS
         self.core.registerCallback("onProjectBrowserStartup", self.onProjectBrowserStartup, plugin=self.plugin, priority=20)
         self.core.registerCallback("onUserSettingsOpen", self.onUserSettingsOpen, plugin=self.plugin, priority=20)
         self.core.registerCallback("onUserSettingsSave", self.onUserSettingsSave, plugin=self.plugin, priority=20)

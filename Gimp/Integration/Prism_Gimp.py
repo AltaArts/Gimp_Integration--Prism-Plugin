@@ -79,25 +79,42 @@ from gi.repository import Gimp, GLib, Gio
 
 import Prism_Helper as Helper
 
-
 PRISM_ROOT = r"@PRISMROOTREPLACE@"
+GIMP_PLUGIN_ROOT = r"@GIMPPLUINREPLACE@"
 MENU_ROOT = "<Image>/Prism"
 HOST_SCRIPT_NAME = "Prism_Host.py"
 
+SCRIPTS_DIR = os.path.join(GIMP_PLUGIN_ROOT, "Scripts")
+if SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, SCRIPTS_DIR)
 
-#   Conversion dict for Gimp Image Codes
-COLORMODEDATA = {
-    100: {"display": "8-bit Integer", "gamma": "Linear"},
-    150: {"display": "8-bit Integer", "gamma": "sRGB"},
-    200: {"display": "16-bit Integer", "gamma": "Linear"},
-    250: {"display": "16-bit Integer", "gamma": "sRGB"},
-    300: {"display": "32-bit Integer", "gamma": "Linear"},
-    350: {"display": "32-bit Integer", "gamma": "sRGB"},
-    500: {"display": "16-bit Half Float", "gamma": "Linear"},
-    550: {"display": "16-bit Half Float", "gamma": "sRGB"},
-    600: {"display": "32-bit Float", "gamma": "Linear"},
-    650: {"display": "32-bit Float", "gamma": "sRGB"},
-}
+from GimpMapping import (
+    IMAGEPRECISIONDATA,
+    EXPORTER_PROCEDURE_MAP,
+    PNG_FORMAT_MAP,
+    JPEG_SUBSAMPLING_MAP,
+    TIFF_COMPRESSION_MAP,
+    )
+
+
+
+def bitToBool(value, default=False):
+    '''Converts a bit/string value to bool (1/0, 'true'/'false', etc.).'''
+
+    if isinstance(value, bool):
+        return value
+    
+    if isinstance(value, (int, float)):
+        return bool(value)
+    
+    if isinstance(value, str):
+        v = value.strip().lower()
+        if v in ["1", "true", "yes", "on"]:
+            return True
+        if v in ["0", "false", "no", "off", ""]:
+            return False
+        
+    return default
 
 
 
@@ -1105,9 +1122,9 @@ class PrismGimpBridgeService:
                 except Exception:
                     precision_int = None
 
-                if precision_int in COLORMODEDATA:
-                    specs["bitDepth"] = COLORMODEDATA[precision_int]["display"]
-                    specs["gamma"] = COLORMODEDATA[precision_int]["gamma"]
+                if precision_int in IMAGEPRECISIONDATA:
+                    specs["bitDepth"] = IMAGEPRECISIONDATA[precision_int]["display"]
+                    specs["gamma"] = IMAGEPRECISIONDATA[precision_int]["gamma"]
                 else:
                     precision_upper = precision_str.upper()
                     if "U8" in precision_upper:
@@ -1317,6 +1334,25 @@ class PrismGimpBridgeService:
             return None
 
 
+    #   Returns all Drawables/Layers in an Image (best-effort)
+    def getImageDrawables(self, image):
+        for layers_getter_name in ["get_layers", "list_layers", "layers"]:
+            layers_getter = getattr(image, layers_getter_name, None)
+            if not callable(layers_getter):
+                continue
+
+            try:
+                layers = Helper.normalizeGimpItems(layers_getter())
+            except Exception:
+                layers = []
+
+            if layers:
+                return layers
+
+        active = self.getActiveDrawable(image)
+        return [active] if active else []
+
+
     #   Returns Whether a Drawable Has Alpha Support
     def drawableHasAlpha(self, drawable):
         if drawable is None:
@@ -1507,6 +1543,216 @@ class PrismGimpBridgeService:
         return False, "No compatible image scale API available"
 
 
+    #   Merges Visible Layers into one Layer for Flat Export Fallback
+    def mergeVisibleLayersForExport(self, image):
+        if image is None:
+            return False, "No image provided"
+
+        merge_type = None
+        merge_enum = getattr(Gimp, "MergeType", None)
+        if merge_enum is not None:
+            for enum_name in ["CLIP_TO_IMAGE", "EXPAND_AS_NECESSARY"]:
+                candidate = getattr(merge_enum, enum_name, None)
+                if candidate is not None:
+                    merge_type = candidate
+                    break
+
+        merge_method = getattr(image, "merge_visible_layers", None)
+        if callable(merge_method):
+            arg_sets = [()]
+            if merge_type is not None:
+                arg_sets.insert(0, (merge_type,))
+
+            for args in arg_sets:
+                try:
+                    merged_layer = merge_method(*args)
+                    if merged_layer is not None:
+                        return True, None
+                except Exception:
+                    continue
+
+        proc_calls = []
+        if merge_type is not None:
+            proc_calls.append({"image": image, "merge-type": merge_type})
+            proc_calls.append({"image": image, "merge_type": merge_type})
+
+        proc_calls.append({"image": image})
+
+        for values in proc_calls:
+            _result, error = self.runPdbProcedure("gimp-image-merge-visible-layers", values)
+            if error is None:
+                return True, None
+
+        flatten_method = getattr(image, "flatten", None)
+        if callable(flatten_method):
+            try:
+                flatten_method()
+                return True, None
+            except Exception:
+                pass
+
+        _result, flatten_error = self.runPdbProcedure("gimp-image-flatten", {"image": image})
+        if flatten_error is None:
+            return True, None
+
+        return False, "Could not merge/flatten image for flat TIFF export"
+
+
+    #   Converts Image Precision (Bit Depth / Gamma) to the Target Value
+    def convertImagePrecision(self, image, target_precision_int):
+        #   Attempt to Resolve the Gimp.Precision Enum Value for the Target
+        precision_enum = None
+        precision_type = getattr(Gimp, "Precision", None)
+        if precision_type is not None:
+            for attr in dir(precision_type):
+                try:
+                    val = getattr(precision_type, attr)
+                    if int(val) == target_precision_int:
+                        precision_enum = val
+                        break
+                except Exception:
+                    continue
+
+        target_value = precision_enum if precision_enum is not None else target_precision_int
+
+        #   Try Direct Image Method First
+        method = getattr(image, "convert_precision", None)
+        if callable(method):
+            try:
+                method(target_value)
+                return True, None
+            except Exception:
+                pass
+
+        #   Fall Back to PDB Procedure
+        _result, error = self.runPdbProcedure(
+            "gimp-image-convert-precision",
+            {"image": image, "precision": target_value},
+        )
+        if error is None:
+            return True, None
+
+        return False, error
+
+
+    #   Resolves Target Precision ID from Format + Bit Depth + Gamma using IMAGEPRECISIONDATA
+    def getTargetPrecisionForExport(self, file_path, bit_depth, output_gamma):
+        ext = os.path.splitext(str(file_path or ""))[1].lower()
+        bit_depth_str = str(bit_depth or "").strip()
+        gamma_label = "Linear" if str(output_gamma or "").strip().lower() == "linear" else "sRGB"
+
+        if bit_depth_str not in ["8", "16", "32"]:
+            return None
+
+        if bit_depth_str == "8":
+            display_label = "8-bit Integer"
+        elif bit_depth_str == "16":
+            #   EXR 16-bit is half-float; other supported formats use 16-bit integer.
+            display_label = "16-bit Half Float" if ext == ".exr" else "16-bit Integer"
+        else:
+            #   EXR/PSD 32-bit workflows are float-based.
+            display_label = "32-bit Float" if ext in [".exr", ".psd"] else "32-bit Integer"
+
+        for precision_id, meta in IMAGEPRECISIONDATA.items():
+            if meta.get("display") == display_label and meta.get("gamma") == gamma_label:
+                return precision_id
+
+        return None
+
+
+    #   Maps Output Extension to Exporter Procedure
+    def getExporterProcedureName(self, file_path):
+        ext = os.path.splitext(str(file_path or ""))[1].lower()
+        return EXPORTER_PROCEDURE_MAP.get(ext, "gimp-file-save")
+
+
+    #   Maps UI colorMode/bitDepth to PNG Export 
+    def getPngFormatChoice(self, settings):
+        color_mode = str(settings.get("colorMode") or "").upper()
+        bit_depth = str(settings.get("png_BitDepth") or "").strip()
+        if bit_depth not in ["8", "16"]:
+            return "auto"
+        return PNG_FORMAT_MAP.get((color_mode, bit_depth), "auto")
+
+
+    #   Builds Exporter-specific Config Values from Prism Render Settings
+    def getExporterConfigValues(self, procedure_name, settings):
+        values = {}
+
+        if procedure_name == "file-png-export":
+            try:
+                compression = int(settings.get("png_Compress") or 10) - 1
+            except Exception:
+                compression = 9
+
+            compression = max(0, min(compression, 9))
+
+            values.update(
+                {
+                    "interlaced": bitToBool(settings.get("png_Interlaced"), False),
+                    "compression": compression,
+                    "gama": bitToBool(settings.get("png_Gamma"), True),
+                    "bkgd": bitToBool(settings.get("png_BgColor"), False),
+                    "offs": bitToBool(settings.get("png_LayerOffset"), False),
+                    "phys": bitToBool(settings.get("png_Rez"), True),
+                    "save-transparent": bitToBool(settings.get("png_AlphaColor"), False),
+                    "format": self.getPngFormatChoice(settings),
+                }
+            )
+
+        elif procedure_name == "file-jpeg-export":
+            try:
+                quality = float(settings.get("jpg_Quality") or 0.9)
+            except Exception:
+                quality = 0.9
+
+            try:
+                smoothing = float(settings.get("jpg_Smoothing") or 0.0)
+            except Exception:
+                smoothing = 0.0
+
+            values.update(
+                {
+                    "quality": max(0.0, min(quality, 1.0)),
+                    "smoothing": max(0.0, min(smoothing, 1.0)),
+                    "optimize": bitToBool(settings.get("jpg_Optimize"), True),
+                    "progressive": bitToBool(settings.get("jpg_Progressive"), False),
+                    "baseline": bitToBool(settings.get("jpg_Baseline"), True),
+                    "sub-sampling": JPEG_SUBSAMPLING_MAP.get(str(settings.get("jpg_SubSample") or "4:2:2"), "sub-sampling-2x1"),
+                }
+            )
+
+        elif procedure_name == "file-tiff-export":
+            tiff_save_layers = bitToBool(settings.get("tiff_SaveLayers"), True)
+            values.update(
+                {
+                    "save-layers": tiff_save_layers,
+                    "bigtiff": bitToBool(settings.get("tiff_useBigTiff"), False),
+                    "compression": TIFF_COMPRESSION_MAP.get(settings.get("tiff_Compression"), "none"),
+                    "save-transparent-pixels": bitToBool(settings.get("tiff_SaveTransPx"), True),
+                }
+            )
+
+        elif procedure_name == "file-pdf-export":
+            values.update(
+                {
+                    "ignore-hidden": bitToBool(settings.get("pdf_OmitHidden"), True),
+                    "vectorize": bitToBool(settings.get("pdf_ConvertToVector"), True),
+                    "apply-masks": bitToBool(settings.get("pdf_ApplyLayers"), True),
+                }
+            )
+
+        elif procedure_name == "file-psd-export":
+            values.update(
+                {
+                    "cmyk": False,
+                    "duotone": False,
+                }
+            )
+
+        return values
+
+
     ###############################
     ##           RENDER          ##
     ###############################
@@ -1532,6 +1778,11 @@ class PrismGimpBridgeService:
         if not isinstance(settings, dict):
             settings = {}
 
+        file_ext = os.path.splitext(file_path)[1].lower()
+        is_tiff_export = file_ext in [".tif", ".tiff"]
+        tiff_save_layers_enabled = bitToBool(settings.get("tiff_SaveLayers"), True)
+        requires_flat_tiff = is_tiff_export and not tiff_save_layers_enabled
+
         #   Get the Export Scale and Color Mode
         try:
             scale_percent = int(settings.get("exportScale") or 100)
@@ -1543,12 +1794,12 @@ class PrismGimpBridgeService:
         output_color_mode = str(settings.get("colorMode") or "").upper()
         supports_color_mode = output_color_mode in ("RGB", "RGBA", "GRAY", "GRAYA")
 
-        #   Create Temp Duplicated Image if Scaling or Color Mode Conversion is Needed
+
+        #   Create Temp Duplicated Image if any Preprocessing is Needed
         export_image = image
         used_temp_image = False
 
-        #   Scale Temp Image if Needed
-        if scale_percent != 100 or supports_color_mode:
+        if scale_percent != 100 or supports_color_mode or requires_flat_tiff:
             temp_image, duplicate_error = self.duplicateImage(image)
             if temp_image is not None:
                 export_image = temp_image
@@ -1556,7 +1807,7 @@ class PrismGimpBridgeService:
             else:
                 self.addToLog("Could not duplicate image for export preprocessing", error=str(duplicate_error))
 
-        if (scale_percent != 100 or supports_color_mode) and not used_temp_image:
+        if (scale_percent != 100 or supports_color_mode or requires_flat_tiff) and not used_temp_image:
             message = "Failed to prepare temporary image for export preprocessing"
             return {
                 "ok": False,
@@ -1564,6 +1815,7 @@ class PrismGimpBridgeService:
                 "data": {
                     "scale": scale_percent,
                     "color_mode": output_color_mode if supports_color_mode else None,
+                    "flat_tiff": requires_flat_tiff,
                 },
             }
 
@@ -1592,22 +1844,42 @@ class PrismGimpBridgeService:
                     "data": {"color_mode": output_color_mode},
                 }
 
+        if requires_flat_tiff and used_temp_image:
+            drawables = self.getImageDrawables(export_image)
+            layer_count = len(drawables)
+            if layer_count > 1:
+                ok, flatten_error = self.mergeVisibleLayersForExport(export_image)
+            else:
+                ok, flatten_error = True, None
+
+            if not ok:
+                return {
+                    "ok": False,
+                    "error": f"Flat TIFF preprocessing failed: {flatten_error}",
+                    "data": {"flat_tiff": True},
+                }
+
+
         #   Convert the File Path to a GIO File Object
         gio_file = self.getGioFile(file_path)
         run_mode = getattr(Gimp.RunMode, "NONINTERACTIVE", None)
         active_drawable = self.getActiveDrawable(export_image)
 
-        #   Call the Gimp File-save Procedure to Export the Image
-        procedure_name = "gimp-file-save"
-        result, save_error = self.runPdbProcedure(
-            procedure_name,
-            {
-                "run-mode": run_mode,
-                "image": export_image,
-                "drawable": active_drawable,
-                "file": gio_file,
-            },
-        )
+        #   Prefer format-specific exporters for better control, fall back to generic save
+        procedure_name = self.getExporterProcedureName(file_path)
+
+        proc_values = {
+            "run-mode": run_mode,
+            "image": export_image,
+            "file": gio_file,
+        }
+
+        if procedure_name == "gimp-file-save":
+            proc_values["drawable"] = active_drawable
+        else:
+            proc_values.update(self.getExporterConfigValues(procedure_name, settings))
+
+        result, save_error = self.runPdbProcedure(procedure_name, proc_values)
 
         try:
             if save_error is None:
@@ -1619,6 +1891,8 @@ class PrismGimpBridgeService:
                     command_image_id=command_image_id,
                     scale=scale_percent,
                     color_mode=output_color_mode if supports_color_mode else None,
+                    tiff_save_layers=(tiff_save_layers_enabled if procedure_name == "file-tiff-export" else None),
+                    tiff_flatten_fallback=(requires_flat_tiff if procedure_name == "file-tiff-export" else None),
                 )
                 return {"ok": True, "data": {"exported": True, "path": file_path, "procedure": procedure_name}}
 

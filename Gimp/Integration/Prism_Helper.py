@@ -661,6 +661,23 @@ def setConfigValue(config:object, key:object, value:object) -> None:
 
     try:
         config.set_property(key, value)
+        return
+    except Exception:
+        if not isinstance(key, str):
+            return
+
+    #   Some GI Bindings Use Underscores While C uses Hyphens - Try Alt First
+    alt_key = None
+    if "-" in key:
+        alt_key = key.replace("-", "_")
+    elif "_" in key:
+        alt_key = key.replace("_", "-")
+
+    if not alt_key or alt_key == key:
+        return
+
+    try:
+        config.set_property(alt_key, value)
     except Exception:
         pass
 
@@ -723,21 +740,6 @@ def extractImageFromResult(rawResult:object) -> object | None:
         has_height = callable(getattr(value, "get_height", None))
         has_layers = callable(getattr(value, "get_layers", None))
         if (has_width and has_height) or has_layers:
-            return value
-
-    return None
-
-
-def extractDisplayFromResult(rawResult:object) -> object | None:
-    '''Extracts the first display-like object from GI/PDB result values.'''
-
-    for value in flattenValues(rawResult):
-        if value is None:
-            continue
-
-        has_get_image = callable(getattr(value, "get_image", None))
-        has_get_id = callable(getattr(value, "get_id", None))
-        if has_get_image and has_get_id:
             return value
 
     return None

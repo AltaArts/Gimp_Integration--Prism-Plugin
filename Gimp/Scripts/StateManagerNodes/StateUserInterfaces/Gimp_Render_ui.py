@@ -304,141 +304,99 @@ class Ui_wg_Gimp_Render(object):
 
         self.verticalLayout_2.addItem(self.verticalSpacer_4)
 
-        self.w_scale = QWidget(self.gb_export)
-        self.w_scale.setObjectName(u"w_scale")
-        self.horizontalLayout_14 = QHBoxLayout(self.w_scale)
-        self.horizontalLayout_14.setSpacing(0)
-        self.horizontalLayout_14.setObjectName(u"horizontalLayout_14")
-        self.horizontalLayout_14.setContentsMargins(9, 0, 9, 0)
-        self.l_scale = QLabel(self.w_scale)
-        self.l_scale.setObjectName(u"l_scale")
-
-        self.horizontalLayout_14.addWidget(self.l_scale)
-
-        self.horizontalSpacer_12 = QSpacerItem(113, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-
-        self.horizontalLayout_14.addItem(self.horizontalSpacer_12)
-
-        self.cb_scale = QComboBox(self.w_scale)
-        self.cb_scale.setObjectName(u"cb_scale")
-        self.cb_scale.setMinimumSize(QSize(124, 0))
-
-        self.horizontalLayout_14.addWidget(self.cb_scale)
-
-
-        self.verticalLayout_2.addWidget(self.w_scale)
-
-        self.w_outGamma = QWidget(self.gb_export)
-        self.w_outGamma.setObjectName(u"w_outGamma")
-        self.horizontalLayout_24 = QHBoxLayout(self.w_outGamma)
-        self.horizontalLayout_24.setSpacing(0)
-        self.horizontalLayout_24.setObjectName(u"horizontalLayout_24")
-        self.horizontalLayout_24.setContentsMargins(9, 0, 9, 0)
-        self.l_outGamma = QLabel(self.w_outGamma)
-        self.l_outGamma.setObjectName(u"l_outGamma")
-
-        self.horizontalLayout_24.addWidget(self.l_outGamma)
-
-        self.horizontalSpacer_41 = QSpacerItem(113, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-
-        self.horizontalLayout_24.addItem(self.horizontalSpacer_41)
-
-        self.cb_outGamma = QComboBox(self.w_outGamma)
-        self.cb_outGamma.setObjectName(u"cb_outGamma")
-        self.cb_outGamma.setMinimumSize(QSize(124, 0))
-
-        self.horizontalLayout_24.addWidget(self.cb_outGamma)
-
-
-        self.verticalLayout_2.addWidget(self.w_outGamma)
-
         self.w_outType = QWidget(self.gb_export)
         self.w_outType.setObjectName(u"w_outType")
         self.horizontalLayout_9 = QHBoxLayout(self.w_outType)
         self.horizontalLayout_9.setSpacing(0)
         self.horizontalLayout_9.setObjectName(u"horizontalLayout_9")
         self.horizontalLayout_9.setContentsMargins(9, 0, 9, 0)
-        self.l_outType = QLabel(self.w_outType)
-        self.l_outType.setObjectName(u"l_outType")
-
-        self.horizontalLayout_9.addWidget(self.l_outType)
-
-        self.horizontalSpacer_3 = QSpacerItem(113, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-
-        self.horizontalLayout_9.addItem(self.horizontalSpacer_3)
-
-        self.cb_format = QComboBox(self.w_outType)
-        self.cb_format.setObjectName(u"cb_format")
-        self.cb_format.setMinimumSize(QSize(124, 0))
-
-        self.horizontalLayout_9.addWidget(self.cb_format)
-
 
         self.verticalLayout_2.addWidget(self.w_outType)
 
-        self.gb_imageOptions = QGroupBox(self.gb_export)
-        self.gb_imageOptions.setObjectName(u"gb_imageOptions")
-        self.w_imageOptions = QHBoxLayout(self.gb_imageOptions)
-        self.w_imageOptions.setObjectName(u"w_imageOptions")
-        self.w_imageOptions.setContentsMargins(30, 5, 30, 0)
-        self.l_colorMode = QLabel(self.gb_imageOptions)
+        self.w_scale = QWidget(self.gb_export)
+        self.w_scale.setObjectName(u"w_scale")
+        self.horizontalLayout_14 = QHBoxLayout(self.w_scale)
+        self.horizontalLayout_14.setSpacing(0)
+        self.horizontalLayout_14.setObjectName(u"horizontalLayout_14")
+        self.horizontalLayout_14.setContentsMargins(9, 0, 9, 0)
+
+        self.verticalLayout_2.addWidget(self.w_scale)
+
+        self.gb_outputOptions = QGroupBox(self.gb_export)
+        self.gb_outputOptions.setObjectName(u"gb_outputOptions")
+        self.verticalLayout_3 = QVBoxLayout(self.gb_outputOptions)
+        self.verticalLayout_3.setObjectName(u"verticalLayout_3")
+        self.lo_outputColormode = QHBoxLayout()
+        self.lo_outputColormode.setObjectName(u"lo_outputColormode")
+        self.lo_outputColormode.setContentsMargins(9, -1, 9, -1)
+        self.l_colorMode = QLabel(self.gb_outputOptions)
         self.l_colorMode.setObjectName(u"l_colorMode")
 
-        self.w_imageOptions.addWidget(self.l_colorMode)
+        self.lo_outputColormode.addWidget(self.l_colorMode)
 
-        self.cb_colorMode = QComboBox(self.gb_imageOptions)
+        self.horizontalSpacer_3 = QSpacerItem(113, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+
+        self.lo_outputColormode.addItem(self.horizontalSpacer_3)
+
+        self.cb_colorMode = QComboBox(self.gb_outputOptions)
         self.cb_colorMode.setObjectName(u"cb_colorMode")
-        self.cb_colorMode.setMinimumSize(QSize(80, 0))
+        sizePolicy1 = QSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        sizePolicy1.setHorizontalStretch(0)
+        sizePolicy1.setVerticalStretch(0)
+        sizePolicy1.setHeightForWidth(self.cb_colorMode.sizePolicy().hasHeightForWidth())
+        self.cb_colorMode.setSizePolicy(sizePolicy1)
+        self.cb_colorMode.setMinimumSize(QSize(124, 0))
+        self.cb_colorMode.setMaximumSize(QSize(124, 16777215))
 
-        self.w_imageOptions.addWidget(self.cb_colorMode)
+        self.lo_outputColormode.addWidget(self.cb_colorMode)
+
+
+        self.verticalLayout_3.addLayout(self.lo_outputColormode)
+
+        self.lo_outputScale = QHBoxLayout()
+        self.lo_outputScale.setObjectName(u"lo_outputScale")
+        self.lo_outputScale.setContentsMargins(9, -1, 9, -1)
+        self.l_scale = QLabel(self.gb_outputOptions)
+        self.l_scale.setObjectName(u"l_scale")
+
+        self.lo_outputScale.addWidget(self.l_scale)
+
+        self.horizontalSpacer_12 = QSpacerItem(113, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+
+        self.lo_outputScale.addItem(self.horizontalSpacer_12)
+
+        self.cb_scale = QComboBox(self.gb_outputOptions)
+        self.cb_scale.setObjectName(u"cb_scale")
+        self.cb_scale.setMinimumSize(QSize(124, 0))
+
+        self.lo_outputScale.addWidget(self.cb_scale)
+
+
+        self.verticalLayout_3.addLayout(self.lo_outputScale)
+
+        self.lo_outputFormat = QHBoxLayout()
+        self.lo_outputFormat.setObjectName(u"lo_outputFormat")
+        self.lo_outputFormat.setContentsMargins(9, -1, 9, -1)
+        self.l_outType = QLabel(self.gb_outputOptions)
+        self.l_outType.setObjectName(u"l_outType")
+
+        self.lo_outputFormat.addWidget(self.l_outType)
 
         self.horizontalSpacer_9 = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
 
-        self.w_imageOptions.addItem(self.horizontalSpacer_9)
+        self.lo_outputFormat.addItem(self.horizontalSpacer_9)
 
-        self.l_bitDepth = QLabel(self.gb_imageOptions)
-        self.l_bitDepth.setObjectName(u"l_bitDepth")
+        self.cb_format = QComboBox(self.gb_outputOptions)
+        self.cb_format.setObjectName(u"cb_format")
+        self.cb_format.setMinimumSize(QSize(124, 0))
 
-        self.w_imageOptions.addWidget(self.l_bitDepth)
-
-        self.cb_bitDepth = QComboBox(self.gb_imageOptions)
-        self.cb_bitDepth.setObjectName(u"cb_bitDepth")
-        self.cb_bitDepth.setMinimumSize(QSize(80, 0))
-
-        self.w_imageOptions.addWidget(self.cb_bitDepth)
+        self.lo_outputFormat.addWidget(self.cb_format)
 
 
-        self.verticalLayout_2.addWidget(self.gb_imageOptions)
-
-        self.gb_alphaFill = QGroupBox(self.gb_export)
-        self.gb_alphaFill.setObjectName(u"gb_alphaFill")
-        self.gb_alphaFill.setEnabled(True)
-        self.gb_jpg_options_2 = QVBoxLayout(self.gb_alphaFill)
-        self.gb_jpg_options_2.setObjectName(u"gb_jpg_options_2")
-        self.gb_jpg_options_2.setContentsMargins(-1, 5, -1, 0)
-        self.w_alphaFill = QHBoxLayout()
-        self.w_alphaFill.setObjectName(u"w_alphaFill")
-        self.w_alphaFill.setContentsMargins(30, -1, 30, -1)
-        self.l_alphaFill = QLabel(self.gb_alphaFill)
-        self.l_alphaFill.setObjectName(u"l_alphaFill")
-
-        self.w_alphaFill.addWidget(self.l_alphaFill)
-
-        self.horizontalSpacer_11 = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-
-        self.w_alphaFill.addItem(self.horizontalSpacer_11)
-
-        self.cb_alphaFill = QComboBox(self.gb_alphaFill)
-        self.cb_alphaFill.setObjectName(u"cb_alphaFill")
-        self.cb_alphaFill.setMinimumSize(QSize(124, 0))
-
-        self.w_alphaFill.addWidget(self.cb_alphaFill)
+        self.verticalLayout_3.addLayout(self.lo_outputFormat)
 
 
-        self.gb_jpg_options_2.addLayout(self.w_alphaFill)
-
-
-        self.verticalLayout_2.addWidget(self.gb_alphaFill)
+        self.verticalLayout_2.addWidget(self.gb_outputOptions)
 
         self.gb_jpgOptions = QGroupBox(self.gb_export)
         self.gb_jpgOptions.setObjectName(u"gb_jpgOptions")
@@ -553,6 +511,21 @@ class Ui_wg_Gimp_Render(object):
         self.verticalLayout_6 = QVBoxLayout()
         self.verticalLayout_6.setObjectName(u"verticalLayout_6")
         self.verticalLayout_6.setContentsMargins(-1, -1, 40, -1)
+        self.horizontalLayout_18 = QHBoxLayout()
+        self.horizontalLayout_18.setObjectName(u"horizontalLayout_18")
+        self.horizontalSpacer_27 = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+
+        self.horizontalLayout_18.addItem(self.horizontalSpacer_27)
+
+        self.l_png_bitDepth = QLabel(self.gb_pngOptions)
+        self.l_png_bitDepth.setObjectName(u"l_png_bitDepth")
+        self.l_png_bitDepth.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+
+        self.horizontalLayout_18.addWidget(self.l_png_bitDepth)
+
+
+        self.verticalLayout_6.addLayout(self.horizontalLayout_18)
+
         self.horizontalLayout_2 = QHBoxLayout()
         self.horizontalLayout_2.setObjectName(u"horizontalLayout_2")
         self.horizontalSpacer_24 = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
@@ -592,6 +565,21 @@ class Ui_wg_Gimp_Render(object):
         self.verticalLayout_5 = QVBoxLayout()
         self.verticalLayout_5.setObjectName(u"verticalLayout_5")
         self.verticalLayout_5.setContentsMargins(-1, -1, 40, -1)
+        self.horizontalLayout_19 = QHBoxLayout()
+        self.horizontalLayout_19.setObjectName(u"horizontalLayout_19")
+        self.horizontalSpacer_22 = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+
+        self.horizontalLayout_19.addItem(self.horizontalSpacer_22)
+
+        self.cb_png_bitDepth = QComboBox(self.gb_pngOptions)
+        self.cb_png_bitDepth.setObjectName(u"cb_png_bitDepth")
+        self.cb_png_bitDepth.setMinimumSize(QSize(124, 0))
+
+        self.horizontalLayout_19.addWidget(self.cb_png_bitDepth)
+
+
+        self.verticalLayout_5.addLayout(self.horizontalLayout_19)
+
         self.horizontalLayout_3 = QHBoxLayout()
         self.horizontalLayout_3.setObjectName(u"horizontalLayout_3")
         self.horizontalSpacer_16 = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
@@ -659,6 +647,13 @@ class Ui_wg_Gimp_Render(object):
 
         self.verticalLayout_7.addLayout(self.horizontalLayout_7)
 
+        self.l_tiff_saveLayers = QLabel(self.gb_tiffOptions)
+        self.l_tiff_saveLayers.setObjectName(u"l_tiff_saveLayers")
+        self.l_tiff_saveLayers.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+        self.l_tiff_saveLayers.setAlignment(Qt.AlignmentFlag.AlignRight|Qt.AlignmentFlag.AlignTrailing|Qt.AlignmentFlag.AlignVCenter)
+
+        self.verticalLayout_7.addWidget(self.l_tiff_saveLayers)
+
         self.l_tiff_useBig = QLabel(self.gb_tiffOptions)
         self.l_tiff_useBig.setObjectName(u"l_tiff_useBig")
         self.l_tiff_useBig.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
@@ -693,6 +688,12 @@ class Ui_wg_Gimp_Render(object):
 
 
         self.verticalLayout_8.addLayout(self.horizontalLayout_8)
+
+        self.chb_tiff_saveLayers = QCheckBox(self.gb_tiffOptions)
+        self.chb_tiff_saveLayers.setObjectName(u"chb_tiff_saveLayers")
+        self.chb_tiff_saveLayers.setLayoutDirection(Qt.LayoutDirection.LeftToRight)
+
+        self.verticalLayout_8.addWidget(self.chb_tiff_saveLayers)
 
         self.chb_tiff_useBig = QCheckBox(self.gb_tiffOptions)
         self.chb_tiff_useBig.setObjectName(u"chb_tiff_useBig")
@@ -833,18 +834,16 @@ class Ui_wg_Gimp_Render(object):
         QWidget.setTabOrder(self.e_name, self.b_context)
         QWidget.setTabOrder(self.b_context, self.cb_context)
         QWidget.setTabOrder(self.cb_context, self.cb_outPath)
-        QWidget.setTabOrder(self.cb_outPath, self.cb_format)
-        QWidget.setTabOrder(self.cb_format, self.scrollArea)
+        QWidget.setTabOrder(self.cb_outPath, self.scrollArea)
         QWidget.setTabOrder(self.scrollArea, self.b_pathLast)
 
         self.retranslateUi(wg_Gimp_Render)
 
         self.cb_colorMode.setCurrentIndex(-1)
-        self.cb_bitDepth.setCurrentIndex(-1)
-        self.cb_alphaFill.setCurrentIndex(-1)
         self.cb_jpg_qual.setCurrentIndex(-1)
         self.cb_jpg_smooth.setCurrentIndex(-1)
         self.cb_jpg_subSample.setCurrentIndex(-1)
+        self.cb_png_bitDepth.setCurrentIndex(-1)
         self.cb_png_compress.setCurrentIndex(-1)
         self.cb_tiff_compress.setCurrentIndex(-1)
 
@@ -878,18 +877,16 @@ class Ui_wg_Gimp_Render(object):
         self.l_specs_Gamma.setText(QCoreApplication.translate("wg_Gimp_Render", u"XXXX", None))
         self.l_specs_Alpha_text.setText(QCoreApplication.translate("wg_Gimp_Render", u"Has Alpha:", None))
         self.l_specs_Alpha.setText(QCoreApplication.translate("wg_Gimp_Render", u"XXXX", None))
-        self.l_scale.setText(QCoreApplication.translate("wg_Gimp_Render", u"Output Scale:", None))
-        self.l_outGamma.setText(QCoreApplication.translate("wg_Gimp_Render", u"Output Gamma:", None))
-        self.l_outType.setText(QCoreApplication.translate("wg_Gimp_Render", u"Output Format:", None))
         self.l_colorMode.setText(QCoreApplication.translate("wg_Gimp_Render", u"Color Mode", None))
-        self.l_bitDepth.setText(QCoreApplication.translate("wg_Gimp_Render", u"Bit Depth", None))
-        self.l_alphaFill.setText(QCoreApplication.translate("wg_Gimp_Render", u"Fill Transparent Pixels with:", None))
+        self.l_scale.setText(QCoreApplication.translate("wg_Gimp_Render", u"Output Scale:", None))
+        self.l_outType.setText(QCoreApplication.translate("wg_Gimp_Render", u"Output Format:", None))
         self.l_jpg_qual.setText(QCoreApplication.translate("wg_Gimp_Render", u"Quality", None))
         self.l_jpg_smooth.setText(QCoreApplication.translate("wg_Gimp_Render", u"Smoothing", None))
         self.l_jpg_subSample.setText(QCoreApplication.translate("wg_Gimp_Render", u"Sub Sample", None))
         self.chb_jpg_optimize.setText(QCoreApplication.translate("wg_Gimp_Render", u"Optimize", None))
         self.chb_jpg_progressive.setText(QCoreApplication.translate("wg_Gimp_Render", u"Progressive", None))
         self.chb_jpg_baseline.setText(QCoreApplication.translate("wg_Gimp_Render", u"Baseline", None))
+        self.l_png_bitDepth.setText(QCoreApplication.translate("wg_Gimp_Render", u"BitDepth", None))
         self.l_png_compress.setText(QCoreApplication.translate("wg_Gimp_Render", u"Compression", None))
         self.chb_png_alphaColor.setText(QCoreApplication.translate("wg_Gimp_Render", u"PreMult Alpha", None))
         self.chb_png_bgColor.setText(QCoreApplication.translate("wg_Gimp_Render", u"Save BG Color", None))
@@ -898,8 +895,10 @@ class Ui_wg_Gimp_Render(object):
         self.chb_png_rez.setText(QCoreApplication.translate("wg_Gimp_Render", u"Save Resolution", None))
         self.chb_png_layerOffset.setText(QCoreApplication.translate("wg_Gimp_Render", u"Save Layer Offset", None))
         self.l_tiff_compress.setText(QCoreApplication.translate("wg_Gimp_Render", u"Compression Method", None))
+        self.l_tiff_saveLayers.setText(QCoreApplication.translate("wg_Gimp_Render", u"Save Layers", None))
         self.l_tiff_useBig.setText(QCoreApplication.translate("wg_Gimp_Render", u"Save as BIGTIFF", None))
         self.l_tiff_alphaColor.setText(QCoreApplication.translate("wg_Gimp_Render", u"Save Tranparent Color", None))
+        self.chb_tiff_saveLayers.setText("")
         self.chb_tiff_useBig.setText("")
         self.chb_tiff_alphaColor.setText("")
         self.chb_pdf_omitHidden.setText(QCoreApplication.translate("wg_Gimp_Render", u"Omit hidden layers", None))
@@ -910,4 +909,6 @@ class Ui_wg_Gimp_Render(object):
         self.l_pathLast.setText(QCoreApplication.translate("wg_Gimp_Render", u"None", None))
         self.b_pathLast.setText(QCoreApplication.translate("wg_Gimp_Render", u"...", None))
     # retranslateUi
+
+
 

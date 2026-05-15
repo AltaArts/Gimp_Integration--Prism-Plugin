@@ -108,7 +108,7 @@ class Prism_Gimp_externalAccess_Functions(object):
         origin.sp_port_in = QSpinBox()
         origin.sp_port_in.setFixedWidth(150)
         origin.sp_port_in.setRange(49152, 65535)
-        origin.sp_port_in.setValue(50600)
+        origin.sp_port_in.setValue(50601)
         lo_gimpOptions.addWidget(l_port_in, 1, 0, alignment=Qt.AlignLeft)
         lo_gimpOptions.addWidget(origin.sp_port_in, 1, 1, alignment=Qt.AlignLeft)
 

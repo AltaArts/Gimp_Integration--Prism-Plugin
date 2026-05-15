@@ -42,6 +42,7 @@
 
 
 import os
+import sys
 import time
 import platform
 import logging
@@ -53,10 +54,27 @@ from qtpy.QtWidgets import *
 from PrismUtils.Decorators import err_catcher
 from StateUserInterfaces import Gimp_Render_ui
 
+SCRIPT_ROOT = os.path.dirname(os.path.dirname(__file__))
+if SCRIPT_ROOT not in sys.path:
+    sys.path.insert(0, SCRIPT_ROOT)
+
+from GimpMapping import (
+    FORMAT_BIT_DEPTHS,
+    FORMAT_COLOR_MODES,
+    JPEG_QUALITY_OPTIONS,
+    JPEG_SMOOTHING_OPTIONS,
+    JPEG_SUBSAMPLING_LABELS,
+    OUTPUT_FORMATS,
+    PNG_COMPRESS_OPTIONS,
+    SCALE_OPTIONS,
+    TIFF_COMPRESSION_LABELS,
+)
+
+
 logger = logging.getLogger(__name__)
 
 
-
+#   Helper to Convert Bool to Bit (0/1)
 def boolToBit(bool):
     if bool == True:
         return 1
@@ -81,9 +99,7 @@ class Gimp_RenderClass(object):
         self.canSetVersion = True
         self.customContext = None
         self.allowCustomContext = False
-        self.hasAlpha = False
         self.renderingStarted = False
-        self.cleanOutputdir = True
 
         try:
             self.core.registerCallback("onStateManagerClose", self.stateManager.saveStatesToScene, plugin=self)
@@ -113,26 +129,23 @@ class Gimp_RenderClass(object):
         self.mediaType = "2drenders"
         self.tasknameRequired = True
 
-        self.outputFormats = [".png", ".exr", ".jpg", ".tif", ".pdf", ".psd"]
+        ##  Setup Format Options
+        self.outputFormats = OUTPUT_FORMATS
         self.cb_format.clear()
         self.cb_format.addItems(self.outputFormats)
 
-        #   Export Gamma
-        self.outputGamma = ["sRGB", "Linear"]
-        self.cb_outGamma.clear()
-        self.cb_outGamma.addItems(self.outputGamma)
-
-        #   Scale Options
-        scaleOptions = ["10", "25", "50", "100", "150", "200", "300"]
+        #   Scale
         self.cb_scale.clear()
-        self.cb_scale.addItems(scaleOptions)
+        self.cb_scale.addItems(SCALE_OPTIONS)
         self.cb_scale.setCurrentIndex(3)
 
-        self.gb_alphaFill.hide()
+        #   PNG
+        self.cb_png_bitDepth.clear()
+        self.cb_png_bitDepth.addItems(FORMAT_BIT_DEPTHS[".png"])
+        self.cb_png_bitDepth.setCurrentIndex(1)
 
-        pngCompressItems = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
         self.cb_png_compress.clear()
-        self.cb_png_compress.addItems(pngCompressItems)
+        self.cb_png_compress.addItems(PNG_COMPRESS_OPTIONS)
         self.cb_png_compress.setCurrentIndex(4)
 
         self.chb_png_interlaced.setChecked(False)
@@ -142,30 +155,30 @@ class Gimp_RenderClass(object):
         self.chb_png_layerOffset.setChecked(False)
         self.chb_png_alphaColor.setChecked(True)
 
-        jpgQualItems = ["0", ".1", ".2", ".3", ".4", ".5", ".6", ".7", ".8", ".9", "1"]
+        #   JPEG
         self.cb_jpg_qual.clear()
-        self.cb_jpg_qual.addItems(jpgQualItems)
+        self.cb_jpg_qual.addItems(JPEG_QUALITY_OPTIONS)
         self.cb_jpg_qual.setCurrentIndex(5)
 
-        jpgSmoothItems = ["0", ".1", ".2", ".3", ".4", ".5", ".6", ".7", ".8", ".9", "1"]
         self.cb_jpg_smooth.clear()
-        self.cb_jpg_smooth.addItems(jpgSmoothItems)
+        self.cb_jpg_smooth.addItems(JPEG_SMOOTHING_OPTIONS)
         self.cb_jpg_smooth.setCurrentIndex(5)
 
-        jpgSubSample = ["4:2:0", "4:2:2", "4:4:4"] # -> 0, 1, 2 in python function
         self.cb_jpg_subSample.clear()
-        self.cb_jpg_subSample.addItems(jpgSubSample)
+        self.cb_jpg_subSample.addItems(JPEG_SUBSAMPLING_LABELS)
         self.cb_jpg_subSample.setCurrentIndex(1)
 
         self.chb_jpg_optimize.setChecked(True)
         self.chb_jpg_progressive.setChecked(False)
         self.chb_jpg_baseline.setChecked(True)
 
-        tiffCompressOptions = ["None", "LZW (lossless)", "Pack Bits (lossless)", "Deflate (lossless)", "JPEG (lossy)"]
+        #   TIFF
         self.cb_tiff_compress.clear()
-        self.cb_tiff_compress.addItems(tiffCompressOptions)
+        self.cb_tiff_compress.addItems(TIFF_COMPRESSION_LABELS)
         self.cb_tiff_compress.setCurrentIndex(3)
+        self.chb_tiff_saveLayers.setChecked(False)
 
+        #   PDF
         self.chb_pdf_omitHidden.setChecked(True)
         self.chb_pdf_convertToVector.setChecked(True)
 
@@ -226,10 +239,6 @@ class Gimp_RenderClass(object):
                "Does not affect scenefile.")
         self.cb_scale.setToolTip(tip)
 
-        tip = ("Display gamma of exported image.\n"
-               "Does not affect scenefile.")
-        self.cb_outGamma.setToolTip(tip)
-
         tip = "Export File Format"
         self.cb_format.setToolTip(tip)
 
@@ -238,10 +247,9 @@ class Gimp_RenderClass(object):
         self.l_colorMode.setToolTip(tip)
         self.cb_colorMode.setToolTip(tip)
 
-        tip = ("Export Image Bit Depth.\n"
-               "Does not affect scenefile.")
-        self.l_bitDepth.setToolTip(tip)
-        self.cb_bitDepth.setToolTip(tip)
+        tip = "PNG Bit Depth"
+        self.l_png_bitDepth.setToolTip(tip)
+        self.cb_png_bitDepth.setToolTip(tip)
 
         tip = ("PNG Lossless Compression:\n"
                "Higher = smaller file but slower to\n"
@@ -301,6 +309,11 @@ class Gimp_RenderClass(object):
         self.l_tiff_compress.setToolTip(tip)
         self.cb_tiff_compress.setToolTip(tip)
 
+        tip = ("Save each Gimp layer as a separate TIFF page.\n\n"
+               "This may not be readable by all Applications.")
+        self.l_tiff_saveLayers.setToolTip(tip)
+        self.chb_tiff_saveLayers.setToolTip(tip)
+
         tip = ("Save as a BigTIFF file.\n"
                "This allows for file sizes greater than 4gb.\n"
                "Not all applications can read BigTIFFs.")
@@ -324,7 +337,6 @@ class Gimp_RenderClass(object):
                "and will use the same version number as the original .xcf file.\n"
                "This will not save to the Media tab.")
         self.chb_psd_saveAsScene.setToolTip(tip)
-
 
 
     @err_catcher(name=__name__)
@@ -369,14 +381,6 @@ class Gimp_RenderClass(object):
         if "specs_gamma" in stateData:
             self.l_specs_Gamma.setText(stateData["specs_gamma"])
 
-        if "specs_hasAlpha" in stateData:
-            self.l_specs_Alpha.setText(str(stateData["specs_hasAlpha"]))
-
-        if "outputGamma" in stateData:
-            idx = self.cb_outGamma.findText(stateData["outputGamma"])
-            if idx != -1:
-                self.cb_outGamma.setCurrentIndex(idx)
-
         if "exportScale" in stateData:
             idx = self.cb_scale.findText(stateData["exportScale"])
             if idx != -1:
@@ -392,10 +396,10 @@ class Gimp_RenderClass(object):
             if idx != -1:
                 self.cb_colorMode.setCurrentIndex(idx)
 
-        if "bitDepth" in stateData:
-            idx = self.cb_bitDepth.findText(stateData["bitDepth"])
+        if "png_BitDepth" in stateData:
+            idx = self.cb_png_bitDepth.findText(stateData["png_BitDepth"])
             if idx != -1:
-                self.cb_bitDepth.setCurrentIndex(idx)
+                self.cb_png_bitDepth.setCurrentIndex(idx)
 
         if "png_Compress" in stateData:
             idx = self.cb_png_compress.findText(stateData["png_Compress"])
@@ -451,6 +455,9 @@ class Gimp_RenderClass(object):
 
         if "tiff_useBigTiff" in stateData:
             self.chb_tiff_useBig.setChecked(stateData["tiff_useBigTiff"])
+
+        if "tiff_SaveLayers" in stateData:
+            self.chb_tiff_saveLayers.setChecked(stateData["tiff_SaveLayers"])
 
         if "tiff_SaveTransPx" in stateData:
             self.chb_tiff_alphaColor.setChecked(stateData["tiff_SaveTransPx"])
@@ -510,7 +517,6 @@ class Gimp_RenderClass(object):
             self.l_specs_Gamma.setText(imageSpecs["gamma"])
 
         if "hasAlpha" in imageSpecs:
-            self.hasAlpha = imageSpecs["hasAlpha"]
             self.l_specs_Alpha.setText(str(imageSpecs["hasAlpha"]))
 
 
@@ -523,19 +529,39 @@ class Gimp_RenderClass(object):
         self.b_changeTask.clicked.connect(self.changeTask)
         self.cb_master.activated.connect(self.saveStatesToScene)
         self.cb_outPath.activated.connect(self.saveStatesToScene)
-        self.cb_outGamma.activated.connect(self.saveStatesToScene)
+
         self.cb_format.activated.connect(self.updateUiOptions)
-        self.cb_colorMode.activated.connect(self.updateUiOptions)
         self.cb_format.activated.connect(self.saveStatesToScene)
+        self.cb_colorMode.activated.connect(self.updateUiOptions)
         self.cb_colorMode.activated.connect(self.saveStatesToScene)
-        self.cb_bitDepth.activated.connect(self.saveStatesToScene)
+
+        self.cb_png_bitDepth.activated.connect(self.saveStatesToScene)
+        self.cb_png_compress.activated.connect(self.saveStatesToScene)
+        self.chb_png_alphaColor.toggled.connect(self.saveStatesToScene)
+        self.chb_png_bgColor.toggled.connect(self.saveStatesToScene)
+        self.chb_png_gamma.toggled.connect(self.saveStatesToScene)
+        self.chb_png_interlaced.toggled.connect(self.saveStatesToScene)
+        self.chb_png_rez.toggled.connect(self.saveStatesToScene)
+        self.chb_png_layerOffset.toggled.connect(self.saveStatesToScene)
+
         self.cb_jpg_qual.activated.connect(self.saveStatesToScene)
         self.cb_jpg_smooth.activated.connect(self.saveStatesToScene)
         self.cb_jpg_subSample.activated.connect(self.saveStatesToScene)
         self.chb_jpg_optimize.toggled.connect(self.saveStatesToScene)
         self.chb_jpg_progressive.toggled.connect(self.saveStatesToScene)
         self.chb_jpg_baseline.toggled.connect(self.saveStatesToScene)
+
+        self.cb_tiff_compress.activated.connect(self.saveStatesToScene)
+        self.chb_tiff_saveLayers.toggled.connect(self.saveStatesToScene)
+        self.chb_tiff_useBig.toggled.connect(self.saveStatesToScene)
+        self.chb_tiff_alphaColor.toggled.connect(self.saveStatesToScene)
+
+        self.chb_pdf_omitHidden.toggled.connect(self.saveStatesToScene)
+        self.chb_pdf_convertToVector.toggled.connect(self.saveStatesToScene)
+        self.chb_pdf_applyLayers.toggled.connect(self.saveStatesToScene)
+
         self.chb_psd_saveAsScene.toggled.connect(self.saveStatesToScene)
+
         self.b_pathLast.clicked.connect(self.showLastPathMenu)
 
 
@@ -558,92 +584,39 @@ class Gimp_RenderClass(object):
         #   Captures current settings
         format = self.cb_format.currentText()
         currentMode = self.cb_colorMode.currentText()
-        currentBitIdx = self.cb_bitDepth.currentText()
 
         #   Initially Hides all boxes
-        self.gb_imageOptions.hide()
         self.gb_jpgOptions.hide()
         self.gb_pngOptions.hide()
         self.gb_tiffOptions.hide()
         self.gb_pdfOptions.hide()
         self.gb_psdOptions.hide()
 
-        match format:
-            case ".jpg":
-                self.gb_imageOptions.show()
-                self.gb_jpgOptions.show()
-                imageColorMode = ["RGB", "GRAY"]
-                colorModeIdx = 0
-                imageBitDepth = ["8"]
-                bitIdx = 0
+        #   Show only the group boxes relevant to this format
+        format_group_boxes = {
+            ".jpg": [self.gb_jpgOptions],
+            ".png": [self.gb_pngOptions],
+            ".exr": [self.gb_outputOptions],
+            ".psd": [self.gb_psdOptions],
+            ".tif": [self.gb_tiffOptions],
+            ".pdf": [self.gb_pdfOptions],
+        }
+        for gb in format_group_boxes.get(format, []):
+            gb.show()
 
-            case ".png":
-                self.gb_imageOptions.show()
-                self.gb_pngOptions.show()
-                imageColorMode = ["RGB", "RGBA", "GRAY", "GRAYA"]
-                colorModeIdx = 0
-                imageBitDepth = ["8", "16"]
-                bitIdx = 1
+        imageColorMode = FORMAT_COLOR_MODES.get(format, ["RGB", "RGBA", "GRAY", "GRAYA"])
+        colorModeIdx   = 0
 
-            case ".exr":
-                self.gb_imageOptions.show()
-                imageColorMode = ["RGB", "RGBA", "GRAY", "GRAYA"]
-                colorModeIdx = 0
-                imageBitDepth = ["16", "32"]
-                bitIdx = 1
-
-            case ".psd":
-                self.gb_psdOptions.show()
-                imageColorMode = ["RGB", "RGBA", "GRAY", "GRAYA"]
-                colorModeIdx = 0
-                imageBitDepth = ["8", "16", "32"]
-                bitIdx = 1
-
-            case ".tif":
-                self.gb_imageOptions.show()
-                self.gb_tiffOptions.show()
-                imageColorMode = ["RGB", "RGBA", "GRAY", "GRAYA"]
-                colorModeIdx = 0
-                imageBitDepth = ["8", "16"]
-                bitIdx = 1
-
-            case ".pdf":
-                self.gb_pdfOptions.show()
-                imageColorMode = ["RGB", "GRAY"]
-                colorModeIdx = 0
-                imageBitDepth = ["8"]
-                bitIdx = 1
-
-            case _:
-                imageColorMode = ["RGB", "RGBA", "GRAY", "GRAYA"]
-                colorModeIdx = 0
-                imageBitDepth = ["8", "16"]
-                bitIdx = 0
-
-        #   Clear then load options
+        #   Clear then load color mode options
         self.cb_colorMode.clear()
         self.cb_colorMode.addItems(imageColorMode)
 
-        #   Resets from original is exists
+        #   Restore previous selection if still valid
         idx = self.cb_colorMode.findText(currentMode)
         if idx != -1:
             self.cb_colorMode.setCurrentIndex(idx)
         else:
             self.cb_colorMode.setCurrentIndex(colorModeIdx)
-
-        #   Clear then load options
-        self.cb_bitDepth.clear()
-        self.cb_bitDepth.addItems(imageBitDepth)
-
-        #   Resets from original is exists
-        idx = self.cb_bitDepth.findText(currentBitIdx)
-        if idx != -1:
-            self.cb_bitDepth.setCurrentIndex(idx)
-        else:
-            self.cb_bitDepth.setCurrentIndex(bitIdx)
-        
-        self.gb_alphaFill.hide()
-
 
 
     @err_catcher(name=__name__)
@@ -1030,8 +1003,6 @@ class Gimp_RenderClass(object):
             details["comment"] = self.stateManager.publishComment
             details["exportScale"] = self.cb_scale.currentText()
             details["colorMode"] = self.cb_colorMode.currentText()
-            details["bitDepth"] = self.cb_bitDepth.currentText()
-            details["outputGamma"] = self.cb_outGamma.currentText()
 
             if self.mediaType == "3drenders":
                 infopath = os.path.dirname(expandedOutputPath)
@@ -1057,8 +1028,6 @@ class Gimp_RenderClass(object):
                 "rangeType": "Single Frame",
                 "exportScale": self.cb_scale.currentText(),
                 "colorMode": self.cb_colorMode.currentText(),
-                "bitDepth": self.cb_bitDepth.currentText(),
-                "outputGamma": self.cb_outGamma.currentText()
                 }
 
             #   Add additional settings based on format
@@ -1070,7 +1039,8 @@ class Gimp_RenderClass(object):
                                     "png_Rez": boolToBit(self.chb_png_rez.isChecked()),
                                     "png_BgColor": boolToBit(self.chb_png_bgColor.isChecked()),
                                     "png_LayerOffset": boolToBit(self.chb_png_layerOffset.isChecked()),
-                                    "png_AlphaColor": boolToBit(not self.chb_png_alphaColor.isChecked())
+                                    "png_AlphaColor": boolToBit(not self.chb_png_alphaColor.isChecked()),
+                                    "png_BitDepth": self.cb_png_bitDepth.currentText(),
                                     })
                     
                 case ".exr":
@@ -1079,7 +1049,7 @@ class Gimp_RenderClass(object):
                 case ".jpg":
                     rSettings.update({"jpg_Quality": self.cb_jpg_qual.currentText(),
                                     "jpg_Smoothing": self.cb_jpg_smooth.currentText(),
-                                    "jpg_SubSample": self.cb_jpg_subSample.currentIndex(),
+                                    "jpg_SubSample": self.cb_jpg_subSample.currentText(),
                                     "jpg_Optimize": boolToBit(self.chb_jpg_optimize.isChecked()),
                                     "jpg_Progressive": boolToBit(self.chb_jpg_progressive.isChecked()),
                                     "jpg_Baseline": boolToBit(self.chb_jpg_baseline.isChecked())
@@ -1087,6 +1057,7 @@ class Gimp_RenderClass(object):
 
                 case ".tif":
                     rSettings.update({"tiff_Compression": self.cb_tiff_compress.currentText(),
+                                    "tiff_SaveLayers": self.chb_tiff_saveLayers.isChecked(),
                                     "tiff_useBigTiff": self.chb_tiff_useBig.isChecked(),
                                     "tiff_SaveTransPx": self.chb_tiff_alphaColor.isChecked()
                                     })
@@ -1129,15 +1100,8 @@ class Gimp_RenderClass(object):
             result = self.core.appPlugin.sm_render_startLocalRender(
                 self, rSettings["outputName"], rSettings
                 )
-        else:
-            rSettings = self.LastRSettings
-            result = self.core.appPlugin.sm_render_startLocalRender(
-                self, rSettings["outputName"], rSettings
-            )
-            outputName = rSettings["outputName"]
 
-        if not self.renderingStarted:
-            self.core.appPlugin.sm_render_undoRenderSettings(self, rSettings)
+        self.core.appPlugin.sm_render_undoRenderSettings(self, rSettings)
 
         if result == "publish paused":
             return [self.state.text(0) + " - publish paused"]
@@ -1230,10 +1194,9 @@ class Gimp_RenderClass(object):
             "masterVersion": self.cb_master.currentText(),
             "curoutputpath": self.cb_outPath.currentText(),
             "exportScale": self.cb_scale.currentText(),
-            "outputGamma": self.cb_outGamma.currentText(),
             "outputFormat": self.cb_format.currentText(),
             "colorMode": self.cb_colorMode.currentText(),
-            "bitDepth": self.cb_bitDepth.currentText(),
+            "png_BitDepth": self.cb_png_bitDepth.currentText(),
             "png_Compress": self.cb_png_compress.currentText(),
             "png_Interlaced": self.chb_png_interlaced.isChecked(),
             "png_Gamma": self.chb_png_gamma.isChecked(),
@@ -1248,6 +1211,7 @@ class Gimp_RenderClass(object):
             "jpg_Progressive": self.chb_jpg_progressive.isChecked(),
             "jpg_Baseline": self.chb_jpg_baseline.isChecked(),
             "tiff_Compression": self.cb_tiff_compress.currentText(),
+            "tiff_SaveLayers": self.chb_tiff_saveLayers.isChecked(),
             "tiff_useBigTiff": self.chb_tiff_useBig.isChecked(),
             "tiff_SaveTransPx": self.chb_tiff_alphaColor.isChecked(),
             "pdf_OmitHidden": self.chb_pdf_omitHidden.isChecked(),

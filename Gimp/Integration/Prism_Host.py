@@ -71,6 +71,7 @@ import Prism_Helper as Helper
 
 
 PRISM_ROOT = r"@PRISMROOTREPLACE@"
+GIMP_PLUGIN_ROOT = r"@GIMPPLUINREPLACE@"
 
 
 #   Redirects Writes to the Log File

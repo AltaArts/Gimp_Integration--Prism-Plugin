@@ -47,6 +47,8 @@
 
 import os
 
+from GimpMapping import INPUT_FORMATS, OUTPUT_FORMATS
+
 
 class Prism_Gimp_Variables(object):
     def __init__(self, core, plugin):
@@ -59,8 +61,8 @@ class Prism_Gimp_Variables(object):
         self.hasFrameRange = False
         self.sceneFormats = [".xcf", "psd"]
         self.appSpecificFormats = self.sceneFormats
-        self.importFormats = [".png", ".exr", ".jpg", "bmp"]
-        self.outputFormats = [".png", ".exr", ".jpg", ".tif", ".pdf", ".psd"]
+        self.importFormats = INPUT_FORMATS
+        self.outputFormats = OUTPUT_FORMATS
         self.appColor = [200, 180, 0]
         self.canDeleteRenderPasses = False
         self.colorButtonWithStyleSheet = True
