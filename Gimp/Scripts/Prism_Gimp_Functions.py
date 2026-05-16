@@ -451,13 +451,29 @@ class Prism_Gimp_Functions(object):
     def onStateManagerOpen(self, origin:"StateManager"):
         origin.setWindowIcon(QIcon(self.appIcon))
 
-		#   Resizes the StateManager Window
+        #   Resizes the StateManager Window
         if hasattr(origin, 'resize'):
             try:
                 origin.resize(900, 900)
             except:
                 pass
 
+        #	Remove Native Buttons
+        origin.b_createImport.deleteLater()
+        origin.b_shotCam.deleteLater()
+        origin.b_createExport.deleteLater()
+        origin.b_createPlayblast.deleteLater()
+
+        #	Create Import Image Button
+        origin.b_importLayer = QPushButton(origin.w_CreateImports)
+        origin.b_importLayer.setObjectName("b_importLayer")
+        origin.b_importLayer.setText("Import Layer")
+        #	Add to the Beginning of the Layout
+        origin.horizontalLayout_3.insertWidget(0, origin.b_importLayer)
+        #	Add State Connection to Button
+        origin.b_importLayer.clicked.connect(lambda: self.addGimpImportState(origin))
+
+        #   Set Styling for Gimp
         origin.b_showImportStates.setStyleSheet("padding-left: 1px;padding-right: 1px;")
         origin.b_showExportStates.setStyleSheet("padding-left: 1px;padding-right: 1px;")
         origin.b_createImport.setMinimumWidth(70 * self.core.uiScaleFactor)
@@ -481,10 +497,9 @@ class Prism_Gimp_Functions(object):
         origin.b_preview.setMinimumWidth(35 * self.core.uiScaleFactor)
         origin.b_preview.setMaximumWidth(35 * self.core.uiScaleFactor)
 
-        #	Remove Native Buttons
-        origin.b_shotCam.deleteLater()
-        origin.b_createExport.deleteLater()
-        origin.b_createPlayblast.deleteLater()
+        origin.b_importLayer.setMinimumWidth(70 * self.core.uiScaleFactor)
+        origin.b_importLayer.setMinimumHeight(0)
+        origin.b_importLayer.setMaximumHeight(500 * self.core.uiScaleFactor)
 
         #   Remove Unused States Except for gimpStates
         for state in list(origin.stateTypes.keys()):
@@ -493,6 +508,54 @@ class Prism_Gimp_Functions(object):
                     del origin.stateTypes[state]
                 except Exception:
                     logger.debug(f"Unable to remove default state: {state}")
+
+
+    #   Creates the Gimp Import state from the StateManager Import button
+    @err_catcher(name=__name__)
+    def addGimpImportState(self, origin:"StateManager"):
+        logger.debug("Gimp Import button clicked; creating Gimp Import state")
+
+        parent = None
+
+        #   Add into the Selected Import Folder
+        try:
+            curSel = origin.getCurrentItem(origin.activeList)
+            if (
+                origin.activeList == origin.tw_import
+                and curSel is not None
+                and getattr(getattr(curSel, "ui", None), "className", None) == "Folder"
+            ):
+                parent = curSel
+        except Exception:
+            parent = None
+
+        importStates = []
+        for stateKey in list(origin.stateTypes.keys()):
+            stateType = origin.stateTypes.get(stateKey)
+            categories = getattr(stateType, "stateCategories", {})
+            importStates += categories.get("Import2d", [])
+
+        if not importStates:
+            logger.warning("No Import2d states available to create from the Import button")
+            return
+
+        selectedState = None
+        for stateDef in importStates:
+            if str(stateDef.get("stateType") or "") == "Gimp Import":
+                selectedState = stateDef
+                break
+
+        if selectedState is None:
+            selectedState = importStates[0]
+
+        origin.createState(
+            selectedState["stateType"],
+            parent=parent,
+            setActive=True,
+            **selectedState.get("kwargs", {}),
+        )
+
+        origin.activeList.setFocus()
 
 
     @err_catcher(name=__name__)
@@ -960,6 +1023,138 @@ class Prism_Gimp_Functions(object):
         except Exception as e:
             logger.warning(f"ERROR: Unable to save the .xcf: {e}")
             return False
+
+
+
+    ##########################################
+    ##            IMAGE IMPORT              ##
+    ##########################################
+
+    #   Called to Import Filepath as a New Layer
+    @err_catcher(name=__name__)
+    def importImage(self, state, basefile, versionData):
+        try:
+            payload = {
+                "path": basefile,
+                "versionData": versionData,
+            }
+
+            #   Send Request to Gimp Bridge
+            response = self.sendCmdToGimp(
+                action="import-image",
+                payload=payload,
+                timeout=30.0,
+            )
+
+            if not response or not response.get("ok"):
+                logger.warning(f"ERROR: Unable to import image via bridge: {self._responseError(response)}")
+                return False
+
+            #   Get Layer Name and Layer Tattoo
+            layer_name = (response.get("data") or {}).get("layerName") if isinstance(response, dict) else None
+            layer_tattoo = (response.get("data") or {}).get("layerTattoo") if isinstance(response, dict) else None
+
+            logger.debug(f"Imported Image: {basefile}")
+
+            return {
+                "layerName": layer_name or "",
+                "layerTattoo": layer_tattoo,
+            } if (layer_name or layer_tattoo) else True
+        
+        except Exception as e:
+            logger.warning(f"ERROR:  Unable to Import Image:\n\n{e}")
+            return False
+
+
+    #   Returns the Name of a Layer from its Tattoo
+    @err_catcher(name=__name__)
+    def getLayerName(self, state, layerTattoo=None):
+        try:
+            payload = {
+                "layerTattoo": layerTattoo,
+                **self.getStateManagerImagePayload(),
+            }
+
+            response = self.sendCmdToGimp(
+                action="get-layer-name",
+                payload=payload,
+                timeout=10.0,
+            )
+
+            if not response or not response.get("ok"):
+                logger.warning(f"ERROR: Unable to get layer name via bridge: {self._responseError(response)}")
+                return None
+
+            return (response.get("data") or {}).get("layerName")
+
+        except Exception as e:
+            logger.warning(f"ERROR:  Unable to get layer name:\n\n{e}")
+            return None
+
+
+    #   Renames a Layer in Gimp and Returns the New Name
+    @err_catcher(name=__name__)
+    def renameLayer(self, state, newName, layerTattoo=None):
+        try:
+            payload = {
+                "layerTattoo": layerTattoo,
+                "newName": newName,
+                **self.getStateManagerImagePayload(),
+            }
+
+            response = self.sendCmdToGimp(
+                action="rename-layer",
+                payload=payload,
+                timeout=10.0,
+            )
+
+            if not response or not response.get("ok"):
+                logger.warning(f"ERROR: Unable to rename layer via bridge: {self._responseError(response)}")
+                return None
+
+            confirmed_name = (response.get("data") or {}).get("layerName")
+            logger.debug(f"Renamed layer to: {confirmed_name}")
+            return confirmed_name
+
+        except Exception as e:
+            logger.warning(f"ERROR:  Unable to rename layer:\n\n{e}")
+            return None
+
+
+    #   Deletes a Layer in Gimp by its Tattoo
+    @err_catcher(name=__name__)
+    def deleteLayer(self, state, layerName=None, versionData=None, layerTattoo=None):
+        try:
+            payload = {
+                "layerName": layerName,
+                "layerTattoo": layerTattoo,
+                "versionData": versionData or {},
+                **self.getStateManagerImagePayload(),
+            }
+
+            #   Send Request to Gimp Bridge
+            response = self.sendCmdToGimp(
+                action="delete-image-layer",
+                payload=payload,
+                timeout=10.0,
+            )
+
+            if not response or not response.get("ok"):
+                logger.warning(f"ERROR: Unable to delete image layer via bridge: {self._responseError(response)}")
+                return False
+
+            removed = bool((response.get("data") or {}).get("deleted"))
+            if removed:
+                logger.debug("Deleted imported image layer from Gimp image")
+            else:
+                logger.debug("Import layer not found in Gimp image; nothing deleted")
+
+            return True
+
+        except Exception as e:
+            logger.warning(f"ERROR:  Unable to delete image layer:\n\n{e}")
+            return False
+        
 
 
 

@@ -78,6 +78,7 @@ class Prism_Gimp_Variables(object):
 
         self.gimpStates = [
             "Folder",
+            "Gimp Import",
             "Gimp_Render"
             ]
  

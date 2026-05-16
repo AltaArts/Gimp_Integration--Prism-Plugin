@@ -458,6 +458,18 @@ class PrismGimpBridgeService:
             
             case "get-image-specs":
                 return self.getImageSpecs()
+            
+            case "import-image":
+                return self.importImage(requestData)
+
+            case "delete-image-layer":
+                return self.deleteImageLayer(requestData)
+
+            case "get-layer-name":
+                return self.getTrackedLayerName(requestData)
+
+            case "rename-layer":
+                return self.renameImageLayer(requestData)
 
             case "export-image":
                 return self.exportImage(requestData)
@@ -724,7 +736,7 @@ class PrismGimpBridgeService:
                 pass
 
         #   Get the Image ID for Logging and Context Change Detection
-        image_id = self.getImageId(image)
+        imageID = self.getImageId(image)
 
         file_path = rData.get("path") if isinstance(rData, dict) else None
         if file_path:
@@ -765,14 +777,14 @@ class PrismGimpBridgeService:
             procedure.run(config)
 
             #   Clear Scene Dirty
-            if image_id in self.sceneDirtyFallbackByImageId:
-                del self.sceneDirtyFallbackByImageId[image_id]
+            if imageID in self.sceneDirtyFallbackByImageId:
+                del self.sceneDirtyFallbackByImageId[imageID]
 
             self.addToLog(
                 "Saved scene in Gimp",
                 path=file_path,
                 procedure=procedure_name,
-                image_id=image_id,
+                image_id=imageID,
                 image_name=image_name,
                 command_image_id=(rData.get("image_id") if isinstance(rData, dict) else None),
             )
@@ -784,7 +796,7 @@ class PrismGimpBridgeService:
                 path=file_path,
                 error=str(exc),
                 procedure=procedure_name,
-                image_id=image_id,
+                image_id=imageID,
                 image_name=image_name,
                 command_image_id=(rData.get("image_id") if isinstance(rData, dict) else None),
             )
@@ -799,26 +811,26 @@ class PrismGimpBridgeService:
     def getActiveImage(self, rData:dict | None=None) -> object | None:
         if isinstance(rData, dict):
             #   Resolve by Image ID Passed in the Request Data (if any)
-            raw_image_id = rData.get("image_id")
-            if raw_image_id is not None:
+            raw_imageID = rData.get("image_id")
+            if raw_imageID is not None:
                 try:
-                    request_image_id = int(raw_image_id)
+                    request_imageID = int(raw_imageID)
 
                 except Exception:
-                    request_image_id = None
+                    request_imageID = None
 
                 #   Get the Image Object by ID
-                if request_image_id is not None:
-                    request_image = self.getImageById(request_image_id)
+                if request_imageID is not None:
+                    request_image = self.getImageById(request_imageID)
                     if request_image is not None:
                         return request_image
 
         #   Check for a Hinted Image ID Set by Recent Operations (if any)
-        hinted_image_id = self.runtime.getImageHint()
+        hinted_imageID = self.runtime.getImageHint()
 
         #   Get the Image Object by the Hinted ID
-        if hinted_image_id is not None:
-            hinted_image = self.getImageById(hinted_image_id)
+        if hinted_imageID is not None:
+            hinted_image = self.getImageById(hinted_imageID)
             if hinted_image is not None:
                 return hinted_image
 
@@ -1428,6 +1440,43 @@ class PrismGimpBridgeService:
         return Helper.getImageSize(image)
 
 
+    #   Refreshes Display(s) for an Image to Force UI Update
+    def refreshImageDisplay(self, image:object) -> None:
+        if not image:
+            return
+
+        #   Try Direct API First: flush() method
+        flush_method = getattr(image, "flush", None)
+        if callable(flush_method):
+            try:
+                flush_method()
+                return
+            except Exception:
+                pass
+
+        #   Try get_displays() API for GIMP 3+
+        get_displays = getattr(Gimp, "get_displays", None)
+        if callable(get_displays):
+            try:
+                displays = Helper.normalizeGimpItems(get_displays(image))
+                for display in displays:
+                    flush_display = getattr(display, "flush", None)
+                    if callable(flush_display):
+                        try:
+                            flush_display()
+                        except Exception:
+                            pass
+                return
+            except Exception:
+                pass
+
+        #   Fall back to PDB gimp-displays-flush
+        try:
+            self.runPdbProcedure("gimp-displays-flush", {})
+        except Exception:
+            pass
+
+
     #   Converts Image Base Type to Match Requested Export Color Mode
     def convertImageColorMode(self, image, output_color_mode):
         #  Determine the Target Base Type from the Requested Color Mode
@@ -1543,6 +1592,548 @@ class PrismGimpBridgeService:
         return False, "No compatible image scale API available"
 
 
+    ##############################################
+    ##                IMPORTING                 ##
+    ##############################################
+
+    def importImage(self, rData):
+        #   Resolve the target image and file path from the request payload
+        image = self.getActiveImage(rData)
+        if image is None:
+            return {"ok": False, "error": "No active image to import into"}
+
+        file_path = rData.get("path") if isinstance(rData, dict) else None
+        if not file_path:
+            return {"ok": False, "error": "Missing import path"}
+
+        file_path = os.path.normpath(str(file_path))
+        if not os.path.exists(file_path):
+            return {"ok": False, "error": f"Import file does not exist: {file_path}"}
+
+        version_data = rData.get("versionData") if isinstance(rData, dict) else {}
+        command_image_id = rData.get("image_id") if isinstance(rData, dict) else None
+
+        identifier_value = None
+        version_value = None
+        if isinstance(version_data, dict):
+            identifier_value = version_data.get("identifier")
+            version_value = version_data.get("version")
+
+        if identifier_value in [None, ""] and isinstance(rData, dict):
+            identifier_value = rData.get("identifier")
+
+        if version_value in [None, ""] and isinstance(rData, dict):
+            version_value = rData.get("version")
+
+        desired_layer_name = None
+        if identifier_value not in [None, ""] and version_value not in [None, ""]:
+            desired_layer_name = f"{identifier_value}_{version_value}"
+
+        #   Try the known GIMP layer-load procedures in order of preference
+        procedure_names = ["gimp-file-load-layer", "file-open-as-layer"]
+        procedure = None
+        procedure_name = None
+        for candidate in procedure_names:
+            procedure = self.getPdbProcedure(candidate)
+            if procedure:
+                procedure_name = candidate
+                break
+
+        if not procedure:
+            return {"ok": False, "error": "No compatible GIMP layer import procedure found"}
+
+        gio_file = self.getGioFile(file_path)
+        if gio_file is None:
+            return {"ok": False, "error": f"Could not create GIO file for: {file_path}"}
+
+        try:
+            config = procedure.create_config()
+            run_mode = getattr(Gimp.RunMode, "NONINTERACTIVE", None)
+            Helper.setConfigValue(config, "run-mode", run_mode)
+            Helper.setConfigValue(config, "image", image)
+            Helper.setConfigValue(config, "file", gio_file)
+
+            result = procedure.run(config)
+            layer = Helper.extractLayerFromResult(result)
+
+            if layer is None:
+                return {"ok": False, "error": f"Import procedure did not return a layer: {procedure_name}"}
+
+            insert_layer = getattr(image, "insert_layer", None) or getattr(image, "add_layer", None)
+            if callable(insert_layer):
+                _, insert_error = Helper.callWithSignatures(
+                    insert_layer,
+                    [
+                        (layer, None, 0),
+                        (layer, 0),
+                        (layer,),
+                    ],
+                )
+                if insert_error:
+                    return {"ok": False, "error": f"Failed to insert imported layer: {insert_error}"}
+            else:
+                return {"ok": False, "error": "Active image does not support layer insertion"}
+
+            if desired_layer_name:
+                set_name = getattr(layer, "set_name", None)
+                if callable(set_name):
+                    try:
+                        set_name(str(desired_layer_name))
+                    except Exception:
+                        pass
+                else:
+                    try:
+                        layer.name = str(desired_layer_name)
+                    except Exception:
+                        pass
+
+            layer_name = None
+            name_getter = getattr(layer, "get_name", None)
+            if callable(name_getter):
+                try:
+                    layer_name = name_getter()
+                except Exception:
+                    layer_name = None
+
+            self.addToLog(
+                "Imported image as new layer",
+                path=file_path,
+                procedure=procedure_name,
+                image_id=self.getImageId(image),
+                command_image_id=command_image_id,
+                layer_name=layer_name,
+                version_identifier=(version_data.get("identifier") if isinstance(version_data, dict) else None),
+            )
+
+            #   Capture the persistent tattoo for cross-session layer tracking.
+            layer_tattoo = self._getLayerTattoo(layer)
+
+            #   Refresh the Display to Show the New Layer
+            self.refreshImageDisplay(image)
+
+            return {
+                "ok": True,
+                "data": {
+                    "imported": True,
+                    "path": file_path,
+                    "procedure": procedure_name,
+                    "layerName": layer_name,
+                    "layerTattoo": layer_tattoo,
+                },
+            }
+
+        except Exception as exc:
+            self.addToLog(
+                "Failed to import image as layer",
+                path=file_path,
+                error=str(exc),
+                procedure=procedure_name,
+                command_image_id=command_image_id,
+            )
+            return {"ok": False, "error": str(exc), "data": {"path": file_path, "procedure": procedure_name}}
+
+
+    #   Returns the Current Name of a Tracked Layer
+    def getTrackedLayerName(self, rData):
+        image = self.getActiveImage(rData)
+        if image is None:
+            return {"ok": False, "error": "No active image"}
+
+        layer = self._resolveTrackedLayer(image, rData)
+        if layer is None:
+            return {"ok": True, "data": {"layerName": None, "found": False}}
+
+        layer_name = None
+        name_getter = getattr(layer, "get_name", None)
+        if callable(name_getter):
+            try:
+                layer_name = name_getter()
+            except Exception:
+                layer_name = None
+
+        return {"ok": True, "data": {"layerName": layer_name, "found": True}}
+
+
+    #   Renames a Tracked Layer in the Active Image
+    def renameImageLayer(self, rData):
+        image = self.getActiveImage(rData)
+        if image is None:
+            return {"ok": False, "error": "No active image"}
+
+        layer_tattoo = rData.get("layerTattoo") if isinstance(rData, dict) else None
+        new_name = rData.get("newName") if isinstance(rData, dict) else None
+        command_image_id = rData.get("image_id") if isinstance(rData, dict) else None
+
+        if layer_tattoo is None:
+            return {"ok": False, "error": "Missing layerTattoo"}
+        if not new_name:
+            return {"ok": False, "error": "Missing newName"}
+
+        layer = self._resolveTrackedLayer(image, rData)
+        if layer is None:
+            return {"ok": False, "error": f"Tracked layer {layer_tattoo} not found in active image"}
+
+        set_name = getattr(layer, "set_name", None)
+        if callable(set_name):
+            try:
+                set_name(str(new_name))
+            except Exception:
+                try:
+                    layer.name = str(new_name)
+                except Exception as exc:
+                    return {"ok": False, "error": f"Failed to rename layer: {exc}"}
+        else:
+            try:
+                layer.name = str(new_name)
+            except Exception as exc:
+                return {"ok": False, "error": f"Failed to rename layer: {exc}"}
+
+        #   Read Back the Confirmed Name
+        confirmed_name = None
+        name_getter = getattr(layer, "get_name", None)
+        if callable(name_getter):
+            try:
+                confirmed_name = name_getter()
+            except Exception:
+                confirmed_name = new_name
+        else:
+            confirmed_name = new_name
+
+        self.addToLog(
+            "Renamed imported image layer",
+            image_id=self.getImageId(image),
+            command_image_id=command_image_id,
+            layer_tattoo=self._getLayerTattoo(layer),
+            new_name=confirmed_name,
+        )
+
+        self.refreshImageDisplay(image)
+
+        return {
+            "ok": True,
+            "data": {
+                "layerName": confirmed_name,
+                "layerTattoo": self._getLayerTattoo(layer),
+            },
+        }
+
+
+    #   Returns the Persistent Tattoo of a Gimp Item if Available
+    def _getLayerTattoo(self, layer:object) -> int | None:
+        if layer is None:
+            return None
+
+        get_tattoo = getattr(layer, "get_tattoo", None)
+        if callable(get_tattoo):
+            try:
+                return int(get_tattoo())
+            except Exception:
+                return None
+
+        return None
+
+
+    #   Resolves a Gimp Layer Object by its Persistent Tattoo
+    def _getLayerByTattoo(self, image:object, layerTattoo:int) -> object | None:
+        if image is None or layerTattoo is None:
+            return None
+
+        try:
+            target_tattoo = int(layerTattoo)
+        except Exception:
+            return None
+
+        for layer in self.getImageDrawables(image):
+            if self._getLayerTattoo(layer) == target_tattoo:
+                return layer
+
+        return None
+
+
+    #   Resolves a Tracked Layer by Persistent Tattoo
+    def _resolveTrackedLayer(self, image:object, rData:dict | None) -> object | None:
+        layer_tattoo = rData.get("layerTattoo") if isinstance(rData, dict) else None
+        if layer_tattoo is not None:
+            layer = self._getLayerByTattoo(image, layer_tattoo)
+            if layer is not None:
+                return layer
+
+        return None
+
+
+    #   Deletes a Named Imported Layer from the Active Image if it Exists
+    def deleteImageLayer(self, rData):
+        image = self.getActiveImage(rData)
+        if image is None:
+            return {"ok": False, "error": "No active image to delete layer from"}
+
+        target_layer = self._resolveTrackedLayer(image, rData)
+        layer_name = rData.get("layerName") if isinstance(rData, dict) else None
+        version_data = rData.get("versionData") if isinstance(rData, dict) else {}
+        command_image_id = rData.get("image_id") if isinstance(rData, dict) else None
+
+        if layer_name in [None, ""]:
+            identifier_value = None
+            version_value = None
+
+            if isinstance(version_data, dict):
+                identifier_value = version_data.get("identifier")
+                version_value = version_data.get("version")
+
+            if identifier_value in [None, ""] and isinstance(rData, dict):
+                identifier_value = rData.get("identifier")
+
+            if version_value in [None, ""] and isinstance(rData, dict):
+                version_value = rData.get("version")
+
+            if identifier_value not in [None, ""] and version_value not in [None, ""]:
+                layer_name = f"{identifier_value}_{version_value}"
+
+        if layer_name in [None, ""] and target_layer is None:
+            return {
+                "ok": True,
+                "data": {
+                    "deleted": False,
+                    "reason": "missing-layer-name",
+                },
+            }
+
+        if target_layer is not None and layer_name in [None, ""]:
+            layer_get_name = getattr(target_layer, "get_name", None)
+            if callable(layer_get_name):
+                try:
+                    layer_name = layer_get_name()
+                except Exception:
+                    layer_name = None
+
+        if target_layer is None:
+            for layer in self.getImageDrawables(image):
+                if layer is None:
+                    continue
+
+                layer_get_name = getattr(layer, "get_name", None)
+                current_name = None
+                if callable(layer_get_name):
+                    try:
+                        current_name = layer_get_name()
+                    except Exception:
+                        current_name = None
+
+                if str(current_name or "") == str(layer_name):
+                    target_layer = layer
+                    break
+
+        if target_layer is None:
+            self.addToLog(
+                "Import layer not found for deletion",
+                image_id=self.getImageId(image),
+                command_image_id=command_image_id,
+                layer_name=layer_name,
+            )
+            return {
+                "ok": True,
+                "data": {
+                    "deleted": False,
+                    "layerName": layer_name,
+                },
+            }
+
+        remove_layer = getattr(image, "remove_layer", None)
+        if callable(remove_layer):
+            _, remove_error = Helper.callWithSignatures(remove_layer, [(target_layer,)])
+            if remove_error:
+                return {"ok": False, "error": f"Failed to remove layer: {remove_error}"}
+        else:
+            _result, error = self.runPdbProcedure(
+                "gimp-image-remove-layer",
+                {
+                    "image": image,
+                    "layer": target_layer,
+                },
+            )
+            if error:
+                return {"ok": False, "error": f"Failed to remove layer: {error}"}
+
+        self.addToLog(
+            "Deleted imported image layer",
+            image_id=self.getImageId(image),
+            command_image_id=command_image_id,
+            layer_tattoo=self._getLayerTattoo(target_layer),
+            layer_name=layer_name,
+        )
+
+        #   Refresh the Display to Update the Layer List
+        self.refreshImageDisplay(image)
+
+        return {"ok": True, "data": {"deleted": True, "layerName": layer_name}}
+
+
+    ###############################
+    ##           RENDER          ##
+    ###############################
+
+    #   Exports the Active Image to a Target Path Using Gimp File-save
+    def exportImage(self, rData):
+        #   Resolve the Active Image from Gimp
+        image = self.getActiveImage(rData)
+        if image is None:
+            return {"ok": False, "error": "No active image to export"}
+
+        #   Get the Image ID for Logging and Context Change Detection
+        image_id = self.getImageId(image)
+        command_image_id = rData.get("image_id") if isinstance(rData, dict) else None
+
+        #   Resolve the Export File Path from the Request Data
+        file_path = rData.get("path") if isinstance(rData, dict) else None
+        if not file_path:
+            return {"ok": False, "error": "Missing export file path"}
+
+        file_path = os.path.normpath(str(file_path))
+        settings = rData.get("settings") if isinstance(rData, dict) else {}
+        if not isinstance(settings, dict):
+            settings = {}
+
+        file_ext = os.path.splitext(file_path)[1].lower()
+        is_tiff_export = file_ext in [".tif", ".tiff"]
+        tiff_save_layers_enabled = bitToBool(settings.get("tiff_SaveLayers"), True)
+        requires_flat_tiff = is_tiff_export and not tiff_save_layers_enabled
+
+        #   Get the Export Scale and Color Mode
+        try:
+            scale_percent = int(settings.get("exportScale") or 100)
+        except Exception:
+            scale_percent = 100
+
+        scale_percent = max(1, min(scale_percent, 1000))
+
+        output_color_mode = str(settings.get("colorMode") or "").upper()
+        supports_color_mode = output_color_mode in ("RGB", "RGBA", "GRAY", "GRAYA")
+
+        #   Create Temp Duplicated Image if any Preprocessing is Needed
+        export_image = image
+        used_temp_image = False
+
+        if scale_percent != 100 or supports_color_mode or requires_flat_tiff:
+            temp_image, duplicate_error = self.duplicateImage(image)
+            if temp_image is not None:
+                export_image = temp_image
+                used_temp_image = True
+            else:
+                self.addToLog("Could not duplicate image for export preprocessing", error=str(duplicate_error))
+
+        if (scale_percent != 100 or supports_color_mode or requires_flat_tiff) and not used_temp_image:
+            message = "Failed to prepare temporary image for export preprocessing"
+            return {
+                "ok": False,
+                "error": message,
+                "data": {
+                    "scale": scale_percent,
+                    "color_mode": output_color_mode if supports_color_mode else None,
+                    "flat_tiff": requires_flat_tiff,
+                },
+            }
+
+        if scale_percent != 100 and used_temp_image:
+            ok, scale_error = self.scaleImagePercent(export_image, scale_percent)
+            if not ok:
+                self.addToLog("Scale preprocessing failed", scale=scale_percent, error=str(scale_error))
+                return {
+                    "ok": False,
+                    "error": f"Export scale failed: {scale_error}",
+                    "data": {"scale": scale_percent},
+                }
+        
+        #   Convert Color Mode if Needed
+        if supports_color_mode and used_temp_image:
+            ok, color_error = self.convertImageColorMode(export_image, output_color_mode)
+            if not ok:
+                self.emitGimpWarning(
+                    "Color mode preprocessing failed",
+                    color_mode=output_color_mode,
+                    error=str(color_error),
+                )
+                return {
+                    "ok": False,
+                    "error": f"Color mode conversion failed: {color_error}",
+                    "data": {"color_mode": output_color_mode},
+                }
+
+        if requires_flat_tiff and used_temp_image:
+            drawables = self.getImageDrawables(export_image)
+            layer_count = len(drawables)
+            if layer_count > 1:
+                ok, flatten_error = self.mergeVisibleLayersForExport(export_image)
+            else:
+                ok, flatten_error = True, None
+
+            if not ok:
+                return {
+                    "ok": False,
+                    "error": f"Flat TIFF preprocessing failed: {flatten_error}",
+                    "data": {"flat_tiff": True},
+                }
+
+        #   Convert the File Path to a GIO File Object
+        gio_file = self.getGioFile(file_path)
+        run_mode = getattr(Gimp.RunMode, "NONINTERACTIVE", None)
+        active_drawable = self.getActiveDrawable(export_image)
+
+        #   Prefer format-specific exporters for better control, fall back to generic save
+        procedure_name = self.getExporterProcedureName(file_path)
+
+        proc_values = {
+            "run-mode": run_mode,
+            "image": export_image,
+            "file": gio_file,
+        }
+
+        if procedure_name == "gimp-file-save":
+            proc_values["drawable"] = active_drawable
+        else:
+            proc_values.update(self.getExporterConfigValues(procedure_name, settings))
+
+        result, save_error = self.runPdbProcedure(procedure_name, proc_values)
+
+        try:
+            if save_error is None:
+                self.addToLog(
+                    "Exported image from Gimp",
+                    path=file_path,
+                    procedure=procedure_name,
+                    image_id=image_id,
+                    command_image_id=command_image_id,
+                    scale=scale_percent,
+                    color_mode=output_color_mode if supports_color_mode else None,
+                    tiff_save_layers=(tiff_save_layers_enabled if procedure_name == "file-tiff-export" else None),
+                    tiff_flatten_fallback=(requires_flat_tiff if procedure_name == "file-tiff-export" else None),
+                )
+                return {"ok": True, "data": {"exported": True, "path": file_path, "procedure": procedure_name}}
+
+            self.emitGimpWarning(
+                "Failed to export image from Gimp",
+                path=file_path,
+                procedure=procedure_name,
+                error=str(save_error),
+                image_id=image_id,
+                command_image_id=command_image_id,
+            )
+            return {
+                "ok": False,
+                "error": str(save_error),
+                "data": {
+                    "path": file_path,
+                    "procedure": procedure_name,
+                    "scale": scale_percent,
+                    "color_mode": output_color_mode if supports_color_mode else None,
+                    "result": str(result) if result is not None else None,
+                },
+            }
+
+        finally:
+            if used_temp_image:
+                self.deleteImage(export_image)
+
+
     #   Merges Visible Layers into one Layer for Flat Export Fallback
     def mergeVisibleLayersForExport(self, image):
         if image is None:
@@ -1635,7 +2226,7 @@ class PrismGimpBridgeService:
         return False, error
 
 
-    #   Resolves Target Precision ID from Format + Bit Depth + Gamma using IMAGEPRECISIONDATA
+    #   Resolves Target Precision ID from Format, Bit Depth, Gamma using IMAGEPRECISIONDATA
     def getTargetPrecisionForExport(self, file_path, bit_depth, output_gamma):
         ext = os.path.splitext(str(file_path or ""))[1].lower()
         bit_depth_str = str(bit_depth or "").strip()
@@ -1752,173 +2343,6 @@ class PrismGimpBridgeService:
 
         return values
 
-
-    ###############################
-    ##           RENDER          ##
-    ###############################
-
-    #   Exports the Active Image to a Target Path Using Gimp File-save
-    def exportImage(self, rData):
-        #   Resolve the Active Image from Gimp
-        image = self.getActiveImage(rData)
-        if image is None:
-            return {"ok": False, "error": "No active image to export"}
-
-        #   Get the Image ID for Logging and Context Change Detection
-        image_id = self.getImageId(image)
-        command_image_id = rData.get("image_id") if isinstance(rData, dict) else None
-
-        #   Resolve the Export File Path from the Request Data
-        file_path = rData.get("path") if isinstance(rData, dict) else None
-        if not file_path:
-            return {"ok": False, "error": "Missing export file path"}
-
-        file_path = os.path.normpath(str(file_path))
-        settings = rData.get("settings") if isinstance(rData, dict) else {}
-        if not isinstance(settings, dict):
-            settings = {}
-
-        file_ext = os.path.splitext(file_path)[1].lower()
-        is_tiff_export = file_ext in [".tif", ".tiff"]
-        tiff_save_layers_enabled = bitToBool(settings.get("tiff_SaveLayers"), True)
-        requires_flat_tiff = is_tiff_export and not tiff_save_layers_enabled
-
-        #   Get the Export Scale and Color Mode
-        try:
-            scale_percent = int(settings.get("exportScale") or 100)
-        except Exception:
-            scale_percent = 100
-
-        scale_percent = max(1, min(scale_percent, 1000))
-
-        output_color_mode = str(settings.get("colorMode") or "").upper()
-        supports_color_mode = output_color_mode in ("RGB", "RGBA", "GRAY", "GRAYA")
-
-
-        #   Create Temp Duplicated Image if any Preprocessing is Needed
-        export_image = image
-        used_temp_image = False
-
-        if scale_percent != 100 or supports_color_mode or requires_flat_tiff:
-            temp_image, duplicate_error = self.duplicateImage(image)
-            if temp_image is not None:
-                export_image = temp_image
-                used_temp_image = True
-            else:
-                self.addToLog("Could not duplicate image for export preprocessing", error=str(duplicate_error))
-
-        if (scale_percent != 100 or supports_color_mode or requires_flat_tiff) and not used_temp_image:
-            message = "Failed to prepare temporary image for export preprocessing"
-            return {
-                "ok": False,
-                "error": message,
-                "data": {
-                    "scale": scale_percent,
-                    "color_mode": output_color_mode if supports_color_mode else None,
-                    "flat_tiff": requires_flat_tiff,
-                },
-            }
-
-        if scale_percent != 100 and used_temp_image:
-            ok, scale_error = self.scaleImagePercent(export_image, scale_percent)
-            if not ok:
-                self.addToLog("Scale preprocessing failed", scale=scale_percent, error=str(scale_error))
-                return {
-                    "ok": False,
-                    "error": f"Export scale failed: {scale_error}",
-                    "data": {"scale": scale_percent},
-                }
-        
-        #   Convert Color Mode if Needed
-        if supports_color_mode and used_temp_image:
-            ok, color_error = self.convertImageColorMode(export_image, output_color_mode)
-            if not ok:
-                self.emitGimpWarning(
-                    "Color mode preprocessing failed",
-                    color_mode=output_color_mode,
-                    error=str(color_error),
-                )
-                return {
-                    "ok": False,
-                    "error": f"Color mode conversion failed: {color_error}",
-                    "data": {"color_mode": output_color_mode},
-                }
-
-        if requires_flat_tiff and used_temp_image:
-            drawables = self.getImageDrawables(export_image)
-            layer_count = len(drawables)
-            if layer_count > 1:
-                ok, flatten_error = self.mergeVisibleLayersForExport(export_image)
-            else:
-                ok, flatten_error = True, None
-
-            if not ok:
-                return {
-                    "ok": False,
-                    "error": f"Flat TIFF preprocessing failed: {flatten_error}",
-                    "data": {"flat_tiff": True},
-                }
-
-
-        #   Convert the File Path to a GIO File Object
-        gio_file = self.getGioFile(file_path)
-        run_mode = getattr(Gimp.RunMode, "NONINTERACTIVE", None)
-        active_drawable = self.getActiveDrawable(export_image)
-
-        #   Prefer format-specific exporters for better control, fall back to generic save
-        procedure_name = self.getExporterProcedureName(file_path)
-
-        proc_values = {
-            "run-mode": run_mode,
-            "image": export_image,
-            "file": gio_file,
-        }
-
-        if procedure_name == "gimp-file-save":
-            proc_values["drawable"] = active_drawable
-        else:
-            proc_values.update(self.getExporterConfigValues(procedure_name, settings))
-
-        result, save_error = self.runPdbProcedure(procedure_name, proc_values)
-
-        try:
-            if save_error is None:
-                self.addToLog(
-                    "Exported image from Gimp",
-                    path=file_path,
-                    procedure=procedure_name,
-                    image_id=image_id,
-                    command_image_id=command_image_id,
-                    scale=scale_percent,
-                    color_mode=output_color_mode if supports_color_mode else None,
-                    tiff_save_layers=(tiff_save_layers_enabled if procedure_name == "file-tiff-export" else None),
-                    tiff_flatten_fallback=(requires_flat_tiff if procedure_name == "file-tiff-export" else None),
-                )
-                return {"ok": True, "data": {"exported": True, "path": file_path, "procedure": procedure_name}}
-
-            self.emitGimpWarning(
-                "Failed to export image from Gimp",
-                path=file_path,
-                procedure=procedure_name,
-                error=str(save_error),
-                image_id=image_id,
-                command_image_id=command_image_id,
-            )
-            return {
-                "ok": False,
-                "error": str(save_error),
-                "data": {
-                    "path": file_path,
-                    "procedure": procedure_name,
-                    "scale": scale_percent,
-                    "color_mode": output_color_mode if supports_color_mode else None,
-                    "result": str(result) if result is not None else None,
-                },
-            }
-
-        finally:
-            if used_temp_image:
-                self.deleteImage(export_image)
 
 
     #################################################
