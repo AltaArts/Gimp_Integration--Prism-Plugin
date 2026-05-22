@@ -939,6 +939,53 @@ class Gimp_RenderClass(object):
         hVersion = outputPathData["version"]
 
         return outputPathData["path"], outputFolder, hVersion
+
+
+    #   Creates .PSD Scenefile Filepath
+    @err_catcher(name=__name__)
+    def getPsdScenefileOutputName(self):
+        curFile = self.core.getCurrentFileName()
+        if not curFile:
+            self.core.showFileNotInProjectWarning()
+            return None, None
+
+        if not self.core.fileInPipeline(curFile, validateFilename=False):
+            self.core.showFileNotInProjectWarning()
+            return None, None
+
+        fnameData = self.core.getScenefileData(curFile, getEntityFromPath=True)
+        if "department" not in fnameData:
+            title = "Could not save the file"
+            msg = (
+                "Couldn't get the required data from the current scenefile. "
+                "Did you save it using Prism?\n"
+                "Use the Project Browser to save your current scenefile with the correct name."
+            )
+            self.core.popup(msg, title=title)
+            return None, None
+
+        if "project_path" in fnameData:
+            del fnameData["project_path"]
+
+        hVersion = self.core.getHighestVersion(
+            fnameData,
+            fnameData.get("department"),
+            fnameData.get("task"),
+        )
+
+        outputName = self.core.generateScenePath(
+            entity=fnameData,
+            department=fnameData["department"],
+            task=fnameData["task"],
+            comment=self.stateManager.publishComment,
+            extension=".psd",
+            location=self.cb_outPath.currentText(),
+        )
+
+        if not outputName:
+            return None, None
+
+        return outputName, hVersion
     
 
     @err_catcher(name=__name__)
@@ -951,36 +998,8 @@ class Gimp_RenderClass(object):
         #   Get Outout File Format
         outputType = self.cb_format.currentText()
 
-        #   If Save as Scenefile is Checked
-        savePSDasScenefile = self.chb_psd_saveAsScene.isChecked()
-        if outputType == ".psd" and savePSDasScenefile:
-            curfile = self.core.getCurrentFileName()
-            filePath = curfile.replace("\\", "/")
-            if not filePath:
-                self.core.showFileNotInProjectWarning()
-                return False
-            
-            #   Replaces Original Extension with .psd
-            baseName, _ = os.path.splitext(filePath)
-            newFilePath = baseName + ".psd"
-
-            if os.path.exists(newFilePath):
-                text = ("A .psd with the current version already exists.\n"
-                        "Do you want to overwrite it?")
-                title = "Overwrite .psd version"
-                result = self.core.popupQuestion(text=text, title=title)
-
-                if result == "Yes":
-                    pass
-                else:
-                    return [self.state.text(0) + ": error - .psd save cancelled."]
-                
-            #    Uses normal saveScene to Save the .psd Next to Original
-
-            self.core.popup(f"newFilePath:  {newFilePath}")							#	TESTING
-        
-            self.core.saveScene(versionUp=True, filepath=newFilePath)
-            return [self.state.text(0) + " - success"]
+        #   If Save as Scenefile is Checked for PSD
+        savePSDasScenefile = outputType == ".psd" and self.chb_psd_saveAsScene.isChecked()
 
         if not self.renderingStarted:
             if self.tasknameRequired and not self.getTaskname():
@@ -989,7 +1008,19 @@ class Gimp_RenderClass(object):
                     + ": error - no identifier is given. Skipped the activation of this state."
                 ]
 
-            outputName, outputPath, hVersion = self.getOutputName(useVersion=useVersion)
+            #   Handle .PSD Scenefile Saving
+            if savePSDasScenefile:
+                outputName, hVersion = self.getPsdScenefileOutputName()
+                if not outputName:
+                    return [self.state.text(0) + " - error - unable to resolve PSD scenefile path."]
+
+                outputPath = os.path.dirname(outputName)
+                updateMaster = False
+
+            #   Handle Regular Media Output Saving
+            else:
+                outputName, outputPath, hVersion = self.getOutputName(useVersion=useVersion)
+
             expandedOutputPath = os.path.expandvars(outputPath)
 
             outLength = len(outputName)
@@ -1017,14 +1048,33 @@ class Gimp_RenderClass(object):
             details["exportScale"] = self.cb_scale.currentText()
             details["colorMode"] = self.cb_colorMode.currentText()
 
-            if self.mediaType == "3drenders":
-                infopath = os.path.dirname(expandedOutputPath)
-            else:
-                infopath = expandedOutputPath
+            if savePSDasScenefile:
+                if self.core.getConfig("globals", "capture_viewport", config="user", dft=True):
+                    appPreview = getattr(self.core.appPlugin, "captureViewportThumbnail", lambda: None)()
+                    if appPreview:
+                        preview = self.core.media.scalePixmap(
+                            appPreview,
+                            self.core.scenePreviewWidth,
+                            self.core.scenePreviewHeight,
+                            fitIntoBounds=False,
+                            crop=True,
+                        )
+                    else:
+                        preview = None
+                else:
+                    preview = None
 
-            self.core.saveVersionInfo(
-                filepath=infopath, details=details
-            )
+                self.core.saveSceneInfo(filepath=outputName, details=details, preview=preview)
+                self.core.addToRecent(outputName)
+            else:
+                if self.mediaType == "3drenders":
+                    infopath = os.path.dirname(expandedOutputPath)
+                else:
+                    infopath = expandedOutputPath
+
+                self.core.saveVersionInfo(
+                    filepath=infopath, details=details
+                )
 
             self.l_pathLast.setText(outputName)
             self.l_pathLast.setToolTip(outputName)
