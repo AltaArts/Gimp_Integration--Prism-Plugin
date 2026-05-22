@@ -89,6 +89,14 @@ def boolToBit(bool):
         return 0
 
 
+#   Helper to Convert Bit (0/1) to Bool
+def bitToBool(bit):
+    try:
+        return bool(int(bit))
+    except Exception:
+        return bool(bit)
+
+
 class Gimp_RenderClass(object):
     className = "Gimp_Render"
     listType = "Export"
@@ -986,6 +994,49 @@ class Gimp_RenderClass(object):
             return None, None
 
         return outputName, hVersion
+
+
+    #   Extracts Render Settings to Include in Version Info Files
+    @err_catcher(name=__name__)
+    def getVersionInfoRenderDetails(self, renderSettings):
+        if not isinstance(renderSettings, dict):
+            return {}
+
+        bitFlagKeys = {
+            "png_Interlaced",
+            "png_Gamma",
+            "png_Rez",
+            "png_BgColor",
+            "png_LayerOffset",
+            "png_AlphaColor",
+            "jpg_Optimize",
+            "jpg_Progressive",
+            "jpg_Baseline",
+            "tiff_SaveLayers",
+            "tiff_useBigTiff",
+            "tiff_SaveTransPx",
+            "pdf_OmitHidden",
+            "pdf_ConvertToVector",
+            "pdf_ApplyLayers",
+        }
+
+        detailData = {}
+        for key, value in renderSettings.items():
+            if key in ["outputType", "exportScale", "colorMode"]:
+                detailData[key] = value
+            elif key.startswith("png_"):
+                detailData[key] = value
+            elif key.startswith("jpg_"):
+                detailData[key] = value
+            elif key.startswith("tiff_"):
+                detailData[key] = value
+            elif key.startswith("pdf_"):
+                detailData[key] = value
+
+            if key in bitFlagKeys:
+                detailData[key] = bitToBool(value)
+
+        return detailData
     
 
     @err_catcher(name=__name__)
@@ -1008,7 +1059,7 @@ class Gimp_RenderClass(object):
                     + ": error - no identifier is given. Skipped the activation of this state."
                 ]
 
-            #   Handle .PSD Scenefile Saving
+            #   Create .PSD Scenefile Name
             if savePSDasScenefile:
                 outputName, hVersion = self.getPsdScenefileOutputName()
                 if not outputName:
@@ -1017,7 +1068,7 @@ class Gimp_RenderClass(object):
                 outputPath = os.path.dirname(outputName)
                 updateMaster = False
 
-            #   Handle Regular Media Output Saving
+            #   Create Regular Media Output Name
             else:
                 outputName, outputPath, hVersion = self.getOutputName(useVersion=useVersion)
 
@@ -1033,53 +1084,6 @@ class Gimp_RenderClass(object):
 
             if not os.path.exists(os.path.dirname(expandedOutputPath)):
                 os.makedirs(os.path.dirname(expandedOutputPath))
-
-            details = context.copy()
-            if "filename" in details:
-                del details["filename"]
-
-            if "extension" in details:
-                del details["extension"]
-
-            details["version"] = hVersion
-            details["sourceScene"] = fileName
-            details["identifier"] = self.getTaskname()
-            details["comment"] = self.stateManager.publishComment
-            details["exportScale"] = self.cb_scale.currentText()
-            details["colorMode"] = self.cb_colorMode.currentText()
-
-            if savePSDasScenefile:
-                if self.core.getConfig("globals", "capture_viewport", config="user", dft=True):
-                    appPreview = getattr(self.core.appPlugin, "captureViewportThumbnail", lambda: None)()
-                    if appPreview:
-                        preview = self.core.media.scalePixmap(
-                            appPreview,
-                            self.core.scenePreviewWidth,
-                            self.core.scenePreviewHeight,
-                            fitIntoBounds=False,
-                            crop=True,
-                        )
-                    else:
-                        preview = None
-                else:
-                    preview = None
-
-                self.core.saveSceneInfo(filepath=outputName, details=details, preview=preview)
-                self.core.addToRecent(outputName)
-            else:
-                if self.mediaType == "3drenders":
-                    infopath = os.path.dirname(expandedOutputPath)
-                else:
-                    infopath = expandedOutputPath
-
-                self.core.saveVersionInfo(
-                    filepath=infopath, details=details
-                )
-
-            self.l_pathLast.setText(outputName)
-            self.l_pathLast.setToolTip(outputName)
-            self.saveStatesToScene()
-
 
             #   Build Render Settings
             rSettings = {
@@ -1135,6 +1139,55 @@ class Gimp_RenderClass(object):
                     pass
 
             self.core.appPlugin.sm_render_preSubmit(self, rSettings)
+
+            #   Create VersionInfo Details
+            details = context.copy()
+            if "filename" in details:
+                del details["filename"]
+
+            if "extension" in details:
+                del details["extension"]
+
+            details["version"] = hVersion
+            details["sourceScene"] = fileName
+            details["identifier"] = self.getTaskname()
+            details["comment"] = self.stateManager.publishComment
+            details.update(self.getVersionInfoRenderDetails(rSettings))
+
+            #   Handle .PSD Scenefile Saving and Version Info Creation
+            if savePSDasScenefile:
+                if self.core.getConfig("globals", "capture_viewport", config="user", dft=True):
+                    appPreview = getattr(self.core.appPlugin, "captureViewportThumbnail", lambda: None)()
+                    if appPreview:
+                        preview = self.core.media.scalePixmap(
+                            appPreview,
+                            self.core.scenePreviewWidth,
+                            self.core.scenePreviewHeight,
+                            fitIntoBounds=False,
+                            crop=True,
+                        )
+                    else:
+                        preview = None
+                else:
+                    preview = None
+
+                self.core.saveSceneInfo(filepath=outputName, details=details, preview=preview)
+                self.core.addToRecent(outputName)
+
+            #   Handle Regular Media Output Saving and Version Info Creation
+            else:
+                if self.mediaType == "3drenders":
+                    infopath = os.path.dirname(expandedOutputPath)
+                else:
+                    infopath = expandedOutputPath
+
+                self.core.saveVersionInfo(
+                    filepath=infopath, details=details
+                )
+
+            self.l_pathLast.setText(outputName)
+            self.l_pathLast.setToolTip(outputName)
+            self.saveStatesToScene()
 
             kwargs = {
                 "state": self,
