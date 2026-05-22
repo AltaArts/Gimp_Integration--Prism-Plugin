@@ -436,32 +436,12 @@ class Gimp_ImportImageClass(object):
         return True
 
    
-    
+
     #########################
-    #          UI           #
+    #     MEDIA BROWSER     #
     #########################
 
-    @err_catcher(name=__name__)
-    def setToolTips(self):
-        tip = "Media Identifier of Imported Shot"
-        self.e_name.setToolTip(tip)
-
-        tip = "Opens the Media Browser to select a specific version"
-        self.b_browse.setToolTip(tip)
-
-        tip = "Will import the latest version of the media."
-        self.b_importLatest.setToolTip(tip)
-
-        tip = ("Name of Layer in Gimp for this Image.\n\n"
-               "You may change the name and it will be\n"
-               "reflected in Gimp.  Also the version\n"
-               "number (if any) will be updated with changes\n"
-               "to the selected version.")
-        self.l_layerName.setToolTip(tip)
-        self.e_layerName.setToolTip(tip)
-
-
-    #   Opens the Custom MediaBrowser window to choose import
+    #   Opens the Custom MediaBrowser Window to Choose Import
     @err_catcher(name=__name__)
     def callMediaWindow(self, itemData=None):
         #   Sets Objects
@@ -490,8 +470,11 @@ class Gimp_ImportImageClass(object):
             except:
                 logger.debug("ERROR:  Unable to navigate to State's entity in the MediaBrowser")
 
+        self.selResult = None
+
         #   Connects clicked signal
         self.mediaChooser.mediaSelected.connect(lambda selResult: self.setSelectedMedia(selResult))
+
         #   Calls the MediaBrowser and receives result
         result = self.mediaChooser.exec_()
 
@@ -505,16 +488,47 @@ class Gimp_ImportImageClass(object):
 
         #   Gets the result
         clicked = self.selResult[0]
-        self.importData = self.selResult[1]
+        selectedData = self.selResult[1]
+        self.importData = selectedData
+
+        previewPath = self.getCurrentPreviewPath()
+        previewContext = self.getCurrentPreviewContext()
 
         #   Makes funct call based on what was clicked (Identifier or Version)
         if clicked == "version":
             versionData = self.getCurrentVersion()
+            if not versionData and isinstance(selectedData, dict):
+                versionData = selectedData
 
-        if clicked == "identifier":
-            versionData = self.getLatestVersion(self.importData, includeMaster=True)
+            basefile = previewPath
+            if not basefile and previewContext:
+                basefile = self.getFilepathFromSelection(previewContext)
+            if not basefile:
+                basefile = self.getFilepathFromSelection(selectedData)
+            if not basefile and versionData:
+                basefile = self.getFilepathFromSelection(versionData)
+            if not basefile and versionData:
+                basefile = self.getFilepathFromVersion(versionData)
 
-        basefile = self.getFilepathFromVersion(versionData)
+        elif clicked == "identifier":
+            versionData = self.getLatestVersion(selectedData, includeMaster=True)
+            basefile = self.getFilepathFromVersion(versionData)
+
+        else:
+            versionData = self.getCurrentVersion()
+            if not versionData and isinstance(selectedData, dict):
+                versionData = selectedData
+
+            basefile = previewPath
+            if not basefile and previewContext:
+                basefile = self.getFilepathFromSelection(previewContext)
+            if not basefile:
+                basefile = self.getFilepathFromSelection(selectedData)
+            if not basefile and versionData:
+                basefile = self.getFilepathFromVersion(versionData)
+
+        if not basefile:
+            return False
 
         if not result:
             return False
@@ -524,6 +538,89 @@ class Gimp_ImportImageClass(object):
         
         else:
             return basefile, versionData
+
+
+    #   Returns the Currently Previewed Media Filepath in the MediaBrowser
+    @err_catcher(name=__name__)
+    def getCurrentPreviewPath(self) -> str | None:
+        try:
+            mediaBrowser = self.mediaChooser.w_browser
+            mediaVersionPlayer = mediaBrowser.w_preview
+            mediaPlayer = mediaVersionPlayer.mediaPlayer
+
+        except Exception:
+            return None
+
+        seq = list(getattr(mediaPlayer, "seq", []) or [])
+        if seq:
+            frameIdx = mediaPlayer.getCurrentFrame()
+            if frameIdx is None:
+                frameIdx = 0
+
+            frameIdx = max(0, min(int(frameIdx), len(seq) - 1))
+            currentFile = seq[frameIdx]
+            if os.path.isfile(currentFile):
+                return os.path.normpath(currentFile)
+
+        return None
+
+
+    #   Returns Current MediaBrowser Context in Priority: channel, source, aov
+    @err_catcher(name=__name__)
+    def getCurrentPreviewContext(self) -> dict | None:
+        try:
+            mediaVersionPlayer = self.mediaChooser.w_browser.w_preview
+        except Exception:
+            return None
+
+        return (
+            mediaVersionPlayer.getCurrentFilelayer()
+            or mediaVersionPlayer.getCurrentSource()
+            or mediaVersionPlayer.getCurrentAOV()
+        )
+
+
+    #   Resolve a Filepath from Selected Context
+    @err_catcher(name=__name__)
+    def getFilepathFromSelection(self, selectionContext:dict) -> str | None:
+        if not isinstance(selectionContext, dict):
+            return None
+
+        mediaFiles = self.core.mediaProducts.getFilesFromContext(selectionContext) or []
+        validFiles = self.core.media.filterValidMediaFiles(mediaFiles)
+        if not validFiles:
+            return None
+
+        validFiles = sorted(
+            validFiles,
+            key=lambda x: x if "cryptomatte" not in os.path.basename(x) else "zzz" + x,
+        )
+        return os.path.normpath(validFiles[0])
+
+
+
+    #########################
+    #          UI           #
+    #########################
+
+    @err_catcher(name=__name__)
+    def setToolTips(self):
+        tip = "Media Identifier of Imported Shot"
+        self.e_name.setToolTip(tip)
+
+        tip = "Opens the Media Browser to select a specific version"
+        self.b_browse.setToolTip(tip)
+
+        tip = "Will import the latest version of the media."
+        self.b_importLatest.setToolTip(tip)
+
+        tip = ("Name of Layer in Gimp for this Image.\n\n"
+               "You may change the name and it will be\n"
+               "reflected in Gimp.  Also the version\n"
+               "number (if any) will be updated with changes\n"
+               "to the selected version.")
+        self.l_layerName.setToolTip(tip)
+        self.e_layerName.setToolTip(tip)
         
 
     def getFilepathFromVersion(self, versionContext):
@@ -542,6 +639,8 @@ class Gimp_ImportImageClass(object):
             mediaFiles = sorted(mediaFiles)
 
         validFiles = self.core.media.filterValidMediaFiles(mediaFiles)
+        if not validFiles:
+            return None
 
         return validFiles[0]
 
