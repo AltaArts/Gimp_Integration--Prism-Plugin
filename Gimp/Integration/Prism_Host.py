@@ -106,8 +106,8 @@ class PrismHostRuntime:
 
         self.bridgePort_out = self.settings["bridgePort_out"]
         self.bridgePort_in = self.settings["bridgePort_in"]
-        self.log_maxBytes = self.settings["log_maxBytes"]
 
+        self.log_maxBytes = self.settings["log_maxBytes"]
         self.logLock = threading.Lock()
         self.logComponent = "HOST"
 

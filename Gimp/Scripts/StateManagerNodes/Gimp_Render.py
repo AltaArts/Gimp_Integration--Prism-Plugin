@@ -41,6 +41,7 @@
 ###########################################################################
 
 
+from encodings.punycode import T
 import os
 import sys
 import time
@@ -71,12 +72,18 @@ from GimpMapping import (
 )
 
 
+if TYPE_CHECKING:
+    from PrismCore import PrismCore
+    from StateManager import StateManager
+    from Prism_Gimp_Functions import Prism_Gimp_Functions
+
+
 logger = logging.getLogger(__name__)
 
 
 #   Helper to Convert Bool to Bit (0/1)
 def boolToBit(bool):
-    if bool == True:
+    if bool:
         return 1
     else:
         return 0
@@ -91,9 +98,9 @@ class Gimp_RenderClass(object):
     @err_catcher(name=__name__)
     def setup(self, state, core, stateManager, node=None, stateData=None):
         self.state = state
-        self.core = core
-        self.stateManager = stateManager
-        self.gimpFuncts = self.core.appPlugin
+        self.core:PrismCore = core
+        self.stateManager:StateManager = stateManager
+        self.gimpFuncts:Prism_Gimp_Functions = self.core.appPlugin
         self._isInitializingState = True
 
         self.canSetVersion = True
@@ -152,6 +159,10 @@ class Gimp_RenderClass(object):
         self.chb_png_gamma.setChecked(True)
         self.chb_png_rez.setChecked(True)
         self.chb_png_bgColor.setChecked(False)
+
+        #   Hidden Since Gimp3 Does Not Seem to Expose This Option Anymore
+        self.chb_png_gamma.setVisible(False)
+        
         self.chb_png_layerOffset.setChecked(False)
         self.chb_png_alphaColor.setChecked(True)
 
@@ -572,9 +583,7 @@ class Gimp_RenderClass(object):
         if getattr(self, "_isInitializingState", False):
             return
 
-        markDirty = getattr(self.gimpFuncts, "markSceneDirty", None)
-        if callable(markDirty):
-            markDirty()
+        self.gimpFuncts.markSceneDirty()
 
 
     #   Updates Ui based on Selected Options
@@ -774,6 +783,7 @@ class Gimp_RenderClass(object):
     @err_catcher(name=__name__)
     def changeTask(self):
         from PrismUtils import PrismWidgets
+
         self.nameWin = PrismWidgets.CreateItem(
             startText=self.getTaskname(),
             showTasks=True,
@@ -938,10 +948,10 @@ class Gimp_RenderClass(object):
         fileName = self.core.getCurrentFileName()
         context = self.getCurrentContext()
 
-        #   Get outout file format
+        #   Get Outout File Format
         outputType = self.cb_format.currentText()
 
-        #   If save as scenefile is checked
+        #   If Save as Scenefile is Checked
         savePSDasScenefile = self.chb_psd_saveAsScene.isChecked()
         if outputType == ".psd" and savePSDasScenefile:
             curfile = self.core.getCurrentFileName()
@@ -965,7 +975,10 @@ class Gimp_RenderClass(object):
                 else:
                     return [self.state.text(0) + ": error - .psd save cancelled."]
                 
-           #    Uses normal saveScene to save the .psd next to original
+            #    Uses normal saveScene to Save the .psd Next to Original
+
+            self.core.popup(f"newFilePath:  {newFilePath}")							#	TESTING
+        
             self.core.saveScene(versionUp=True, filepath=newFilePath)
             return [self.state.text(0) + " - success"]
 
@@ -1018,7 +1031,7 @@ class Gimp_RenderClass(object):
             self.saveStatesToScene()
 
 
-            #   Added additional settings
+            #   Build Render Settings
             rSettings = {
                 "outputName": outputName,
                 "outputType": outputType,
@@ -1030,7 +1043,7 @@ class Gimp_RenderClass(object):
                 "colorMode": self.cb_colorMode.currentText(),
                 }
 
-            #   Add additional settings based on format
+            #   Add Additional Settings Based on Format
             match outputType:    
                 case ".png":
                     rSettings.update({"png_Compress": self.cb_png_compress.currentText(),
@@ -1057,15 +1070,15 @@ class Gimp_RenderClass(object):
 
                 case ".tif":
                     rSettings.update({"tiff_Compression": self.cb_tiff_compress.currentText(),
-                                    "tiff_SaveLayers": self.chb_tiff_saveLayers.isChecked(),
-                                    "tiff_useBigTiff": self.chb_tiff_useBig.isChecked(),
-                                    "tiff_SaveTransPx": self.chb_tiff_alphaColor.isChecked()
+                                    "tiff_SaveLayers": boolToBit(self.chb_tiff_saveLayers.isChecked()),
+                                    "tiff_useBigTiff": boolToBit(self.chb_tiff_useBig.isChecked()),
+                                    "tiff_SaveTransPx": boolToBit(self.chb_tiff_alphaColor.isChecked())
                                     })
                     
                 case ".pdf":
-                    rSettings.update({"pdf_OmitHidden": self.chb_pdf_omitHidden.isChecked(),
-                                    "pdf_ConvertToVector": self.chb_pdf_convertToVector.isChecked(),
-                                    "pdf_ApplyLayers": self.chb_pdf_applyLayers.isChecked()
+                    rSettings.update({"pdf_OmitHidden": boolToBit(self.chb_pdf_omitHidden.isChecked()),
+                                    "pdf_ConvertToVector": boolToBit(self.chb_pdf_convertToVector.isChecked()),
+                                    "pdf_ApplyLayers": boolToBit(self.chb_pdf_applyLayers.isChecked())
                                     })
 
                 case ".psd": 
@@ -1181,7 +1194,6 @@ class Gimp_RenderClass(object):
     @err_catcher(name=__name__)
     def preDelete(self, item=None):
         self.gimpFuncts.markSceneDirty()
-
 
 
     @err_catcher(name=__name__)

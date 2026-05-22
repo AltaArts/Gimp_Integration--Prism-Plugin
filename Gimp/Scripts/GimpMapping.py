@@ -45,7 +45,7 @@
 ###########################################################################
 ###########################################################################
 #                                                                         #
-#    This is a Collection of Gimp Mapping Options for Use with Prism      #
+#    This is a Collection of Gimp Mapping Options for use with Prism      #
 #                                                                         #
 
 

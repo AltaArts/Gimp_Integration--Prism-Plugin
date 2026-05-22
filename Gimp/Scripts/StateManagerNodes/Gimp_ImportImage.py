@@ -44,6 +44,7 @@
 
 import os
 import sys
+import re
 import logging
 from typing import TYPE_CHECKING
 
@@ -307,10 +308,10 @@ class Gimp_ImportImageClass(object):
     #   Opens Media Chooser to select version
     @err_catcher(name=__name__)
     def browse(self):
-        title = "Change Shot Images"
+        title = "Change Layer Image"
         text = ("Please Note:\n\n"
-                "Changing the Shot Images could affect\n"
-                "an existing solve.  Please save the file before changing\n"
+                "Changing the Layer Image could affect any changes made\n"
+                "in Gimp.  Please save the file before changing\n"
                 "the images.\n\n\n"
                 "Would you like to continue?")
 
@@ -344,17 +345,17 @@ class Gimp_ImportImageClass(object):
         basefile = requestResult[0]
         self.importData = requestResult[1]
 
-        result = self.changeShotImages(basefile, self.importData)
+        result = self.updateImportedImage(basefile, self.importData)
 
         self.updateUi()
 
 
     @err_catcher(name=__name__)
     def importLatest(self):
-        title = "Change Shot Images"
+        title = "Change Layer Image"
         text = ("Please Note:\n\n"
-                "Changing the Shot Images could affect\n"
-                "an existing solve.  Please save the file before changing\n"
+                "Changing the Layer Image could affect any changes made\n"
+                "in Gimp.  Please save the file before changing\n"
                 "the images.\n\n\n"
                 "Would you like to continue?")
 
@@ -368,7 +369,7 @@ class Gimp_ImportImageClass(object):
         self.importData = versionData
         self.setImportPath(basefile)
 
-        result = self.changeShotImages(basefile, self.importData)
+        result = self.updateImportedImage(basefile, self.importData)
 
         self.updateUi()
 
@@ -579,6 +580,7 @@ class Gimp_ImportImageClass(object):
                 self.e_layerName.blockSignals(True)
                 self.e_layerName.setText(confirmed)
                 self.e_layerName.blockSignals(False)
+
                 self.stateManager.saveStatesToScene()
 
         else:
@@ -587,12 +589,37 @@ class Gimp_ImportImageClass(object):
                 self,
                 layerTattoo=layerTattoo,
             )
+
             if current_name is not None:
                 self.importData["layerName"] = current_name
                 self.trackedLayerName = current_name
                 self.e_layerName.blockSignals(True)
                 self.e_layerName.setText(current_name)
                 self.e_layerName.blockSignals(False)
+
+
+    #   Finds and Changes the Version Suffix (_v001, _v002, _master)
+    @err_catcher(name=__name__)
+    def updateNameVersion(self, currentName:str, newVerStr:str) -> str | None:
+        verPadding = self.core.versionPadding
+
+        pattern = rf"(_v\d{{{verPadding}}}|_master)"
+        matches = list(re.finditer(pattern, currentName or ""))
+
+        if matches and newVerStr:
+            last_match = matches[-1]
+            start, end = last_match.span()
+
+            newName = (
+                (currentName or "")[:start]
+                + f"_{newVerStr}"
+                + (currentName or "")[end:]
+            )
+
+            return newName
+
+        else:
+            return None
 
 
     @err_catcher(name=__name__)
@@ -819,8 +846,83 @@ class Gimp_ImportImageClass(object):
 
 
     @err_catcher(name=__name__)
-    def preDelete(self, item):
+    def updateImportedImage(self, basefile, versionData):
+        try:
+            #   Get Image Layer Tattoo from the State
+            layerTattoo = getattr(self, "layerTattoo", None)
+            
+            if layerTattoo is not None:
+                current_layerName = (
+                    getattr(self, "trackedLayerName", None)
+                    or self.e_layerName.text().strip()
+                )
+                current_layerName = re.sub(r"\s#\d+$", "", str(current_layerName or ""))
+                desired_layerName = self.updateNameVersion(
+                    current_layerName,
+                    (versionData or {}).get("version"),
+                )
+
+                #   Layer Already Exists - Replace with the New Version
+                result = self.gimpFuncts.replaceLayerImage(
+                    self,
+                    newFilePath=basefile,
+                    versionData=versionData,
+                    layerTattoo=layerTattoo,
+                    desiredLayerName=desired_layerName,
+                )
+                
+                if result:
+                    #   Update the State Data with the New Layer Name and Tattoo
+                    if isinstance(result, dict):
+                        updated_layer_name = result.get("layerName")
+                        updated_layer_tattoo = result.get("layerTattoo")
+
+                        if updated_layer_name:
+                            self.trackedLayerName = updated_layer_name
+                            self.importData["layerName"] = updated_layer_name
+                            self.e_layerName.blockSignals(True)
+                            self.e_layerName.setText(str(updated_layer_name))
+                            self.e_layerName.blockSignals(False)
+
+                        if updated_layer_tattoo is not None:
+                            self.layerTattoo = updated_layer_tattoo
+                            self.importData["layerTattoo"] = updated_layer_tattoo
+
+                    #   Update State Data with New Version Info
+                    merged_data = dict(versionData or {})
+                    merged_data["layerName"] = getattr(self, "trackedLayerName", None)
+                    merged_data["layerTattoo"] = getattr(self, "layerTattoo", None)
+                    self.importData = merged_data
+                    self.setImportPath(basefile)
+                    logger.debug(f"Updated layer to new version: {(versionData or {}).get('version')}")
+                    return True
+                else:
+                    logger.warning("Failed to replace layer image with new version")
+                    self.core.popup("Failed to update layer image.")
+                    return False
+            
+            else:
+                #   No layer exists yet - do a fresh import
+                result = self.importImage(basefile, versionData)
+                
+                if result:
+                    #   Update State Data with New Version Info
+                    self.importData = versionData
+                    self.setImportPath(basefile)
+                    logger.debug(f"Imported new layer for version: {(versionData or {}).get('version')}")
+                    return True
+                else:
+                    logger.warning("Failed to import new image")
+                    return False
         
+        except Exception as e:
+            logger.warning(f"ERROR:  Unable to update imported image:\n\n{e}")
+            self.core.popup("Unable to update imported image.")
+            return False
+
+
+    @err_catcher(name=__name__)
+    def preDelete(self, item):
         title = "Delete Layer"
         text = ("Would you like to delete the Layer in the Gimp File?")
 

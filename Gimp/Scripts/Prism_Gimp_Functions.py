@@ -332,7 +332,7 @@ class Prism_Gimp_Functions(object):
 
 
     #   Extract Error Message from a Bridge Response
-    def _responseError(self, response) -> str:
+    def responseError(self, response) -> str:
         if isinstance(response, dict):
             return response.get("error") or "Unknown bridge error"
 
@@ -358,7 +358,7 @@ class Prism_Gimp_Functions(object):
 
         try:
             self.core.popup(
-                "Cannot create a new version from current because there is no active GIMP image.\n\n"
+                "Cannot create a new version from current because there is no active GIMP image.\n\n\n"
                 "Create or open an image first, then try again.",
                 title="Prism - GIMP",
             )
@@ -395,7 +395,7 @@ class Prism_Gimp_Functions(object):
         )
 
         if not response or not response.get("ok"):
-            logger.warning(f"ERROR: Failed to mark scene dirty via bridge: {self._responseError(response)}")
+            logger.warning(f"ERROR: Failed to mark scene dirty via bridge: {self.responseError(response)}")
             return False
 
         return True
@@ -776,7 +776,7 @@ class Prism_Gimp_Functions(object):
             )
 
             if not response or not response.get("ok"):
-                logger.warning(f"ERROR: Unable to capture thumbnail via bridge: {self._responseError(response)}")
+                logger.warning(f"ERROR: Unable to capture thumbnail via bridge: {self.responseError(response)}")
 
                 #   If No Thumbnail from Bridge, Attempt to Load Current Scene File as Fallback Thumbnail
                 current_path = self.getCurrentFileName(origin=None, path=True)
@@ -960,7 +960,7 @@ class Prism_Gimp_Functions(object):
             )
 
             if not response or not response.get("ok"):
-                logger.warning(f"ERROR: Unable to open Scenefile via bridge: {filepath} ({self._responseError(response)})")
+                logger.warning(f"ERROR: Unable to open Scenefile via bridge: {filepath} ({self.responseError(response)})")
                 return False
 
             logger.debug(f"Opened Scene: {filepath}")
@@ -994,10 +994,9 @@ class Prism_Gimp_Functions(object):
                 "details": details or {},
             }
 
-            #   If Delayed Comment Image Id Exists and No Pending Bridge Image Id, Use Delayed Comment Image Id for this Save Request
+            #   If Delayed Comment Image Id Exists and No Pending Bridge Image Id, Use Delayed Comment Image Id
             if delayedComment_ImageId is not None and self.pendingBridgeImageId is None:
                 payload["image_id"] = delayedComment_ImageId
-                #   Keep image binding for post-save thumbnail capture in async Save Comment flow.
                 self.pendingThumbnailBridgeImageId = delayedComment_ImageId
 
             #   Send Request to Gimp Bridge
@@ -1009,7 +1008,7 @@ class Prism_Gimp_Functions(object):
 
             #   Clear Delayed Comment Image Id After Save Request is Sent to Bridge
             if not response or not response.get("ok"):
-                errorMsg = self._responseError(response)
+                errorMsg = self.responseError(response)
                 if self.isNoActiveImageError(errorMsg):
                     self.suppressStateSaves()
                     self.popupNoActiveImage()
@@ -1037,6 +1036,7 @@ class Prism_Gimp_Functions(object):
             payload = {
                 "path": basefile,
                 "versionData": versionData,
+                **self.getStateManagerImagePayload(),
             }
 
             #   Send Request to Gimp Bridge
@@ -1047,7 +1047,7 @@ class Prism_Gimp_Functions(object):
             )
 
             if not response or not response.get("ok"):
-                logger.warning(f"ERROR: Unable to import image via bridge: {self._responseError(response)}")
+                logger.warning(f"ERROR: Unable to import image via bridge: {self.responseError(response)}")
                 return False
 
             #   Get Layer Name and Layer Tattoo
@@ -1082,7 +1082,7 @@ class Prism_Gimp_Functions(object):
             )
 
             if not response or not response.get("ok"):
-                logger.warning(f"ERROR: Unable to get layer name via bridge: {self._responseError(response)}")
+                logger.warning(f"ERROR: Unable to get layer name via bridge: {self.responseError(response)}")
                 return None
 
             return (response.get("data") or {}).get("layerName")
@@ -1109,7 +1109,7 @@ class Prism_Gimp_Functions(object):
             )
 
             if not response or not response.get("ok"):
-                logger.warning(f"ERROR: Unable to rename layer via bridge: {self._responseError(response)}")
+                logger.warning(f"ERROR: Unable to rename layer via bridge: {self.responseError(response)}")
                 return None
 
             confirmed_name = (response.get("data") or {}).get("layerName")
@@ -1140,7 +1140,7 @@ class Prism_Gimp_Functions(object):
             )
 
             if not response or not response.get("ok"):
-                logger.warning(f"ERROR: Unable to delete image layer via bridge: {self._responseError(response)}")
+                logger.warning(f"ERROR: Unable to delete image layer via bridge: {self.responseError(response)}")
                 return False
 
             removed = bool((response.get("data") or {}).get("deleted"))
@@ -1153,6 +1153,51 @@ class Prism_Gimp_Functions(object):
 
         except Exception as e:
             logger.warning(f"ERROR:  Unable to delete image layer:\n\n{e}")
+            return False
+
+
+    #   Replaces a Layer's Image Content in Gimp with a New File
+    @err_catcher(name=__name__)
+    def replaceLayerImage(self, state, newFilePath=None, versionData=None, layerTattoo=None, desiredLayerName=None):
+        if not newFilePath:
+            logger.warning("ERROR: No file path provided for layer image replacement")
+            return False
+
+        try:
+            payload = {
+                "path": newFilePath,
+                "versionData": versionData or {},
+                "layerTattoo": layerTattoo,
+                "desiredLayerName": desiredLayerName,
+                **self.getStateManagerImagePayload(),
+            }
+
+            #   Send Request to Gimp Bridge
+            response = self.sendCmdToGimp(
+                action="replace-layer-image",
+                payload=payload,
+                timeout=30.0,
+            )
+
+            if not response or not response.get("ok"):
+                logger.warning(f"ERROR: Unable to replace layer image via bridge: {self.responseError(response)}")
+                return False
+
+            response_data = response.get("data") or {}
+            replaced = bool(response_data.get("replaced"))
+            if replaced:
+                logger.debug(f"Replaced layer image with: {newFilePath}")
+                return {
+                    "layerName": response_data.get("layerName"),
+                    "layerTattoo": response_data.get("layerTattoo"),
+                }
+            else:
+                logger.debug("Layer image replacement did not complete successfully")
+
+            return False
+
+        except Exception as e:
+            logger.warning(f"ERROR:  Unable to replace layer image:\n\n{e}")
             return False
         
 
@@ -1208,7 +1253,7 @@ class Prism_Gimp_Functions(object):
         if response and response.get("ok"):
             return "Result=Success"
 
-        return f"Export failed: {self._responseError(response)}"
+        return f"Export failed: {self.responseError(response)}"
 
 
 
@@ -1259,7 +1304,7 @@ class Prism_Gimp_Functions(object):
 
         #   If No Response or Error from Bridge, Show Popup and Skip Saving
         if not response or not response.get("ok"):
-            errorMsg = self._responseError(response)
+            errorMsg = self.responseError(response)
             if self.isNoActiveImageError(errorMsg):
                 logger.debug("Skipping State save because no active image exists")
                 return
@@ -1354,3 +1399,7 @@ class Prism_Gimp_Functions(object):
                 {"statename": "publish", "comment": "", "description": ""}
             ]
         })
+
+        self.core.popup("All States have been removed.\n\n"
+                        "You may have to remove associated Layers\n"
+                        "from the Gimp Image manually.")

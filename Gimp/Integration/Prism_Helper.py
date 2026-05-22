@@ -275,6 +275,32 @@ def formatLogLine(message:str, source_label:str, **fields) -> str:
 
 
 ###################################
+##         CONVERTERS            ##
+
+def boolToBit(value: bool) -> int:
+    '''Converts a boolean value to a bit (1 or 0).'''
+    return 1 if value else 0
+
+
+def bitToBool(value, default: bool = False) -> bool:
+    '''Converts a bit or string representation to a boolean value.'''
+    if isinstance(value, bool):
+        return value
+    
+    if isinstance(value, (int, float)):
+        return bool(value)
+    
+    if isinstance(value, str):
+        v = value.strip().lower()
+        if v in ["1", "true", "yes", "on"]:
+            return True
+        if v in ["0", "false", "no", "off", ""]:
+            return False
+    
+    return default
+
+
+###################################
 ##          PROCESSES            ##
 
 def readHostPid() -> int | None:
@@ -527,6 +553,31 @@ def getImageSize(image) -> tuple[int, int]:
     return w, h
 
 
+def getImageFilePath(image:object) -> str | None:
+    '''Reads the Filesystem Path from an Image Object.'''
+
+    try:
+        file_obj = image.get_file()
+        if file_obj:
+            filePath = file_obj.get_path()
+            return str(filePath) if filePath else None
+    except Exception:
+        pass
+    return None
+
+
+def getLayerTattoo(layer:object) -> int | None:
+    '''Returns the Persistent Tattoo of a Gimp Item if Available'''
+
+    if layer is None:
+        return None
+
+    try:
+        return int(layer.get_tattoo())
+    except Exception:
+        return None 
+
+
 ###################################
 ##         DATA HANDLING         ##
 
@@ -653,18 +704,18 @@ def flattenValues(value:object) -> list:
     return [unpacked]
 
 
-def setConfigValue(config:object, key:object, value:object) -> None:
+def setConfigValue(config:object, key:object, value:object) -> bool:
     '''Sets a config property while ignoring unsupported keys/values.'''
 
     if value is None:
-        return
+        return False
 
     try:
         config.set_property(key, value)
-        return
+        return True
     except Exception:
         if not isinstance(key, str):
-            return
+            return False
 
     #   Some GI Bindings Use Underscores While C uses Hyphens - Try Alt First
     alt_key = None
@@ -674,12 +725,13 @@ def setConfigValue(config:object, key:object, value:object) -> None:
         alt_key = key.replace("_", "-")
 
     if not alt_key or alt_key == key:
-        return
+        return False
 
     try:
         config.set_property(alt_key, value)
+        return True
     except Exception:
-        pass
+        return False
 
 
 def callWithSignatures(func:object, signatures:list) -> tuple[object, str | None]:
