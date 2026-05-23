@@ -546,31 +546,31 @@ class PrismGimpBridgeService:
             result = procedure.run(config)
             values_flat = Helper.flattenValues(result)
 
-            status_text = ""
+            statusText = ""
             if values_flat:
                 try:
-                    status_text = str(values_flat[0])
+                    statusText = str(values_flat[0])
                 except Exception:
-                    status_text = ""
+                    statusText = ""
 
-            status_upper = status_text.upper()
-            result_message = ""
+            status_upper = statusText.upper()
+            resultMsg = ""
 
             for value in values_flat[1:]:
                 if isinstance(value, str) and value.strip():
-                    result_message = value.strip()
+                    resultMsg = value.strip()
                     break
 
             #   Emit Result as Gimp Warnings and Log
-            if result_message:
+            if resultMsg:
                 self.emitGimpWarning(
-                    f"PDB message from {procedureName}: {result_message}",
+                    f"PDB message from {procedureName}: {resultMsg}",
                     procedure=procedureName,
-                    status=status_text or None,
+                    status=statusText or None,
                 )
 
             if any(flag in status_upper for flag in ["CALLING_ERROR", "EXECUTION_ERROR", "CANCEL"]):
-                details = result_message or status_text or "PDB call failed"
+                details = resultMsg or statusText or "PDB call failed"
                 return result, f"{procedureName} failed: {details}"
 
             return result, None
@@ -1177,8 +1177,8 @@ class PrismGimpBridgeService:
             return None
 
 
-    #   Returns all Drawables/Layers in an Image (best-effort)
-    def getImageDrawables(self, image):
+    #   Returns Image Layers using the First Compatible Getter
+    def getImageLayers(self, image):
         for layers_getter_name in ["get_layers", "list_layers", "layers"]:
             layers_getter = getattr(image, layers_getter_name, None)
             if not callable(layers_getter):
@@ -1192,11 +1192,20 @@ class PrismGimpBridgeService:
             if layers:
                 return layers
 
+        return []
+
+
+    #   Returns all Drawables/Layers in an Image
+    def getImageDrawables(self, image):
+        layers = self.getImageLayers(image)
+        if layers:
+            return layers
+
         active = self.getActiveDrawable(image)
         return [active] if active else []
 
 
-    #   Returns Whether a Drawable Has Alpha Support
+    #   Returns Whether a Drawable Has Alpha
     def drawableHasAlpha(self, drawable):
         if drawable is None:
             return False
@@ -1219,32 +1228,18 @@ class PrismGimpBridgeService:
             return True
 
         #   Fall back to Scanning all Layers/Drawables
-        for layers_getter_name in ["get_layers", "list_layers", "layers"]:
-            layers_getter = getattr(image, layers_getter_name, None)
-            if not callable(layers_getter):
-                continue
-
-            try:
-                layers = Helper.normalizeGimpItems(layers_getter())
-
-            except Exception:
-                layers = []
-
-            for layer in layers:
-                if self.drawableHasAlpha(layer):
-                    return True
+        for layer in self.getImageLayers(image):
+            if self.drawableHasAlpha(layer):
+                return True
 
         return False
 
 
     #   Returns Normalized Image Base Type for Color Conversion Checks
     def getImageBaseType(self, image):
-        base_type_getter = getattr(image, "get_base_type", None)
-        if not callable(base_type_getter):
-            return None
-
         try:
-            base_type_raw = base_type_getter()
+            base_type_raw = image.get_base_type()
+            
         except Exception:
             return None
 
@@ -1271,30 +1266,24 @@ class PrismGimpBridgeService:
         if not image:
             return
 
-        #   Try Direct API First: flush() method
-        flush_method = getattr(image, "flush", None)
-        if callable(flush_method):
-            try:
-                flush_method()
-                return
-            except Exception:
-                pass
+        #   Try Direct API First.
+        try:
+            image.flush()
+            return
+        except Exception:
+            pass
 
-        #   Try get_displays() API for GIMP 3+
-        get_displays = getattr(Gimp, "get_displays", None)
-        if callable(get_displays):
-            try:
-                displays = Helper.normalizeGimpItems(get_displays(image))
-                for display in displays:
-                    flush_display = getattr(display, "flush", None)
-                    if callable(flush_display):
-                        try:
-                            flush_display()
-                        except Exception:
-                            pass
-                return
-            except Exception:
-                pass
+        #   Try get_displays() API for GIMP 3+.
+        try:
+            displays = Helper.normalizeGimpItems(Gimp.get_displays(image))
+            for display in displays:
+                try:
+                    display.flush()
+                except Exception:
+                    pass
+            return
+        except Exception:
+            pass
 
         #   Fall back to PDB gimp-displays-flush
         try:
@@ -1469,8 +1458,8 @@ class PrismGimpBridgeService:
 
         #   Attempt to Get Thumbnail Data from the Image Object Directly
         method_name = "get_thumbnail_data"
-        method = getattr(image, method_name, None)
-        if callable(method):
+        try:
+            method = getattr(image, method_name)
             raw_result, call_error = Helper.callWithSignatures(method, [(width, height), (width, height, 4), (width, height, 3)])
 
             #   Parse and Return if Valid
@@ -1500,15 +1489,14 @@ class PrismGimpBridgeService:
                 #   If Call Failed, Capture the Error for Logging
                 details = str(call_error) if call_error else "No return value"
                 fallback_reasons.append(f"{method_name}: {details}")
-
-        else:
+        except Exception:
             #   If Method Not Available, Capture for Logging
             fallback_reasons.append(f"{method_name}: unavailable")
 
         #   If Direct Method Failed, Use the Older get_thumbnail Method
         method_name = "get_thumbnail"
-        method = getattr(image, method_name, None)
-        if callable(method):
+        try:
+            method = getattr(image, method_name)
             #   Try Multiple Signatures for Compatibility with Different Gimp Versions
             raw_result, call_error = Helper.callWithSignatures(method, [(width, height), (width, height, 0), (width, height, 1), (width, height, 2)])
             if raw_result is not None:
@@ -1538,8 +1526,7 @@ class PrismGimpBridgeService:
                 #   If Call Failed, Capture the Error for Logging
                 details = str(call_error) if call_error else "No return value"
                 fallback_reasons.append(f"{method_name}: {details}")
-
-        else:
+        except Exception:
             #   If Method Not Available, Capture for Logging
             fallback_reasons.append(f"{method_name}: unavailable")
 
@@ -1640,20 +1627,26 @@ class PrismGimpBridgeService:
                 return {"ok": False, "error": f"Import procedure did not return a layer: {procedure_name}"}
 
             #   Get Insert Method for the Image and Insert the New Layer
-            insert_layer = getattr(image, "insert_layer", None) or getattr(image, "add_layer", None)
-            if callable(insert_layer):
-                _, insert_error = Helper.callWithSignatures(
-                    insert_layer,
-                    [
-                        (layer, None, 0),
-                        (layer, 0),
-                        (layer,),
-                    ],
-                )
-                if insert_error:
-                    return {"ok": False, "error": f"Failed to insert imported layer: {insert_error}"}
-            else:
+            insert_layer = None
+            for method_name in ["insert_layer", "add_layer"]:
+                method = getattr(image, method_name, None)
+                if callable(method):
+                    insert_layer = method
+                    break
+
+            if insert_layer is None:
                 return {"ok": False, "error": "Active image does not support layer insertion"}
+
+            _, insert_error = Helper.callWithSignatures(
+                insert_layer,
+                [
+                    (layer, None, 0),
+                    (layer, 0),
+                    (layer,),
+                ],
+            )
+            if insert_error:
+                return {"ok": False, "error": f"Failed to insert imported layer: {insert_error}"}
 
             #   Attempt to Set the Desired Layer Name Based on Version Data
             if desired_layer_name:
@@ -1981,18 +1974,23 @@ class PrismGimpBridgeService:
 
             #   Opacity
             target_opacity = self.getLayerProp(target_layer, ["get_opacity"], ["opacity"], default=None)
+
             #   Visibility
             target_visible = self.getLayerProp(target_layer, ["get_visible"], ["visible"], default=True)
+
             #   Blending/Composite Mode
             target_mode = self.getLayerProp(target_layer, ["get_mode"], ["mode"], default=None)
             target_blend_mode = self.getLayerProp(target_layer, ["get_blend_mode"], ["blend_mode"], default=None)
             target_blend_space = self.getLayerProp(target_layer, ["get_blend_space"], ["blend_space"], default=None)
             target_composite_mode = self.getLayerProp(target_layer, ["get_composite_mode"], ["composite_mode"], default=None)
             target_composite_space = self.getLayerProp(target_layer, ["get_composite_space"], ["composite_space"], default=None)
+
             #   Alpha Lock
             target_lock_alpha = self.getLayerProp(target_layer, ["get_lock_alpha"], ["lock_alpha"], default=None)
+
             #   Offsets (X/Y Position)
             target_offsets = self.getLayerProp(target_layer, ["get_offsets"], ["offsets"], default=None)
+
             #   Geometric Transform
             target_transform = self.getLayerProp(
                 target_layer,
@@ -2356,13 +2354,15 @@ class PrismGimpBridgeService:
             return {"ok": False, "error": "Missing export file path"}
 
         filePath = os.path.normpath(str(filePath))
+        file_ext = os.path.splitext(filePath)[1].lower()
+
+        #   Get Config Settings
         settings = rData.get("settings") if isinstance(rData, dict) else {}
         if not isinstance(settings, dict):
             settings = {}
 
-        file_ext = os.path.splitext(filePath)[1].lower()
+        #   Handle TIF Export Settings
         is_tiff_export = file_ext in [".tif", ".tiff"]
-        procedure_name = self.getExporterProcedureName(filePath)
         tiff_save_layers_enabled = Helper.bitToBool(settings.get("tiff_SaveLayers"), True)
         requires_flat_tiff = False
 
@@ -2463,6 +2463,9 @@ class PrismGimpBridgeService:
             "image": export_image,
             "file": gio_file,
         }
+
+        #   Get Export Proc Name
+        procedure_name = self.getExporterProcedureName(filePath)
 
         if procedure_name == "gimp-file-save":
             proc_values["drawable"] = active_drawable
@@ -2788,10 +2791,9 @@ class PrismGimpBridgeService:
                 return {"ok": True, "data": {"stateData": ""}}
 
             #   Get the Raw State Data from the Parasite
-            get_data = getattr(parasite, "get_data", None)
-            if callable(get_data):
-                raw = get_data()
-            else:
+            try:
+                raw = parasite.get_data()
+            except AttributeError:
                 raw = getattr(parasite, "data", None)
 
             if raw is None:

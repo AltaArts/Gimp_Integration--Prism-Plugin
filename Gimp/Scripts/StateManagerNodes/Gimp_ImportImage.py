@@ -838,20 +838,17 @@ class Gimp_ImportImageClass(object):
             )(data["filepath"])
             self.setImportPath(data["filepath"])
 
-        layer_name = data.get("layerName", "")
         self.e_layerName.blockSignals(True)
-        self.e_layerName.setText(layer_name or "")
+        self.e_layerName.setText(data.get("layerName") or "")
         self.e_layerName.blockSignals(False)
 
         self.trackedLayerName = (
             data.get("trackedLayerName")
             or data.get("layerName")
-            or data.get("shotUID")
-            or None
         )
 
-        layer_tattoo = data.get("layerTattoo")
-        self.layerTattoo = int(layer_tattoo) if layer_tattoo is not None else None
+        tattoo = data.get("layerTattoo")
+        self.layerTattoo = int(tattoo) if tattoo is not None else None
 
         self.core.callback("onStateSettingsLoaded", self, data)
 
@@ -993,15 +990,17 @@ class Gimp_ImportImageClass(object):
                     merged_data["layerTattoo"] = getattr(self, "layerTattoo", None)
                     self.importData = merged_data
                     self.setImportPath(basefile)
+
                     logger.debug(f"Updated layer to new version: {(versionData or {}).get('version')}")
                     return True
+                
                 else:
                     logger.warning("Failed to replace layer image with new version")
                     self.core.popup("Failed to update layer image.")
                     return False
             
             else:
-                #   No layer exists yet - do a fresh import
+                #   No Layer Exists Yet - Just Import
                 result = self.importImage(basefile, versionData)
                 
                 if result:
@@ -1010,6 +1009,7 @@ class Gimp_ImportImageClass(object):
                     self.setImportPath(basefile)
                     logger.debug(f"Imported new layer for version: {(versionData or {}).get('version')}")
                     return True
+                
                 else:
                     logger.warning("Failed to import new image")
                     return False

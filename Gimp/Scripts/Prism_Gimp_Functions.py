@@ -704,10 +704,7 @@ class Prism_Gimp_Functions(object):
     @err_catcher(name=__name__)
     def sendCmdToGimp(self, action:str, payload:dict=None, timeout:float=10.0) -> dict | None:
         bridgePort = int(self.gimpSettings.get("bridgePort_in", 50601))
-        packet = {
-            "action": action,
-            "data": payload or {},
-        }
+        packet = {"action": action, "data": payload or {}}
 
         try:
             #   Connect to Bridge and Send Request
@@ -715,12 +712,14 @@ class Prism_Gimp_Functions(object):
                 client.settimeout(timeout)
                 client.connect(("127.0.0.1", bridgePort))
                 client.sendall(json.dumps(packet).encode("utf-8"))
+
                 chunks = []
 
                 while True:
                     try:
                         #   Use Socket Timeout to Break When No More Data is Being Sent by Bridge
                         chunk = client.recv(65536)
+                        
                     except socket.timeout:
                         #   If Some Data Already Arrived, or Treat as No Response
                         if chunks:
