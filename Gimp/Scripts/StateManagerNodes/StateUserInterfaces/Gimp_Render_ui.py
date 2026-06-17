@@ -16,7 +16,7 @@ class Ui_wg_Gimp_Render(object):
     def setupUi(self, wg_Gimp_Render):
         if not wg_Gimp_Render.objectName():
             wg_Gimp_Render.setObjectName(u"wg_Gimp_Render")
-        wg_Gimp_Render.resize(482, 1145)
+        wg_Gimp_Render.resize(482, 1249)
         self.verticalLayout = QVBoxLayout(wg_Gimp_Render)
         self.verticalLayout.setObjectName(u"verticalLayout")
         self.verticalLayout.setContentsMargins(0, 0, 0, 0)
@@ -466,6 +466,10 @@ class Ui_wg_Gimp_Render(object):
 
         self.gb_jpg_options.addLayout(self.w_jpg_subSample)
 
+        self.verticalSpacer_8 = QSpacerItem(20, 10, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
+
+        self.gb_jpg_options.addItem(self.verticalSpacer_8)
+
         self.w_jpg_options = QHBoxLayout()
         self.w_jpg_options.setObjectName(u"w_jpg_options")
         self.w_jpg_options.setContentsMargins(20, -1, 30, -1)
@@ -513,6 +517,7 @@ class Ui_wg_Gimp_Render(object):
         self.verticalLayout_6.setContentsMargins(-1, -1, 40, -1)
         self.horizontalLayout_18 = QHBoxLayout()
         self.horizontalLayout_18.setObjectName(u"horizontalLayout_18")
+        self.horizontalLayout_18.setContentsMargins(0, 2, -1, 2)
         self.horizontalSpacer_27 = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
 
         self.horizontalLayout_18.addItem(self.horizontalSpacer_27)
@@ -528,6 +533,7 @@ class Ui_wg_Gimp_Render(object):
 
         self.horizontalLayout_2 = QHBoxLayout()
         self.horizontalLayout_2.setObjectName(u"horizontalLayout_2")
+        self.horizontalLayout_2.setContentsMargins(-1, 2, -1, 2)
         self.horizontalSpacer_24 = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
 
         self.horizontalLayout_2.addItem(self.horizontalSpacer_24)
@@ -541,23 +547,46 @@ class Ui_wg_Gimp_Render(object):
 
         self.verticalLayout_6.addLayout(self.horizontalLayout_2)
 
+        self.verticalSpacer = QSpacerItem(20, 10, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
+
+        self.verticalLayout_6.addItem(self.verticalSpacer)
+
+        self.horizontalLayout_17 = QHBoxLayout()
+        self.horizontalLayout_17.setObjectName(u"horizontalLayout_17")
         self.chb_png_alphaColor = QCheckBox(self.gb_pngOptions)
         self.chb_png_alphaColor.setObjectName(u"chb_png_alphaColor")
         self.chb_png_alphaColor.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
 
-        self.verticalLayout_6.addWidget(self.chb_png_alphaColor)
+        self.horizontalLayout_17.addWidget(self.chb_png_alphaColor)
 
+
+        self.verticalLayout_6.addLayout(self.horizontalLayout_17)
+
+        self.horizontalLayout_21 = QHBoxLayout()
+        self.horizontalLayout_21.setObjectName(u"horizontalLayout_21")
         self.chb_png_bgColor = QCheckBox(self.gb_pngOptions)
         self.chb_png_bgColor.setObjectName(u"chb_png_bgColor")
         self.chb_png_bgColor.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
 
-        self.verticalLayout_6.addWidget(self.chb_png_bgColor)
+        self.horizontalLayout_21.addWidget(self.chb_png_bgColor)
 
+
+        self.verticalLayout_6.addLayout(self.horizontalLayout_21)
+
+        self.horizontalLayout_22 = QHBoxLayout()
+        self.horizontalLayout_22.setObjectName(u"horizontalLayout_22")
         self.chb_png_gamma = QCheckBox(self.gb_pngOptions)
         self.chb_png_gamma.setObjectName(u"chb_png_gamma")
         self.chb_png_gamma.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
 
-        self.verticalLayout_6.addWidget(self.chb_png_gamma)
+        self.horizontalLayout_22.addWidget(self.chb_png_gamma)
+
+
+        self.verticalLayout_6.addLayout(self.horizontalLayout_22)
+
+        self.verticalSpacer_5 = QSpacerItem(20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
+
+        self.verticalLayout_6.addItem(self.verticalSpacer_5)
 
 
         self.horizontalLayout.addLayout(self.verticalLayout_6)
@@ -567,51 +596,90 @@ class Ui_wg_Gimp_Render(object):
         self.verticalLayout_5.setContentsMargins(-1, -1, 40, -1)
         self.horizontalLayout_19 = QHBoxLayout()
         self.horizontalLayout_19.setObjectName(u"horizontalLayout_19")
-        self.horizontalSpacer_22 = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-
-        self.horizontalLayout_19.addItem(self.horizontalSpacer_22)
-
         self.cb_png_bitDepth = QComboBox(self.gb_pngOptions)
         self.cb_png_bitDepth.setObjectName(u"cb_png_bitDepth")
         self.cb_png_bitDepth.setMinimumSize(QSize(124, 0))
 
         self.horizontalLayout_19.addWidget(self.cb_png_bitDepth)
 
+        self.horizontalSpacer_22 = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+
+        self.horizontalLayout_19.addItem(self.horizontalSpacer_22)
+
 
         self.verticalLayout_5.addLayout(self.horizontalLayout_19)
 
         self.horizontalLayout_3 = QHBoxLayout()
         self.horizontalLayout_3.setObjectName(u"horizontalLayout_3")
-        self.horizontalSpacer_16 = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-
-        self.horizontalLayout_3.addItem(self.horizontalSpacer_16)
-
         self.cb_png_compress = QComboBox(self.gb_pngOptions)
         self.cb_png_compress.setObjectName(u"cb_png_compress")
         self.cb_png_compress.setMinimumSize(QSize(124, 0))
 
         self.horizontalLayout_3.addWidget(self.cb_png_compress)
 
+        self.horizontalSpacer_16 = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+
+        self.horizontalLayout_3.addItem(self.horizontalSpacer_16)
+
 
         self.verticalLayout_5.addLayout(self.horizontalLayout_3)
 
+        self.verticalSpacer_9 = QSpacerItem(20, 10, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
+
+        self.verticalLayout_5.addItem(self.verticalSpacer_9)
+
+        self.horizontalLayout_23 = QHBoxLayout()
+        self.horizontalLayout_23.setObjectName(u"horizontalLayout_23")
         self.chb_png_interlaced = QCheckBox(self.gb_pngOptions)
         self.chb_png_interlaced.setObjectName(u"chb_png_interlaced")
         self.chb_png_interlaced.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
 
-        self.verticalLayout_5.addWidget(self.chb_png_interlaced)
+        self.horizontalLayout_23.addWidget(self.chb_png_interlaced)
 
+        self.horizontalSpacer_15 = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+
+        self.horizontalLayout_23.addItem(self.horizontalSpacer_15)
+
+
+        self.verticalLayout_5.addLayout(self.horizontalLayout_23)
+
+        self.horizontalLayout_24 = QHBoxLayout()
+        self.horizontalLayout_24.setObjectName(u"horizontalLayout_24")
         self.chb_png_rez = QCheckBox(self.gb_pngOptions)
         self.chb_png_rez.setObjectName(u"chb_png_rez")
         self.chb_png_rez.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
 
-        self.verticalLayout_5.addWidget(self.chb_png_rez)
+        self.horizontalLayout_24.addWidget(self.chb_png_rez)
 
+        self.horizontalSpacer_23 = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+
+        self.horizontalLayout_24.addItem(self.horizontalSpacer_23)
+
+
+        self.verticalLayout_5.addLayout(self.horizontalLayout_24)
+
+        self.horizontalLayout_25 = QHBoxLayout()
+        self.horizontalLayout_25.setObjectName(u"horizontalLayout_25")
         self.chb_png_layerOffset = QCheckBox(self.gb_pngOptions)
         self.chb_png_layerOffset.setObjectName(u"chb_png_layerOffset")
         self.chb_png_layerOffset.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
 
-        self.verticalLayout_5.addWidget(self.chb_png_layerOffset)
+        self.horizontalLayout_25.addWidget(self.chb_png_layerOffset)
+
+        self.horizontalSpacer_26 = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+
+        self.horizontalLayout_25.addItem(self.horizontalSpacer_26)
+
+
+        self.verticalLayout_5.addLayout(self.horizontalLayout_25)
+
+        self.verticalSpacer_7 = QSpacerItem(20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
+
+        self.verticalLayout_5.addItem(self.verticalSpacer_7)
+
+        self.verticalSpacer_6 = QSpacerItem(20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
+
+        self.verticalLayout_5.addItem(self.verticalSpacer_6)
 
 
         self.horizontalLayout.addLayout(self.verticalLayout_5)
@@ -676,15 +744,15 @@ class Ui_wg_Gimp_Render(object):
         self.verticalLayout_8.setContentsMargins(-1, -1, 40, -1)
         self.horizontalLayout_8 = QHBoxLayout()
         self.horizontalLayout_8.setObjectName(u"horizontalLayout_8")
-        self.horizontalSpacer_18 = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-
-        self.horizontalLayout_8.addItem(self.horizontalSpacer_18)
-
         self.cb_tiff_compress = QComboBox(self.gb_tiffOptions)
         self.cb_tiff_compress.setObjectName(u"cb_tiff_compress")
         self.cb_tiff_compress.setMinimumSize(QSize(124, 0))
 
         self.horizontalLayout_8.addWidget(self.cb_tiff_compress)
+
+        self.horizontalSpacer_18 = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+
+        self.horizontalLayout_8.addItem(self.horizontalSpacer_18)
 
 
         self.verticalLayout_8.addLayout(self.horizontalLayout_8)
@@ -724,6 +792,7 @@ class Ui_wg_Gimp_Render(object):
         self.horizontalLayout_15 = QHBoxLayout()
         self.horizontalLayout_15.setSpacing(0)
         self.horizontalLayout_15.setObjectName(u"horizontalLayout_15")
+        self.horizontalLayout_15.setContentsMargins(40, -1, 40, -1)
         self.verticalLayout_9 = QVBoxLayout()
         self.verticalLayout_9.setObjectName(u"verticalLayout_9")
         self.verticalLayout_9.setContentsMargins(-1, -1, 40, -1)
@@ -739,24 +808,18 @@ class Ui_wg_Gimp_Render(object):
 
         self.verticalLayout_9.addWidget(self.chb_pdf_applyLayers)
 
-
-        self.horizontalLayout_15.addLayout(self.verticalLayout_9)
-
-        self.verticalLayout_10 = QVBoxLayout()
-        self.verticalLayout_10.setObjectName(u"verticalLayout_10")
-        self.verticalLayout_10.setContentsMargins(-1, -1, 40, -1)
         self.chb_pdf_convertToVector = QCheckBox(self.gb_pdfOptions)
         self.chb_pdf_convertToVector.setObjectName(u"chb_pdf_convertToVector")
         self.chb_pdf_convertToVector.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
 
-        self.verticalLayout_10.addWidget(self.chb_pdf_convertToVector)
-
-        self.verticalSpacer = QSpacerItem(20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
-
-        self.verticalLayout_10.addItem(self.verticalSpacer)
+        self.verticalLayout_9.addWidget(self.chb_pdf_convertToVector)
 
 
-        self.horizontalLayout_15.addLayout(self.verticalLayout_10)
+        self.horizontalLayout_15.addLayout(self.verticalLayout_9)
+
+        self.horizontalSpacer_11 = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+
+        self.horizontalLayout_15.addItem(self.horizontalSpacer_11)
 
 
         self.gb_jpg_options_7.addLayout(self.horizontalLayout_15)
@@ -772,10 +835,7 @@ class Ui_wg_Gimp_Render(object):
         self.gb_jpg_options_8.setObjectName(u"gb_jpg_options_8")
         self.horizontalLayout_16 = QHBoxLayout()
         self.horizontalLayout_16.setObjectName(u"horizontalLayout_16")
-        self.horizontalSpacer_15 = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-
-        self.horizontalLayout_16.addItem(self.horizontalSpacer_15)
-
+        self.horizontalLayout_16.setContentsMargins(20, -1, 20, -1)
         self.chb_psd_saveAsScene = QCheckBox(self.gb_psdOptions)
         self.chb_psd_saveAsScene.setObjectName(u"chb_psd_saveAsScene")
         self.chb_psd_saveAsScene.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
@@ -909,6 +969,4 @@ class Ui_wg_Gimp_Render(object):
         self.l_pathLast.setText(QCoreApplication.translate("wg_Gimp_Render", u"None", None))
         self.b_pathLast.setText(QCoreApplication.translate("wg_Gimp_Render", u"...", None))
     # retranslateUi
-
-
 
