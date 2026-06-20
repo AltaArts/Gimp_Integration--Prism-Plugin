@@ -1,4 +1,4 @@
-# **Gimp Integration for Prism Pipeline 2**
+# **Gimp 2 Integration for Prism Pipeline 2**
 A Gimp integration to be used with version 2 of Prism Pipeline 
 
 Prism automates and simplifies the workflow of animation and VFX projects.
