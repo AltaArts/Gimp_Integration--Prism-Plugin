@@ -17,7 +17,10 @@ https://prism-pipeline.com/
 ## **Notes**
 
 - Requires GIMP 3.0+ and Prism 2.x (Python 3.11+).
-
+- Completely rewritten for Gimp3. Persistent and faster Prism integration.
+- Image importing and versioning through a custom Prism Media Browser.
+- Automatic layer naming for imported images.
+- Exporting to Prism with versioning using a custom Render state in the State Manager.
 - Supported export formats: `.png`, `.exr`, `.jpg`, `.tif`, `.pdf`, `.psd`.
 - Tooltips are provided throughout the UI.
 
