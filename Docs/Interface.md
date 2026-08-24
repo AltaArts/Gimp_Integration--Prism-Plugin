@@ -114,3 +114,15 @@ Key objects involved in this architecture:
 ### State Manager State Storage
 
 Prism State Manager state data is stored directly in the `.xcf` scenefile using GIMP's [parasites](https://developer.gimp.org/core/specifications/parasites/) mechanism.  This means State Manager states are embedded in the scenefile and persist across sessions with no external sidecar files needed.
+
+<br/>
+
+
+___
+jump to:
+
+[**Installation**](Installation.md)
+
+[**Importing**](Importing.md)
+
+[**Exporting**](Exporting.md)

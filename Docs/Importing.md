@@ -76,6 +76,8 @@ When **Import Latest Version** is triggered, the integration does not delete and
 ___
 jump to:
 
+[**Installation**](Installation.md)
+
 [**Interface**](Interface.md)
 
 [**Exporting**](Exporting.md)

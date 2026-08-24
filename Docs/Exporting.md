@@ -60,11 +60,19 @@ The default is 100% (no scaling).
 ### PNG
 - **Bit Depth:** Export bit depth (may differ from the source image precision).
 - **Compression:** Lossless compression level 1–10 (higher = smaller file, slower).
+- **PreMult Alpha:** Enables pre-multiplied alpha for the exported PNG.
 - **Interlaced:** Enables interlaced PNG encoding.
-- **Save Resolution:** Embeds DPI/PPI metadata.
 - **Save Background Color:** Saves a background color chunk.
+- **Save Resolution:** Embeds DPI/PPI metadata.
 - **Save Layer Offset:** Saves layer offset data.
-- **Save Alpha Color:** Saves the alpha color chunk.
+
+### EXR
+> [!NOTE]
+> There are no available options for the EXR export at this time as Gimps's exporter does not expose any options.  The exported EXR will take the current image's settings and encode as below:
+
+- **Compression:** Gimp encodes all EXR exports to lossless ZIP compression.
+- **Alpha"** The exported EXR will be RGB or RGBA based on if the image has an Alpha Channel.
+- **Bit Depth:** The exported EXR will be Float 16 unless the Gimp image 'Encoding' is set to Float 32.
 
 ### JPEG
 - **Quality:** Compression quality 0–100 (lower = more compression/loss).
@@ -77,20 +85,13 @@ The default is 100% (no scaling).
 ### TIFF
 - **Compression:** Compression codec (None, LZW, Deflate, PackBits, etc.).
 - **Save Layers:** Saves all GIMP layers as separate TIFF layers.
+- **Save BIGTIFF:** Saves to the BIGTIFF format (64bit) to allow greater than 4gb files.
+- **Save Transparent Color:** Saves the color of completely transparent pixels.
 
 ### PDF
 - **Omit Hidden Layers:** Skips layers that are currently hidden in GIMP.
-- **Convert Text to Vector:** Converts text layers to vector paths in the PDF.
-
-<br/>
-
-## **Alpha Fill**
-
-If the export format does not support an alpha channel (e.g. `.jpg`) and the active image contains an alpha channel, an **Alpha Background Fill** option will appear.  This lets you select the background color to be composited beneath the image before export.
-
-![Alpha Fill](DocsImages/SM_Render_AlphaFill.png)
-
-The fill color is applied to a duplicate of the image and does not alter the original scenefile.
+- **Apply Layer Masks:** Merges Gimp layer masks to PDF layers.
+- **Bitmaps to Vector:** Convert images to vector shapes if possible.
 
 <br/>
 
@@ -98,7 +99,6 @@ The fill color is applied to a duplicate of the image and does not alter the ori
 
 When exporting to `.psd`, an additional option is available to save the `.psd` as a **Scenefile** rather than into the standard Media/Renders identifier.  This exports the `.psd` alongside the `.xcf` source file, using the same version number, under the Scenefiles tab of the project.
 
-![PSD Scenefile](DocsImages/SM_Render_PSD.png)
 
 <br/>
 
@@ -116,6 +116,8 @@ The bridge selects the appropriate GIMP PDB export procedure for each format (e.
 
 ___
 jump to:
+
+[**Installation**](Installation.md)
 
 [**Interface**](Interface.md)
 
